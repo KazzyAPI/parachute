@@ -41,7 +41,7 @@ If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It 
 - **Given** an engine proxy in front of a reachable daemon that answers `500` to every image inspect request for container `a`'s image, and containers `a` and `b` **When** a cycle runs **Then** `a` is `failed` with reason `engine_error`, `b` gets its normal result, and the host is reported reachable.
 
 ### DMN-006 Health check command
-`parachute healthcheck` (also `parachute --health-check`) MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.
+`parachute healthcheck` MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.
 
 - **Given** a started Parachute container **When** `docker exec <c> parachute healthcheck` runs **Then** it exits 0, and the container's health status becomes `healthy`.
 - **Given** a container from the Parachute image whose command is `sleep infinity` **When** `parachute healthcheck` runs inside it **Then** it exits 1.
