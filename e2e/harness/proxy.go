@@ -6,7 +6,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -16,10 +15,8 @@ type ProxyOptions struct {
 }
 
 type RegistryProxy struct {
-	Host     string
-	Port     string
-	lock     sync.Mutex
-	requests []RegistryRequest
+	Host string
+	Port string
 }
 
 func (r *Registry) Proxy(options ProxyOptions) *RegistryProxy {
@@ -30,9 +27,6 @@ func (r *Registry) Proxy(options ProxyOptions) *RegistryProxy {
 	forward := httputil.NewSingleHostReverseProxy(target)
 	proxy := &RegistryProxy{}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		proxy.lock.Lock()
-		proxy.requests = append(proxy.requests, RegistryRequest{Method: request.Method, URI: request.URL.RequestURI(), UserAgent: request.UserAgent()})
-		proxy.lock.Unlock()
 		if options.RejectHead && request.Method == http.MethodHead && strings.Contains(request.URL.Path, "/manifests/") {
 			http.Error(response, "HEAD not allowed", http.StatusMethodNotAllowed)
 			return
@@ -44,10 +38,4 @@ func (r *Registry) Proxy(options ProxyOptions) *RegistryProxy {
 	proxy.Host = strings.TrimPrefix(server.URL, "http://")
 	proxy.Port = proxy.Host[strings.LastIndex(proxy.Host, ":")+1:]
 	return proxy
-}
-
-func (p *RegistryProxy) Requests() []RegistryRequest {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	return append([]RegistryRequest{}, p.requests...)
 }

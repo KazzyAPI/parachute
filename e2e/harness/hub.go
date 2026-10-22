@@ -19,7 +19,6 @@ import (
 )
 
 type FakeHub struct {
-	env      *Env
 	CAFile   string
 	Port     int
 	lock     sync.Mutex
@@ -29,8 +28,8 @@ type FakeHub struct {
 
 func (e *Env) FakeDockerHub() *FakeHub {
 	e.T.Helper()
-	hub := &FakeHub{env: e, tlsConns: make(chan net.Conn)}
-	certificate, caPEM, _, _ := hub.certificates()
+	hub := &FakeHub{tlsConns: make(chan net.Conn)}
+	certificate, caPEM, _, _ := e.certificates()
 	hub.CAFile = e.WriteFile("hub/ca.pem", string(caPEM), 0o644)
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
@@ -101,37 +100,37 @@ func (h *FakeHub) serve(response http.ResponseWriter, request *http.Request) {
 
 const fakeDigest = "1111111111111111111111111111111111111111111111111111111111111111"
 
-func (h *FakeHub) certificates() (tls.Certificate, []byte, []byte, []byte) {
-	h.env.T.Helper()
+func (e *Env) certificates() (tls.Certificate, []byte, []byte, []byte) {
+	e.T.Helper()
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	caTemplate := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "e2e fake hub CA"},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true,
 		KeyUsage: x509.KeyUsageCertSign}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "registry-1.docker.io"},
 		DNSNames: []string{"registry-1.docker.io", "auth.docker.io", "index.docker.io"}, NotBefore: time.Now().Add(-time.Hour),
 		NotAfter: time.Now().Add(time.Hour), ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, KeyUsage: x509.KeyUsageDigitalSignature}
 	caCertificate, err := x509.ParseCertificate(caDER)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCertificate, &leafKey.PublicKey, caKey)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	keyDER, err := x509.MarshalECPrivateKey(leafKey)
 	if err != nil {
-		h.env.T.Fatal(err)
+		e.T.Fatal(err)
 	}
 	return tls.Certificate{Certificate: [][]byte{leafDER}, PrivateKey: leafKey},
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}),
@@ -141,7 +140,7 @@ func (h *FakeHub) certificates() (tls.Certificate, []byte, []byte, []byte) {
 
 func (e *Env) UnrelatedCertificates() string {
 	e.T.Helper()
-	_, caPEM, certPEM, keyPEM := (&FakeHub{env: e}).certificates()
+	_, caPEM, certPEM, keyPEM := e.certificates()
 	e.WriteFile("certs/ca.pem", string(caPEM), 0o644)
 	e.WriteFile("certs/cert.pem", string(certPEM), 0o644)
 	return filepath.Dir(e.WriteFile("certs/key.pem", string(keyPEM), 0o600))

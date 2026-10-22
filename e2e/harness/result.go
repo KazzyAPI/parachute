@@ -112,5 +112,3 @@ func (r *Result) Summary() map[string]any {
 	}
 	return objects[len(objects)-1]
 }
-
-func (r *Result) Combined() string { return r.Stdout + r.Stderr }

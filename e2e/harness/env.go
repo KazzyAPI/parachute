@@ -114,5 +114,3 @@ func (e *Env) Eventually(timeout time.Duration, what string, condition func() bo
 	}
 	e.T.Fatalf("timed out after %s waiting for %s", timeout, what)
 }
-
-func (e *Env) Desktop() bool { return suite.desktop }

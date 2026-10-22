@@ -86,8 +86,7 @@ type FakeTLSDaemon struct {
 
 func (e *Env) FakeTLSDaemon() *FakeTLSDaemon {
 	e.T.Helper()
-	hub := &FakeHub{env: e}
-	certificate, _, _, _ := hub.certificates()
+	certificate, _, _, _ := e.certificates()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		e.T.Fatal(err)

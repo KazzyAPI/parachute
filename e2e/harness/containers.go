@@ -90,8 +90,3 @@ func (e *Env) VolumeList() string {
 	e.T.Helper()
 	return e.Docker("volume", "ls", "-q")
 }
-
-func (e *Env) ImageID(ref string) string {
-	e.T.Helper()
-	return e.Docker("image", "inspect", "--format", "{{.Id}}", ref)
-}

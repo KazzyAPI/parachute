@@ -6,11 +6,6 @@ import (
 	"github.com/KazzyAPI/parachute/e2e/harness"
 )
 
-func fixture(env *harness.Env) string {
-	env.T.Helper()
-	return env.Registry().Push("app", "1", "1")
-}
-
 func TestSEL_001_default_selects_all_running(t *testing.T) {
 	env := harness.NewEnv(t)
 	image := fixture(env)

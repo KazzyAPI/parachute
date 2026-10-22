@@ -75,6 +75,20 @@ func findLogs(logs []harness.Log, match func(harness.Log) bool) []harness.Log {
 	return found
 }
 
+func startupLog(t *testing.T, logs []harness.Log) harness.Log {
+	t.Helper()
+	started := findLogs(logs, func(entry harness.Log) bool { return entry.Msg() == "Parachute started" })
+	if len(started) != 1 {
+		t.Fatalf("expected one startup log line, got %d", len(started))
+	}
+	return started[0]
+}
+
+func fixture(env *harness.Env) string {
+	env.T.Helper()
+	return env.Registry().Push("app", "1", "1")
+}
+
 type updatable struct {
 	registry *harness.Registry
 	ref      string

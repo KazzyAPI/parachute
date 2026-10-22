@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestNTF_002_one_digest_grouped_by_stack(t *testing.T) {
 	time.Sleep(time.Second)
 	lines := strings.Split(singleReport(t, webhook).Message, "\n")
 	for _, project := range []string{shop, blog} {
-		index := indexOfLine(lines, "  "+project)
+		index := slices.Index(lines, "  "+project)
 		if index < 0 || index+2 >= len(lines) {
 			t.Fatalf("stack %s not listed:\n%s", project, strings.Join(lines, "\n"))
 		}
@@ -83,15 +84,6 @@ func TestNTF_002_one_digest_grouped_by_stack(t *testing.T) {
 			}
 		}
 	}
-}
-
-func indexOfLine(lines []string, want string) int {
-	for index, line := range lines {
-		if line == want {
-			return index
-		}
-	}
-	return -1
 }
 
 func TestNTF_003_default_level_omits_fresh(t *testing.T) {

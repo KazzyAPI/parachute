@@ -109,11 +109,7 @@ func TestCFG_011_explicit_setting_wins_over_profile(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once", "--profile", "convenient", "--armed=false", "--delay-days", "3").Run(runTimeout)
 	assertExit(t, result, 0)
-	started := findLogs(result.Logs(), func(entry harness.Log) bool { return entry.Msg() == "Parachute started" })
-	if len(started) != 1 {
-		t.Fatalf("no startup message")
-	}
-	relaxed := started[0].Get("relaxed")
+	relaxed := startupLog(t, result.Logs()).Get("relaxed")
 	if strings.Contains(relaxed, "delay-days") || !strings.Contains(relaxed, "protect-databases") || strings.Contains(relaxed, "armed") {
 		t.Errorf("relaxed defaults %q, want only protect-databases", relaxed)
 	}

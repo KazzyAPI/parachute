@@ -92,14 +92,17 @@ func TestSTS_005_status_is_read_only(t *testing.T) {
 		}
 		return sha256.Sum256(contents)
 	}
-	before, containers, requests := checksum(), env.Docker("ps", "-a", "--no-trunc", "--filter", "label=parachute-e2e="+env.ID, "--format", "{{.ID}} {{.Image}} {{.State}}"), len(registry.ParachuteRequests())
+	containers := func() string {
+		return env.Docker("ps", "-a", "--no-trunc", "--filter", "label=parachute-e2e="+env.ID, "--format", "{{.ID}} {{.Image}} {{.State}}")
+	}
+	before, listed, requests := checksum(), containers(), len(registry.ParachuteRequests())
 	for range 10 {
 		statusDocument(t, env)
 	}
 	if checksum() != before {
 		t.Error("state file changed")
 	}
-	if after := env.Docker("ps", "-a", "--no-trunc", "--filter", "label=parachute-e2e="+env.ID, "--format", "{{.ID}} {{.Image}} {{.State}}"); after != containers {
+	if containers() != listed {
 		t.Error("containers changed")
 	}
 	if after := len(registry.ParachuteRequests()); after != requests {

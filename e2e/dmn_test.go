@@ -9,15 +9,6 @@ import (
 	"github.com/KazzyAPI/parachute/e2e/harness"
 )
 
-func startupLog(t *testing.T, logs []harness.Log) harness.Log {
-	t.Helper()
-	started := findLogs(logs, func(entry harness.Log) bool { return entry.Msg() == "Parachute started" })
-	if len(started) != 1 {
-		t.Fatalf("expected one startup log line, got %d", len(started))
-	}
-	return started[0]
-}
-
 func TestDMN_001_default_socket_is_host_local(t *testing.T) {
 	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
 		t.Skip("no Docker socket at the default path")
