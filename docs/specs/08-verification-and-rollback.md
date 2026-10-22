@@ -5,7 +5,7 @@
 After an update, Parachute proves the new containers work, or puts the old ones back.
 
 ### VER-001 Verification is required
-Every replacement that was started in the `update` phase MUST pass verification before the transaction commits. Verification passes when the base check (VER-002 or VER-003) and every configured extra check (VER-004, VER-005) pass within the deadline (VER-006). Checks run in that order.
+Every replacement that was started in the `update` phase (or, in a self-update, the `handover` phase, UPD-018) MUST pass verification before the transaction reaches state `committed` (UPD-009). Verification passes when the base check (VER-002 or VER-003) and every configured extra check (VER-004, VER-005) pass within the deadline (VER-006). Checks run in that order.
 
 - **Given** a new image whose process exits 2 seconds after start **When** it is updated **Then** the transaction rolls back and the result is `rolled_back` with reason `verify_failed`.
 
@@ -47,7 +47,7 @@ A transaction MUST commit only if every started replacement in it passes verific
 - **Given** a stack transaction updating `web` and `api` where only `api` fails verification **When** the cycle runs **Then** both `web` and `api` run their previous images with their original container IDs.
 
 ### VER-008 Rollback procedure
-Rollback MUST: stop and remove every replacement created by the transaction; restore data (VER-009); rename each original container back to its original name; start the originals that were running before, dependencies first; and verify them (VER-010).
+Rollback (transaction state `rolling_back`, [glossary: Transaction state machine](glossary.md#transaction-state-machine)) MUST: stop and remove every replacement created by the transaction, identified only as UPD-017 allows; restore data (VER-009); rename each original container back to its original name; start the originals that were running before, dependencies first; and verify them (VER-010).
 
 - **Given** a failed verification **When** rollback finishes **Then** each original container has its original name, ID, and image and is `running`, and no replacement container from that transaction exists.
 
@@ -58,12 +58,14 @@ When at least one replacement in the transaction was started (and so may have wr
 - **Given** a replacement that could not be created **When** rollback finishes **Then** the volume's content was not rewritten (its files keep their modification times).
 
 ### VER-010 Rollback verification and rollback failure
-After rollback, the restored originals MUST pass the base check (VER-002 or VER-003) within the deadline. If any original cannot be restored, does not pass, or data cannot be restored, the result MUST be `rollback_failed`, Parachute MUST send an `error` notification regardless of the notification level (NTF-012), log at `error`, and exit with code 3 in run-once mode. The transaction is left as it is for the operator; Parachute MUST NOT retry it automatically.
+After rollback, the restored originals MUST pass the base check (VER-002 or VER-003) within the deadline; the transaction then ends in state `rolled_back`. If any original cannot be restored, does not pass, or data cannot be restored, the transaction MUST end in state `rollback_failed` with result `rollback_failed` and reason `restore_failed` (or `snapshot_invalid`, BKP-007), and Parachute MUST send an `error` notification regardless of the notification level (NTF-012), log at `error`, and exit with code 3 in run-once mode. Parachute MUST leave the containers as rollback left them and MUST NOT retry automatically: the stack is **frozen** as the [transaction state machine](glossary.md#transaction-state-machine) defines, so every update of a container in it is held with reason `previous_attempt_failed`, whatever the candidate digest, until the operator approves the failed container's update (API-007). An approval starts a new transaction with a new ID in the next cycle.
 
-- **Given** a failed verification and the original image removed by the test before rollback **When** rollback runs **Then** the result is `rollback_failed`, the webhook receives an error notification with the transaction ID, and with `--run-once` the exit code is 3.
+- **Given** a failed verification and the original image removed by the test before rollback **When** rollback runs **Then** the result is `rollback_failed` with reason `restore_failed`, the webhook receives an error notification with the transaction ID, and with `--run-once` the exit code is 3.
+- **Given** a stack whose last transaction ended `rollback_failed`, and a different, newer digest then pushed for its container **When** the next cycle runs **Then** the container is `held` with reason `previous_attempt_failed`, no container in the stack is changed, and `parachute status --json` shows the stack as frozen with the `rollback_failed` transaction ID and the snapshot ID (STS-002).
+- **Given** the same, after the operator repairs the stack and calls `POST /v1/approve` for the failed container **When** the next cycle runs **Then** the container is updated in a transaction whose ID differs from the `rollback_failed` one.
 
 ### VER-011 Rollback report
-The report entry for a rolled-back transaction MUST include: the transaction ID, the reason (`verify_failed`, `verify_timeout`, `transaction_timeout`, or `interrupted`), the failed check and its last output (health check log, command output, or HTTP status; truncated to 1000 characters), whether data was restored, and the snapshot ID. For reason `verify_timeout`, the entry and the notification MUST also state the effective deadline that expired and suggest setting the label `parachute.verify.timeout` for a slow-starting container.
+The report entry for a rolled-back transaction MUST include: the transaction ID, the reason (one of the `rolled_back` codes in [reasons.md](reasons.md#rolled_back)), the failed check and its last output (health check log, command output, or HTTP status; truncated to 1000 characters), whether data was restored, and the snapshot ID. For reason `verify_timeout`, the entry and the notification MUST also state the effective deadline that expired and suggest setting the label `parachute.verify.timeout` for a slow-starting container.
 
 - **Given** a new image whose health check prints `db connection refused` and fails **When** the cycle reports **Then** the entry contains `rolled_back`, `verify_failed`, the transaction ID, `db connection refused`, and `data restored: yes`.
 - **Given** a rollback with reason `verify_timeout` **When** the cycle reports **Then** the webhook's notification contains `verify_timeout`, the expired deadline (for example `120s`), and `parachute.verify.timeout`.
