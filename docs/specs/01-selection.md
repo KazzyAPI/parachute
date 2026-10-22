@@ -2,7 +2,7 @@
 
 **Status:** Draft
 
-Which containers Parachute considers in a cycle. A container that passes selection is a **candidate**. Settings are listed in [16-configuration.md](16-configuration.md#settings-reference); labels are read from the monitored container, never from Parachute's own container. Selection is evaluated per host (see [13-daemon-and-runtimes.md](13-daemon-and-runtimes.md)).
+Which containers Parachute considers in a cycle. A container that passes selection is a **candidate**. Settings are listed in [16-configuration.md](16-configuration.md#settings-reference); labels are read from the monitored container, never from Parachute's own container, and only as the operator set them when the container was created (SEL-013; [glossary: Trust boundaries](glossary.md#trust-boundaries)). Selection is evaluated per host (see [13-daemon-and-runtimes.md](13-daemon-and-runtimes.md)).
 
 ### SEL-001 Default selection
 With no selection settings, Parachute MUST treat every running container on each managed host as a candidate, except the containers excluded by SEL-012.
@@ -20,7 +20,7 @@ When container names are given as positional arguments or with the repeatable `-
 ### SEL-003 Opt-out label
 A container labelled `parachute.enable=false` MUST NOT be a candidate.
 
-- **Given** running container `a` labelled `parachute.enable=false` and container `b` unlabelled **When** a cycle runs **Then** `b` is a candidate and `a` is not checked, updated, or listed as a candidate.
+- **Given** running container `a` labelled `parachute.enable=false` and container `b` unlabelled **When** a cycle runs **Then** the report has an entry for `b` and none for `a`, the registry access log shows no manifest request for `a`'s repository, and `a`'s container ID is unchanged.
 - **Given** Parachute's own container labelled `parachute.enable=false` and monitored container `a` unlabelled **When** a cycle runs **Then** `a` is a candidate.
 
 ### SEL-004 Opt-in mode
@@ -74,6 +74,18 @@ With `--scope <value>` set, Parachute MUST consider only containers whose `parac
 - **Given** two Parachute instances with scopes `prod` and `dev`, armed, and newer images for `a` and `b` **When** both run a cycle **Then** each container is updated exactly once, by the instance with the matching scope.
 
 ### SEL-012 Parachute's own containers are excluded
-Containers labelled `parachute.helper=true` (helpers, restore-verification containers) MUST never be candidates. Containers labelled `parachute.self=true` (Parachute instances, a label carried by the official image) are candidates only for self-update (UPD-018).
+Containers labelled `parachute.helper=true` (helpers, restore-verification containers) MUST never be candidates. Containers labelled `parachute.self=true` (Parachute instances, a label carried by the official image) are candidates only for self-update (UPD-018): the container the running instance runs in is a candidate, and any other container labelled `parachute.self=true` is not. Whether a container carries `parachute.helper=true` is read as SEL-013 says, so an image cannot exclude its own containers by baking this label in.
 
-- **Given** a running container labelled `parachute.helper=true` **When** a cycle runs **Then** it is not listed as a candidate.
+- **Given** a running container labelled `parachute.helper=true` at creation **When** a cycle runs **Then** the report has no entry for it.
+- **Given** a running container created from an image whose configuration has `LABEL parachute.helper=true`, with no label set at creation, and a newer image **When** a cycle runs **Then** the report has an entry for it.
+- **Given** Parachute running as a container from the official image and a second container from the official image (another instance, same or no scope) with a newer image **When** a cycle runs **Then** the report has an entry for Parachute's own container and none for the second container.
+
+### SEL-013 Image-baked labels do not set behaviour
+Parachute MUST use a `parachute.*` label only when the operator set it when creating the container. A label on the container whose key and value both equal a label in the configuration of the image the container was created from is **inherited** (the same rule as UPD-004) and MUST be treated as absent, with these exceptions, which can only make Parachute more cautious and are honoured when inherited: `parachute.self=true`, `parachute.monitor-only=true`, `parachute.approval=required`. Every other inherited `parachute.*` label (for example `parachute.enable`, `parachute.scope`, `parachute.armed`, `parachute.helper`, `parachute.backup`, `parachute.database`, `parachute.delay-days`, `parachute.tag-follow`, `parachute.lifecycle.*`, `parachute.backup.dump`, `parachute.verify.*`) is ignored, and Parachute MUST log a `warn` line once per cycle per container naming the container and the ignored label keys. A label whose value differs from the image's value is operator-set and is used. If the container's image cannot be inspected, the candidate's result is `failed` with reason `engine_error`. This changes the M1 behaviour of SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, and DET-004, which read the container's merged labels.
+
+- **Given** an image with `LABEL parachute.backup=none`, a container created from it without labels, and a newer image **When** a cycle runs **Then** a `warn` line names the container and `parachute.backup`, and no relaxation for that container is logged (POL-009).
+- **Given** an image with `LABEL parachute.enable=false` and a container created from it without labels **When** a cycle runs **Then** the container is a candidate and a `warn` line names `parachute.enable`.
+- **Given** an image with `LABEL parachute.enable=true`, `--label-enable`, and a container created from it without labels **When** a cycle runs **Then** the report has no entry for the container.
+- **Given** an image with `LABEL parachute.scope=prod`, `--scope prod`, and a container created from it without labels **When** a cycle runs **Then** the report has no entry for the container.
+- **Given** an image with `LABEL parachute.monitor-only=true`, a container created from it without labels, and a newer image **When** a cycle runs **Then** the result is `held` with reason `monitor_only`.
+- **Given** an image with `LABEL parachute.enable=false` and a container created from it with `--label parachute.enable=true` **When** a cycle runs **Then** the container is a candidate and no `warn` line names `parachute.enable`.
