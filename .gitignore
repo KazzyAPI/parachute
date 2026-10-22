@@ -1,0 +1,6 @@
+.DS_Store
+protect-*.json
+/bin/
+/dist/
+*.test
+*.out
