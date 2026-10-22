@@ -3,6 +3,7 @@ package harness
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -83,6 +84,7 @@ func (e *Env) ImageList() string {
 			own = append(own, line)
 		}
 	}
+	slices.Sort(own)
 	return strings.Join(own, "\n")
 }
 
@@ -94,5 +96,6 @@ func (e *Env) VolumeList() string {
 			own = append(own, name)
 		}
 	}
+	slices.Sort(own)
 	return strings.Join(own, "\n")
 }
