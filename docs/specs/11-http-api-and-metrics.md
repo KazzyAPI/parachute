@@ -20,7 +20,7 @@ Parachute MUST listen for HTTP on `--http-api-port` (default `8080`, all interfa
 - **Given** `--http-api-update` and a token **When** `DELETE /v1/update` is called with the token **Then** the response is 405.
 
 ### API-002 Authentication
-Every endpoint MUST require `Authorization: Bearer <token>` matching `--http-api-token`. This token can trigger updates and approvals and must be treated as root-equivalent ([ADR-0010](../adr/0010-docker-socket-access-and-security.md)). Only `GET /status` and `GET /v1/status` MUST also accept HTTP Basic authentication with any user name and the token as password, so browsers can open them, and MUST also accept the optional read-only `--http-api-status-token` (when set), as a Bearer token or as the Basic password. On every other endpoint, Basic credentials and the status token MUST be rejected with 401. A missing or wrong token MUST return 401 with header `WWW-Authenticate` and MUST NOT run anything.
+Every endpoint MUST require `Authorization: Bearer <token>` matching `--http-api-token`. This token can trigger updates and approvals and must be treated as root-equivalent ([ADR-0010](../adr/0010-docker-socket-access-and-security.md)). Only `GET /status` and `GET /v1/status` MUST also accept HTTP Basic authentication with any user name and the token as password, so browsers can open them, and MUST also accept the optional read-only `--http-api-status-token` (when set), as a Bearer token or as the Basic password. On every other endpoint, Basic credentials and the status token MUST be rejected with 401. A missing or wrong token MUST return 401 with header `WWW-Authenticate` and MUST NOT run anything. Requests are untrusted input ([glossary: Trust boundaries](glossary.md#trust-boundaries)): they are size-limited (API-009), failed authentication is throttled (API-010), and tokens are compared in constant time (API-011).
 
 - **Given** a configured token **When** `POST /v1/update` is called without a token or with a wrong one **Then** the response is 401 and no cycle starts.
 - **Given** a configured token **When** `GET /status` is called with Basic credentials `any:<token>` **Then** the response is 200.
@@ -73,3 +73,22 @@ With `--http-api-periodic-polls` on, scheduled cycles (SCH-001, SCH-002) MUST al
 
 - **Given** `--http-api-metrics`, a token, and a cycle that updated one of three containers **When** `GET /v1/metrics` is called **Then** the body contains `parachute_containers_scanned{host="local"} 3`, `parachute_containers_updated{host="local"} 1`, and `parachute_scans_total 1`.
 - **Given** a second host that is unreachable **When** a cycle ends **Then** `parachute_host_up{host="<name>"} 0` is reported.
+
+### API-009 Request limits
+The server MUST bound what one request can cost. A request whose request line and headers together exceed 8 KiB MUST get 431. A request with a body larger than 1 KiB (by `Content-Length` or by bytes read) MUST get 413 after reading at most 1 KiB of the body; no endpoint uses a request body, and a smaller body is ignored. A connection that has not sent complete request headers within 10 seconds of opening, or that stays idle for 60 seconds between requests, MUST be closed. Limits are checked before authentication, and a rejected request MUST NOT run anything.
+
+- **Given** `--http-api-update` and a token **When** `POST /v1/update` is sent with the token and a 9 KiB `X-Pad` header **Then** the response is 431 and no cycle starts.
+- **Given** the same **When** `POST /v1/update` is sent with the token and a 2 KiB body **Then** the response is 413 and no cycle starts.
+- **Given** the same **When** a client opens a connection and sends only `GET /v1/status HTTP/1.1\r\n` **Then** the server closes the connection 10 seconds later (tolerance ±5 s).
+
+### API-010 Failed-authentication throttling
+Parachute MUST count failed authentications (API-002) per source IP address over a sliding 60-second window. While an address has 10 or more failures in the window, every request from it MUST get 429 with a `Retry-After` header (whole seconds until the oldest counted failure leaves the window, 1 to 60) without checking its credentials or running anything; such throttled requests are not counted as failures. The first throttled request in a window MUST be logged at `warn` with the source address, never the presented credentials. Other source addresses are not affected.
+
+- **Given** `--http-api-update` and a token **When** 10 `POST /v1/update` requests with a wrong token are sent from one address within 5 seconds, followed by one with the correct token **Then** the first 10 responses are 401, the 11th is 429 with `Retry-After` between 1 and 60, and no cycle starts.
+- **Given** that state **When** a request with the correct token arrives from a second source address **Then** the response is 200.
+- **Given** that state **When** a request with the correct token arrives from the first address 65 seconds after the last failure **Then** the response is 200.
+
+### API-011 Constant-time token comparison
+Parachute MUST compare a presented token with `--http-api-token` and `--http-api-status-token` in time that does not depend on the presented token's content or length, by comparing fixed-length digests (SHA-256) of both values with a constant-time comparison. Both configured tokens are always compared, whichever matches.
+
+- **Given** a 64-character token **When** 100 requests with a wrong token equal to it except in the last character and 100 with a wrong token sharing no character with it are sent, interleaved, from source addresses chosen so that none is throttled (API-010) **Then** every response is 401 and the median response times of the two sets differ by less than 1 ms.
