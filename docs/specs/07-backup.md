@@ -56,21 +56,33 @@ Parachute MUST check validity after writing a snapshot, and again immediately be
 - **Given** a snapshot whose archive the test replaces with a symbolic link to a valid copy of itself **When** restore verification runs **Then** the result is `fail` with reason `snapshot_invalid`.
 
 ### BKP-008 Retention
-Parachute MUST keep the snapshots of the newest `--backup-retention` transactions per stack (default `3`) and remove older ones after each commit and after each completed rollback (result `rolled_back`), so repeated rollbacks cannot fill the store. After a `rollback_failed` result nothing is removed (VER-010). Only directories containing a manifest with `format` `parachute.snapshot/v1` are counted or removed.
+Parachute MUST keep the snapshots of the newest `--backup-retention` transactions per stack (default `3`) and remove older ones after each commit and after each completed rollback (result `rolled_back`), so repeated rollbacks cannot fill the store. After a `rollback_failed` result nothing is removed (VER-010). A directory is counted or removed only when the state file records its snapshot ID, for that host and stack, as written by Parachute in a transaction whose ID equals the manifest's `transaction`, and the directory is valid per BKP-007 item 1. Removal MUST NOT follow symbolic links, and a directory that is itself a symbolic link is never counted or removed.
 
 - **Given** default retention and four committed updates of one stack **When** the fourth commits **Then** exactly three snapshot directories for that stack remain, the newest three.
 - **Given** default retention and five transactions of one stack that each rolled back (a newer failing image pushed before each cycle) **When** the fifth rollback finishes **Then** exactly three snapshot directories for that stack remain, the newest three.
 - **Given** an unrelated directory `notes/` in the backup volume **When** retention runs **Then** `notes/` still exists.
+- **Given** a directory the test created in the backup volume, named like a snapshot ID and holding a copy of a real snapshot's manifest with its `id` changed to that name **When** retention runs after four commits **Then** that directory still exists.
+- **Given** a snapshot directory that the test replaced with a symbolic link to a host directory `/srv/keep` **When** retention would remove it **Then** `/srv/keep` and its content still exist.
 
 ### BKP-009 Partial snapshots are removed
-When a snapshot fails, Parachute MUST remove its partial directory and restart any container it stopped for the snapshot.
+When a snapshot fails, Parachute MUST remove its partial directory, which is the directory named by the snapshot ID it generated for this transaction and nothing else, and restart any container it stopped for the snapshot.
 
 - **Given** a snapshot that fails while copying **When** the cycle ends **Then** no directory for that snapshot ID remains and the container is running.
 
 ### BKP-010 Helper containers
-Helper containers created for snapshots, restores, or URL probes (VER-005) MUST be labelled `parachute.helper=true`, use `--helper-image` (default: the image of Parachute's own container; required when Parachute does not run in a container, otherwise startup fails with exit code 2), and be removed when their task ends, whether it succeeded or failed.
+Helper containers created for snapshots, restores, or URL probes (VER-005) MUST use `--helper-image` (default: the image of Parachute's own container; required when Parachute does not run in a container, otherwise startup fails with exit code 2), and MUST be labelled `parachute.helper=true` and with the ID of the work they belong to: `parachute.transaction=<transaction ID>` for snapshots, rollback restores, and URL probes; `parachute.restore-verify=<snapshot ID>` for restore verification (RST-002). Each helper MUST be created:
 
-- **Given** any completed cycle **When** the test lists containers labelled `parachute.helper=true` **Then** none exist.
+- not privileged, with no devices, with `no-new-privileges`, all capabilities dropped and at most `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, and `FSETID` added (URL probes: none added);
+- with a read-only root file system, a `tmpfs` at `/tmp`, no published ports, restart policy `no`, and no environment variables copied from any other container;
+- without the host's network, PID, IPC, or UTS namespace (a URL probe joins only the replacement's network namespace, VER-005);
+- with only the mounts its task needs: for a snapshot, each source mount read-only and its own snapshot directory read-write; for a restore, the snapshot directory read-only and the target (BKP-013) read-write; for a URL probe, none. A Docker or Podman API socket is never mounted.
+
+A helper MUST be removed when its task ends, whether it succeeded or failed. Parachute MUST remove a helper only when it carries `parachute.helper=true` and a `parachute.transaction` or `parachute.restore-verify` value naming work this instance started: in the running process, or recorded as open in the state file and recovered at startup (UPD-016, RST-005). Containers matched only by name, image, or `parachute.helper=true` are never removed.
+
+- **Given** any completed cycle **When** the test lists containers labelled `parachute.helper=true` that carry a `parachute.transaction` label set by Parachute in that cycle **Then** none exist.
+- **Given** a snapshot of a 200 MiB volume **When** the test inspects each helper container on its `create` event **Then** `Privileged` is false, `ReadonlyRootfs` is true, `CapDrop` contains `ALL`, `CapAdd` is a subset of `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `SecurityOpt` contains `no-new-privileges`, `NetworkMode`, `PidMode`, `IpcMode`, and `UTSMode` are not `host`, `PortBindings` is empty, the source volume is mounted read-only, and no mount source is a Docker socket.
+- **Given** a container the test created labelled `parachute.helper=true` with no `parachute.transaction` label, and another labelled `parachute.helper=true` and `parachute.transaction=txn-20260101T000000Z-abcdef` (an ID Parachute never generated) **When** Parachute starts and completes a cycle with an update **Then** both containers still exist.
+- **Given** Parachute killed while a snapshot helper runs **When** it starts again **Then** after its startup no container carrying that transaction's ID in `parachute.transaction` and `parachute.helper=true` exists.
 
 ### BKP-011 Free space is checked before anything stops
 Before running `pre-update` hooks or dumps, or stopping any container, Parachute MUST estimate the snapshot size as the sum of the current sizes of the mounts it will copy (BKP-002, after exclusions) and MUST refuse the transaction when the free space in the snapshot store (BKP-005) is less than the estimate plus 10 % plus 1 GiB. A refusal ends the transaction as in UPD-014 with result `failed` and reason `insufficient_space`, changes nothing, and its report entry states the estimated and free bytes. A transaction whose affected containers all have backup mode `none` skips the check.
