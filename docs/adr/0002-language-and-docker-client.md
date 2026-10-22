@@ -1,6 +1,6 @@
 # ADR-0002: Go, using the official Docker client
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context
