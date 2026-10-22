@@ -47,7 +47,7 @@ MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are used as defined in RFC 2119. Nam
 
 ## Tests
 
-- Each acceptance criterion is one test. The test name starts with the requirement ID, then a short description: `SEL-001_default_selects_all_running`.
+- Each acceptance criterion is one test. The test name starts with the requirement ID, then a short description: `SEL-001_default_selects_all_running`. Go test names cannot contain `-`, so a Go test writes the ID with `_` after the `Test` prefix (`TestSEL_001_default_selects_all_running`); the traceability check reads both forms.
 - Every `MUST` and `SHOULD` requirement has at least one test. In a file with status `Accepted`, a `MUST` requirement without a test fails CI.
 - Tests are black-box ([ADR-0003](../adr/0003-black-box-tests-from-specs.md)): they start Parachute (binary or image) against a real Docker engine and a local `registry:2`, and assert only on containers and labels, volume contents, the Docker event stream, registry access logs, payloads received by a fake webhook, HTTP responses, logs, stdout, and exit codes. Fixture images (for example `localhost:5000/fixture/app`) are built and pushed locally; tests never use Docker Hub.
 - Unless a criterion says otherwise, it assumes Parachute is armed (CFG-006), lifecycle hooks are off, `--delay-days 0`, `--protect-databases` on, and one host named `local`.

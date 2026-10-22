@@ -14,7 +14,7 @@ For each candidate, Parachute MUST determine whether the registry holds a differ
 - **Given** a container whose image reference has no tag **When** a cycle runs **Then** it is compared against tag `latest`.
 
 ### DET-002 Digest check before pull
-Parachute MUST compare the registry's manifest digest (from a manifest `HEAD` request) with the digests recorded for the local image, and MUST NOT download image layers during detection. Layers are downloaded only when an update is applied (UPD-001).
+Parachute MUST compare the registry's manifest digest (from a manifest `HEAD` request) with the digests recorded for the local image, and MUST NOT download image layers during detection. Registries on loopback addresses (`localhost`, `127.0.0.0/8`, `::1`) are contacted over plain HTTP, as the Docker engine does by default; all others over HTTPS. Layers are downloaded only when an update is applied (UPD-001).
 
 - **Given** an unchanged image in the registry **When** a cycle runs **Then** the registry access log shows no blob `GET` requests for that repository.
 - **Given** a changed image and an unarmed Parachute **When** a cycle runs **Then** the registry access log shows no blob `GET` requests and the local image list is unchanged.
@@ -39,9 +39,9 @@ A container whose image reference contains `@sha256:` MUST get result `skipped` 
 - **Given** a container created from `localhost:5000/fixture/app@sha256:<d>` and a newer image on tag `1` **When** a cycle runs **Then** the result is `skipped` with reason `digest_pinned` and the container is unchanged.
 
 ### DET-006 Images without a registry digest
-A container whose image has no registry digest (built locally and never pushed or pulled), outside no-pull mode, MUST get result `skipped` with reason `local_image`.
+A container whose image has no registry digest (built locally and never pushed or pulled), outside no-pull mode, MUST get result `skipped` with reason `local_image`. The same applies when the registry answers that it has no manifest for the reference (`404`): with the containerd image store the engine reports a digest for every local image, so an image that was never pushed is only visible as a reference the registry does not know.
 
-- **Given** a container created from an image built locally as `local/app:dev` **When** a cycle runs **Then** the result is `skipped` with reason `local_image`.
+- **Given** a container created from an image built locally as `<local registry>/local/app:dev` and never pushed **When** a cycle runs **Then** the result is `skipped` with reason `local_image`.
 
 ### DET-007 Detection is reported even when not applied
 An update detected for a container that is not changed in this cycle (monitor-only, policy hold, unarmed) MUST still appear in the report with the candidate image digest.
