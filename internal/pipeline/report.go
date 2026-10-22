@@ -1,9 +1,10 @@
 package pipeline
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -21,14 +22,10 @@ type ReportStage struct {
 	clock  Clock
 	sinks  []Sink
 	logger *slog.Logger
-	levels map[domain.Level]slog.Level
 }
 
 func NewReportStage(clock Clock, logger *slog.Logger, sinks ...Sink) *ReportStage {
-	return &ReportStage{clock: clock, sinks: sinks, logger: logger, levels: map[domain.Level]slog.Level{
-		domain.LevelDebug: slog.LevelDebug, domain.LevelInfo: slog.LevelInfo,
-		domain.LevelWarn: slog.LevelWarn, domain.LevelError: slog.LevelError,
-	}}
+	return &ReportStage{clock: clock, sinks: sinks, logger: logger}
 }
 
 func (s *ReportStage) Run(ctx context.Context, cycle *Cycle) error {
@@ -39,12 +36,8 @@ func (s *ReportStage) Run(ctx context.Context, cycle *Cycle) error {
 			hostReport.Results = append(hostReport.Results, candidate.Result)
 			s.log(ctx, cycle.ID, candidate)
 		}
-		sort.SliceStable(hostReport.Results, func(i, j int) bool {
-			left, right := hostReport.Results[i], hostReport.Results[j]
-			if left.Stack != right.Stack {
-				return left.Stack < right.Stack
-			}
-			return left.Service+left.Container < right.Service+right.Container
+		slices.SortStableFunc(hostReport.Results, func(left, right domain.Result) int {
+			return cmp.Or(cmp.Compare(left.Stack, right.Stack), cmp.Compare(left.Service, right.Service), cmp.Compare(left.Container, right.Container))
 		})
 		report.Hosts = append(report.Hosts, hostReport)
 	}
@@ -73,5 +66,5 @@ func (s *ReportStage) log(ctx context.Context, cycleID string, candidate *Candid
 	if result.Detail != "" {
 		attributes = append(attributes, "detail", result.Detail)
 	}
-	s.logger.Log(ctx, s.levels[result.State.Level()], "container checked", attributes...)
+	s.logger.Log(ctx, result.State.Level().Slog(), "container checked", attributes...)
 }

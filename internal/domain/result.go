@@ -13,15 +13,6 @@ const (
 	StateRollbackFailed State = "rollback_failed"
 )
 
-type Level int
-
-const (
-	LevelDebug Level = iota
-	LevelInfo
-	LevelWarn
-	LevelError
-)
-
 func (s State) Level() Level {
 	switch s {
 	case StateFresh, StateSkipped:
@@ -74,16 +65,4 @@ func (r Result) Available(candidate string) Result {
 
 func (r Result) UpdateAvailable() bool {
 	return r.CandidateDigest != "" && r.State != StateFresh
-}
-
-func ParseLevel(name string) Level {
-	switch name {
-	case "debug":
-		return LevelDebug
-	case "warn":
-		return LevelWarn
-	case "error":
-		return LevelError
-	}
-	return LevelInfo
 }

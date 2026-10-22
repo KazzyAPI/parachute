@@ -7,19 +7,21 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+
+	"github.com/KazzyAPI/parachute/internal/domain"
 )
 
 type PrettyHandler struct {
 	out        io.Writer
 	minimum    slog.Level
 	color      bool
-	names      *Factory
+	times      *Factory
 	attributes []slog.Attr
 	lock       *sync.Mutex
 }
 
-func NewPrettyHandler(out io.Writer, minimum slog.Level, color bool, names *Factory) *PrettyHandler {
-	return &PrettyHandler{out: out, minimum: minimum, color: color, names: names, lock: &sync.Mutex{}}
+func NewPrettyHandler(out io.Writer, minimum slog.Level, color bool, times *Factory) *PrettyHandler {
+	return &PrettyHandler{out: out, minimum: minimum, color: color, times: times, lock: &sync.Mutex{}}
 }
 
 func (h *PrettyHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -28,8 +30,8 @@ func (h *PrettyHandler) Enabled(_ context.Context, level slog.Level) bool {
 
 func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 	var line strings.Builder
-	level := strings.ToUpper(h.names.LevelName(record.Level))
-	fmt.Fprintf(&line, "%s %s %s", h.names.Time(record.Time), h.paint(record.Level, fmt.Sprintf("%-5s", level)), record.Message)
+	level := strings.ToUpper(domain.Level(record.Level).String())
+	fmt.Fprintf(&line, "%s %s %s", h.times.Time(record.Time), h.paint(record.Level, fmt.Sprintf("%-5s", level)), record.Message)
 	write := func(attribute slog.Attr) bool {
 		fmt.Fprintf(&line, " %s=%v", attribute.Key, attribute.Value)
 		return true
