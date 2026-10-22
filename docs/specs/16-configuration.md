@@ -180,6 +180,7 @@ Log lines at every level except `trace`, startup and error messages (including t
 | `--http-api-token` | unset | API-002 |
 | `--http-api-status-token` | unset | API-002 |
 | `--http-api-periodic-polls` | `false` | API-006 |
+| `--trusted-proxies` | empty (list of IP addresses and CIDR ranges) | API-010 |
 | `DOCKER_CONFIG` | `/` | REG-001 |
 | `--host` / `DOCKER_HOST` | `unix:///var/run/docker.sock` | DMN-001 |
 | `--api-version` / `DOCKER_API_VERSION` | negotiated | DMN-002 |

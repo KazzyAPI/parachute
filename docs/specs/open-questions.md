@@ -174,7 +174,7 @@ Affects API-007, POL-006, STS-006, CFG-010. API-007 persists approvals in the st
 **Recommendation:** keep persistence, apply an approval only when its digest equals the current candidate digest (DET-008), and document the limit with Q18.
 
 ### Q22 Failed-authentication throttling behind a reverse proxy
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Per-IP throttling by default; new setting `trusted-proxies` (`PARACHUTE_TRUSTED_PROXIES`, default empty) lists proxies whose `X-Forwarded-For` is honoured (API-010, CFG settings reference).
 
 Affects API-010. Behind a reverse proxy every request has the proxy's source IP, so one client's failures throttle everyone.
 
