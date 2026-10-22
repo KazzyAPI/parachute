@@ -1,6 +1,6 @@
 # ADR-0009: Snapshot format and storage
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context

@@ -153,7 +153,7 @@ Affects CFG-010, POL-002, POL-010, ADR-0008. Someone who can write the state dir
 **Recommendation:** out of scope for v1; document the limit (write access to the state directory is trusted) in ADR-0008's consequences.
 
 ### Q19 Accepting ADR-0007 and ADR-0009
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Both accepted as written.
 
 Affects ADR-0007 (safe by default), ADR-0009 (snapshot format and storage). Both are still `Proposed` although the specs follow them (Q1, Q4).
 
