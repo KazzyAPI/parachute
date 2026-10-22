@@ -118,6 +118,12 @@ The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`
 - **Given** `--profile convenient` and a newer image for Parachute's own container (`parachute.self=true`) **When** a cycle runs **Then** the result for it is `held` with reason `approval_required` and its container ID is unchanged.
 - **Given** `--profile fast` **When** Parachute starts **Then** it exits with code 2 and the message contains `profile` and `fast`.
 
+### CFG-012 Logs, errors, and porcelain output are redacted
+Log lines at every level except `trace`, startup and error messages (including those of startup errors with exit code 2 or 4), and porcelain output MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). A setting whose value is a secret (CFG-004) MUST be named in messages but its value MUST NOT be shown, also when the value is invalid.
+
+- **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7`, `--log-level debug`, `--log-format json`, and `--porcelain v1 --run-once` **When** Parachute runs **Then** neither stdout nor stderr contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, its base64 form, or `pw-9z7`.
+- **Given** `--notification-url 'generic://bob:hunter2@exa mple'` (invalid) **When** Parachute starts **Then** it exits with code 2, the message names `notification-url`, and stderr does not contain `hunter2`.
+
 ## Settings reference
 
 | Flag | Default | Spec |

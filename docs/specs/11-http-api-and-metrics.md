@@ -92,3 +92,8 @@ Parachute MUST count failed authentications (API-002) per source IP address over
 Parachute MUST compare a presented token with `--http-api-token` and `--http-api-status-token` in time that does not depend on the presented token's content or length, by comparing fixed-length digests (SHA-256) of both values with a constant-time comparison. Both configured tokens are always compared, whichever matches.
 
 - **Given** a 64-character token **When** 100 requests with a wrong token equal to it except in the last character and 100 with a wrong token sharing no character with it are sent, interleaved, from source addresses chosen so that none is throttled (API-010) **Then** every response is 401 and the median response times of the two sets differ by less than 1 ms.
+
+### API-012 Responses are redacted
+Every HTTP response body and header, on every endpoint and status code, MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). Error bodies MUST NOT echo the presented credentials. Metric label values MUST NOT contain secrets.
+
+- **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7`, and all HTTP settings on **When** a cycle has run and `GET /v1/status`, `GET /status`, `GET /v1/metrics`, `POST /v1/update?x=1`, and `POST /v1/update` with `Bearer wrong-Tok` are called **Then** no response body or header contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, its base64 form, `pw-9z7`, or `wrong-Tok`.

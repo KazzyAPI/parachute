@@ -58,3 +58,8 @@ For each service the view MUST show: current image reference and ID; whether an 
 Producing the status view MUST NOT change containers, volumes, images, or the state file, and MUST NOT contact registries.
 
 - **Given** the state file's checksum, the container list, and a recording registry proxy **When** the status view is read 10 times **Then** the checksum and containers are unchanged and the proxy saw no requests.
+
+### STS-007 The status view is redacted
+`parachute status`, `parachute status --json`, `GET /v1/status`, and `GET /status` MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). The view shows no container environment values, labels other than those named in STS-002, or configured URLs.
+
+- **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7` **When** `parachute status` and `parachute status --json` run **Then** neither output contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, its base64 form, or `pw-9z7`.
