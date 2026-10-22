@@ -11,7 +11,7 @@ A transaction MUST run these phases in this order, and MUST log the start of eac
 |---|---|
 | `detect` | DET-001 to DET-006 for every container in the stack. |
 | `policy` | Evaluate holds (POL-001). If every update in the stack is held, the transaction ends here. |
-| `snapshot` | Pull each new image by the digest that passed the `policy` phase (UPD-020); check that each affected container's configuration can be reproduced (UPD-007); check free space in the snapshot store (BKP-011); run `pre-update` hooks (HOK-007); run database dumps (BKP-004); stop affected containers when backup mode is `stop` (DEP-005); copy data and write the snapshot (BKP-001). |
+| `snapshot` | Pull each new image by the digest that passed the `policy` phase, check the pulled digest, and re-tag it to the original reference (UPD-020); check that each affected container's configuration can be reproduced (UPD-007); check free space in the snapshot store (BKP-011); run `pre-update` hooks (HOK-007); run database dumps (BKP-004); stop affected containers when backup mode is `stop` (DEP-005); copy data and write the snapshot (BKP-001). |
 | `update` | Stop affected containers not yet stopped; rename each one (UPD-008); create and start replacements (DEP-005); run `post-update` hooks. |
 | `verify` | Health verification of every started replacement (VER-001); its deadline starts after the replacement's `post-update` hook (VER-006). |
 | `commit` or `rollback` | On success, commit (UPD-009). On failure, roll back (VER-008). |
@@ -95,7 +95,7 @@ With `--rolling-restart` on, Parachute MUST update the affected containers of a 
 - **Given** `--rolling-restart`, armed, and three replicas of one Compose service with a newer image **When** the cycle runs **Then** in the Docker event stream, after each replica's `die` event the `start` event of its replacement comes before the next replica's `die` event.
 
 ### UPD-014 Failure before the update phase changes nothing
-A failure in the `detect`, `policy`, or `snapshot` phase MUST leave the stack's containers running (or in their original state) with their original IDs and images. Containers stopped for the snapshot MUST be started again. The transaction ends in state `aborted` and the result is `failed` with the failing step's code from the [`failed` table](reasons.md#failed), for example `pull_failed`, `config_unreproducible`, `insufficient_space`, `pre_update_hook_failed`, `dump_failed`, `snapshot_failed`, `transaction_timeout`, or, after a restart, `interrupted`.
+A failure in the `detect`, `policy`, or `snapshot` phase MUST leave the stack's containers running (or in their original state) with their original IDs and images. Containers stopped for the snapshot MUST be started again. The transaction ends in state `aborted` and the result is `failed` with the failing step's code from the [`failed` table](reasons.md#failed), for example `pull_failed` (including a pulled image that does not carry the approved digest, UPD-020), `config_unreproducible`, `insufficient_space`, `pre_update_hook_failed`, `dump_failed`, `snapshot_failed`, `transaction_timeout`, or, after a restart, `interrupted`.
 
 - **Given** a newer tag whose blobs are deleted from the registry so the pull fails **When** a cycle runs **Then** the container keeps its ID and image and the result is `failed` with reason `pull_failed`.
 - **Given** a snapshot that fails (the backup volume is read-only) **When** a cycle runs **Then** the container is running with its original ID and the result is `failed` with reason `snapshot_failed`.
@@ -125,8 +125,8 @@ Parachute MUST remove an object only when it can prove that it created the objec
 |---|---|---|
 | Replacement container | its transaction rolls back (VER-008, UPD-016) | it carries `parachute.transaction` equal to that transaction's ID (UPD-002) |
 | Original container | its transaction commits (UPD-009) | its container ID is the one Parachute renamed in that transaction, in the same process; for a self-update, the checks of UPD-018 step 3 |
-| Helper container or network (BKP-010) | its task ends | it carries `parachute.helper=true` and `parachute.transaction` equal to the ID of the transaction (or restore-verification run, RST-002) it was created for |
-| Restore-verification resource | its run ends (RST-002) | as for helpers |
+| Helper container or network (BKP-010) | its task ends | it carries `parachute.helper=true` and `parachute.transaction` equal to the ID of the transaction it was created for (BKP-010) |
+| Restore-verification resource | its run ends (RST-002) | it carries `parachute.helper=true` and `parachute.restore-verify` naming a run this instance started (BKP-010, RST-005) |
 | Snapshot | retention (BKP-008) | its manifest has `format` `parachute.snapshot/v1` |
 | Previous image | commit with `--cleanup` (UPD-010) | it is the image of an original removed in the same commit |
 | Anonymous volume | commit with `--remove-volumes` (UPD-011) | it was mounted by an original removed in the same commit |
@@ -141,7 +141,7 @@ A **self-update** is an update of Parachute's **own container**: the container t
 
 - **Approval.** It is always held with reason `approval_required` until its approved digest (UPD-020) is approved (API-007), as the glossary's **Self-update approval** says; no profile, flag, or label removes this hold.
 - **Order and scope.** It runs after every other stack in the cycle, as a transaction of the own container alone, even when that container belongs to a Compose project; no other container is stopped or joined to it (DEP-003).
-- **Image.** It pulls by the approved digest (UPD-020).
+- **Image.** It pulls by the approved digest, checks it, and re-tags it as UPD-020 says; a mismatch gives `failed` with reason `pull_failed`.
 - **Snapshot.** The own container's effective backup mode is always `none`, whatever its labels or `--backup`: its configuration is recorded, no data is copied, and it is never stopped (BKP-003's `stop` mode does not apply). VER-009 never restores data for it, because the new instance writes nothing in the state directory before it owns the state file.
 - **Configuration.** Besides UPD-007, an own container that publishes a host port or has a static IP address on any network fails with reason `config_unreproducible` naming the field, because the replacement must run beside it.
 
