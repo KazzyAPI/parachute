@@ -109,9 +109,22 @@ If Parachute stops (crash, kill, host reboot) during a transaction that has not 
 - **Given** an update in its `verify` phase and Parachute killed with `SIGKILL` **When** Parachute starts again **Then** the original container is running under its original name and ID, the replacement no longer exists, and the next report lists the transaction as `rolled_back` with reason `interrupted`.
 
 ### UPD-017 Never delete what Parachute did not create
-Parachute MUST remove only: original containers it replaced in a committed transaction, replacements it created in a rolled-back transaction, its own helper containers and networks (labelled `parachute.helper=true`), throwaway restore-verification resources (RST-002), snapshots whose manifest it wrote (BKP-008), previous images under UPD-010, and anonymous volumes under UPD-011.
+Parachute MUST remove an object only when it can prove that it created the object, or replaced it, in the transaction being ended. A name, a name pattern (such as `<name>-parachute-<suffix>`), or a label value supplied by anyone other than Parachute in that transaction is never enough. The only objects it MAY remove, each with its proof:
 
-- **Given** a stopped, unrelated container and an unused named volume on the host **When** any number of cycles run with every setting on **Then** both still exist.
+| Object | Removed when | Proof |
+|---|---|---|
+| Replacement container | its transaction rolls back (VER-008, UPD-016) | it carries `parachute.transaction` equal to that transaction's ID (UPD-002) |
+| Original container | its transaction commits (UPD-009) | its container ID is the one Parachute renamed in that transaction, in the same process; for a self-update, the checks of UPD-018 step 3 |
+| Helper container or network (BKP-010) | its task ends | it carries `parachute.helper=true` and `parachute.transaction` equal to the ID of the transaction (or restore-verification run, RST-002) it was created for |
+| Restore-verification resource | its run ends (RST-002) | as for helpers |
+| Snapshot | retention (BKP-008) | its manifest has `format` `parachute.snapshot/v1` |
+| Previous image | commit with `--cleanup` (UPD-010) | it is the image of an original removed in the same commit |
+| Anonymous volume | commit with `--remove-volumes` (UPD-011) | it was mounted by an original removed in the same commit |
+
+State recovered from the state file (UPD-016) MUST NOT by itself justify a removal ([glossary: Trust boundaries](glossary.md#trust-boundaries)); the proof in the table is still required.
+
+- **Given** a stopped, unrelated container named `web-parachute-abc123`, a stopped container labelled `parachute.helper=true` and `parachute.transaction=txn-20260101T000000Z-abc123` (an ID of no transaction of this instance), and an unused named volume **When** cycles run with `--cleanup` and `--remove-volumes` on, one of them committing an update of container `web` and one rolling back an update of container `api` **Then** all three objects still exist.
+- **Given** a rolled-back update **When** the cycle ends **Then** no container carrying that transaction's `parachute.transaction` label exists.
 
 ### UPD-018 Self-update
 When a Parachute instance's own container (labelled `parachute.self=true`, same scope) has an update, Parachute MUST process it after every other stack in the cycle. The state file has one owner at a time ([ADR-0008](../adr/0008-state-storage.md)); during a self-update the **old** instance owns it and runs the whole transaction:

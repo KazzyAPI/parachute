@@ -47,7 +47,7 @@ A transaction MUST commit only if every started replacement in it passes verific
 - **Given** a stack transaction updating `web` and `api` where only `api` fails verification **When** the cycle runs **Then** both `web` and `api` run their previous images with their original container IDs.
 
 ### VER-008 Rollback procedure
-Rollback MUST: stop and remove every replacement created by the transaction; restore data (VER-009); rename each original container back to its original name; start the originals that were running before, dependencies first; and verify them (VER-010).
+Rollback (transaction state `rolling_back`, [glossary: Transaction state machine](glossary.md#transaction-state-machine)) MUST: stop and remove every replacement created by the transaction, identified only as UPD-017 allows; restore data (VER-009); rename each original container back to its original name; start the originals that were running before, dependencies first; and verify them (VER-010).
 
 - **Given** a failed verification **When** rollback finishes **Then** each original container has its original name, ID, and image and is `running`, and no replacement container from that transaction exists.
 
