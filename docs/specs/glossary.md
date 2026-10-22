@@ -60,7 +60,7 @@ A terminal state is never left. A new attempt is a new transaction with a new ID
 
 ## Trust boundaries
 
-**Untrusted** (validated before use; a bad value fails only the item it belongs to, never crashes Parachute or affects other containers; [ADR-0011](../adr/README.md)):
+**Untrusted** (validated before use; a bad value fails only the item it belongs to, never crashes Parachute or affects other containers; [ADR-0011](../adr/0011-untrusted-input-handling.md)):
 
 - Image metadata from registries or pulled images: labels, configuration, `created` time, health check, entrypoint. Image labels never set Parachute behaviour (`parachute.*` labels are read only from the container, not inherited from the image config).
 - Registry responses: status codes, headers, bearer challenges and token realms, manifests (size-limited), token bodies.
@@ -84,4 +84,4 @@ These MUST NOT appear in logs at any level other than `trace` (REG-006), notific
 - Userinfo in any URL (`https://user:pass@host`).
 - Container environment variable values (names may be shown).
 
-Each redacted value is replaced with the single placeholder `[REDACTED]`, keeping the surrounding text (for example `https://[REDACTED]@hooks.example.test/...`). [ADR-0013](../adr/README.md).
+Each redacted value is replaced with the single placeholder `[REDACTED]`, keeping the surrounding text (for example `https://[REDACTED]@hooks.example.test/...`). [ADR-0013](../adr/0013-secret-redaction.md).
