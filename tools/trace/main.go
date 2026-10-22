@@ -108,6 +108,28 @@ func (t *Tracer) milestones() ([]milestone, error) {
 	return milestones, nil
 }
 
+type milestoneCoverage struct {
+	name    string
+	total   int
+	covered int
+	missing []string
+}
+
+type coverage struct {
+	milestones      []milestoneCoverage
+	later           int
+	acceptedMissing []string
+}
+
+func (c coverage) ok() bool {
+	for _, stone := range c.milestones {
+		if len(stone.missing) > 0 {
+			return false
+		}
+	}
+	return len(c.acceptedMissing) == 0
+}
+
 func (t *Tracer) Run() (bool, error) {
 	requirements, err := t.requirements()
 	if err != nil {
@@ -121,53 +143,61 @@ func (t *Tracer) Run() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	result := t.measure(requirements, tests, milestones)
+	return result.ok(), t.write(result)
+}
+
+func (t *Tracer) measure(requirements []requirement, tests map[string]int, milestones []milestone) coverage {
 	known := map[string]requirement{}
 	for _, req := range requirements {
 		known[req.id] = req
 	}
-	ok := true
-	var report strings.Builder
+	var result coverage
 	planned := map[string]bool{}
 	for _, stone := range milestones {
-		var missing []string
-		covered := 0
+		stoneCoverage := milestoneCoverage{name: stone.name, total: len(stone.ids)}
 		for _, id := range stone.ids {
 			planned[id] = true
 			req, exists := known[id]
 			switch {
 			case !exists:
-				missing = append(missing, id+" (not in any spec)")
+				stoneCoverage.missing = append(stoneCoverage.missing, id+" (not in any spec)")
 			case tests[id] > 0:
-				covered++
+				stoneCoverage.covered++
 			case req.normative:
-				missing = append(missing, id)
+				stoneCoverage.missing = append(stoneCoverage.missing, id)
 			}
 		}
-		fmt.Fprintf(&report, "%s: %d requirements, %d tested\n", stone.name, len(stone.ids), covered)
-		if len(missing) > 0 {
-			ok = false
-			fmt.Fprintf(&report, "  untested: %s\n", strings.Join(missing, ", "))
-		}
+		result.milestones = append(result.milestones, stoneCoverage)
 	}
-	var later, acceptedMissing []string
 	for _, req := range requirements {
 		if !planned[req.id] {
-			later = append(later, req.id)
+			result.later++
 		}
 		if req.accepted && req.normative && tests[req.id] == 0 {
-			acceptedMissing = append(acceptedMissing, req.id)
+			result.acceptedMissing = append(result.acceptedMissing, req.id)
 		}
 	}
-	fmt.Fprintf(&report, "later milestones: %d requirements\n", len(later))
-	if len(acceptedMissing) > 0 {
-		ok = false
-		slices.Sort(acceptedMissing)
-		fmt.Fprintf(&report, "accepted MUST/SHOULD without a test: %s\n", strings.Join(acceptedMissing, ", "))
+	slices.Sort(result.acceptedMissing)
+	return result
+}
+
+func (t *Tracer) write(result coverage) error {
+	var report strings.Builder
+	for _, stone := range result.milestones {
+		fmt.Fprintf(&report, "%s: %d requirements, %d tested\n", stone.name, stone.total, stone.covered)
+		if len(stone.missing) > 0 {
+			fmt.Fprintf(&report, "  untested: %s\n", strings.Join(stone.missing, ", "))
+		}
+	}
+	fmt.Fprintf(&report, "later milestones: %d requirements\n", result.later)
+	if len(result.acceptedMissing) > 0 {
+		fmt.Fprintf(&report, "accepted MUST/SHOULD without a test: %s\n", strings.Join(result.acceptedMissing, ", "))
 	}
 	if _, err := io.WriteString(t.out, report.String()); err != nil {
-		return false, err
+		return fmt.Errorf("write trace report: %w", err)
 	}
-	return ok, nil
+	return nil
 }
 
 func main() {

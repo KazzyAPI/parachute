@@ -14,6 +14,7 @@ const (
 	ReasonUnreachable  = "registry_unreachable"
 	ReasonUnauthorized = "registry_unauthorized"
 	ReasonNotFound     = "not_found"
+	maxManifestBytes   = 4 << 20
 )
 
 type Error struct {
@@ -109,8 +110,12 @@ func (c *Client) exchange(ctx context.Context, method string, ref Reference, aut
 	}()
 	answer = reply{status: response.StatusCode, text: response.Status, challenge: response.Header.Get("WWW-Authenticate"), digest: response.Header.Get("Docker-Content-Digest")}
 	hash := sha256.New()
-	if _, err := io.Copy(hash, response.Body); err != nil {
+	size, err := io.Copy(hash, io.LimitReader(response.Body, maxManifestBytes+1))
+	if err != nil {
 		return reply{}, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: %w", method, ref.APIHost(), err)}
+	}
+	if size > maxManifestBytes {
+		return reply{}, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: manifest larger than %d bytes", method, ref.APIHost(), maxManifestBytes)}
 	}
 	if answer.digest == "" && method == http.MethodGet && answer.status == http.StatusOK {
 		answer.digest = "sha256:" + hex.EncodeToString(hash.Sum(nil))

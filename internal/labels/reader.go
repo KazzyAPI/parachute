@@ -58,16 +58,19 @@ func (r *Reader) Switch(container domain.Container, name string, global, labelWi
 	return global || label
 }
 
-func (r *Reader) WarnUnknown(container domain.Container) {
-	for key := range container.Labels {
-		if !strings.HasPrefix(key, prefix) || r.known[key] {
-			continue
+func (r *Reader) WarnUnknown(containers []domain.Container) {
+	warned := map[string]bool{}
+	for _, container := range containers {
+		for key := range container.Labels {
+			if !strings.HasPrefix(key, prefix) || r.known[key] {
+				continue
+			}
+			warning := container.ID + "\x00" + key
+			if !r.warned[warning] {
+				r.logger.Warn("unknown label ignored", "container", container.Name, "label", key)
+			}
+			warned[warning] = true
 		}
-		warning := container.ID + "\x00" + key
-		if r.warned[warning] {
-			continue
-		}
-		r.warned[warning] = true
-		r.logger.Warn("unknown label ignored", "container", container.Name, "label", key)
 	}
+	r.warned = warned
 }

@@ -12,7 +12,7 @@ import (
 type LabelReader interface {
 	Value(container domain.Container, name string) (string, bool)
 	Bool(container domain.Container, name string) (bool, bool)
-	WarnUnknown(container domain.Container)
+	WarnUnknown(containers []domain.Container)
 }
 
 type Selector struct {
@@ -35,10 +35,10 @@ func (s *Selector) Select(containers []domain.Container) []domain.Container {
 	var candidates []domain.Container
 	for _, container := range containers {
 		if s.isCandidate(container) {
-			s.labels.WarnUnknown(container)
 			candidates = append(candidates, container)
 		}
 	}
+	s.labels.WarnUnknown(candidates)
 	return candidates
 }
 

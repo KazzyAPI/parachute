@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
@@ -40,6 +41,8 @@ func (s *ShoutrrrSender) logFailure(rawURL string, err error) {
 	var networkErr *net.OpError
 	if errors.As(err, &networkErr) {
 		attributes = append(attributes, "error", networkErr.Error())
+	} else {
+		attributes = append(attributes, "error_type", fmt.Sprintf("%T", err))
 	}
 	s.logger.Error("notification delivery failed", attributes...)
 }
