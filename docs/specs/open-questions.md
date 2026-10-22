@@ -139,7 +139,7 @@ Affects UPD-020, UPD-007, [reasons.md](reasons.md) conflict 10. UPD-020 calls a 
 **Recommendation: B.** It points at the image, not the container's configuration.
 
 ### Q17 Lifting a freeze by editing the state file
-**Status:** Open.
+**Status:** Resolved 2026-10-23: The state-file route is removed from the glossary; a freeze ends only by approval (API-007). POL-010, STS-006, and the migration guide already agree.
 
 Affects glossary (Transaction state machine), POL-010, API-007, STS-006. The glossary says that until the HTTP API exists a freeze can be lifted only by editing the state file while Parachute is stopped, but the state file is untrusted (trust boundaries) and must not by itself lift a hold.
 

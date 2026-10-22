@@ -56,7 +56,7 @@ Interruption (crash, kill, reboot) in an open state is resolved at the next star
 
 A terminal state is never left. A new attempt is a new transaction with a new ID.
 
-**`rollback_failed` is never retried automatically.** After it, the stack is **frozen**: Parachute starts no transaction for any container in that stack, whatever the candidate digest, and holds each such update with reason `previous_attempt_failed`. Snapshots of the stack are not removed (BKP-008). The freeze ends only by operator acknowledgement: approving the failed container's update with `POST /v1/approve` (API-007) after repairing the stack. Until the HTTP API exists the freeze cannot be lifted except by editing the state file while Parachute is stopped. `parachute status` shows the frozen stack, its `rollback_failed` transaction ID, and the snapshot ID (field `frozen`, STS-002). This overrides POL-010's "until a different candidate digest appears" for `rollback_failed`.
+**`rollback_failed` is never retried automatically.** After it, the stack is **frozen**: Parachute starts no transaction for any container in that stack, whatever the candidate digest, and holds each such update with reason `previous_attempt_failed`. Snapshots of the stack are not removed (BKP-008). The freeze ends only by operator acknowledgement: approving the failed container's update with `POST /v1/approve` (API-007) after repairing the stack. There is no other supported way: editing the state file is not one (STS-006, [ADR-0008](../adr/0008-state-storage.md)). `parachute status` shows the frozen stack, its `rollback_failed` transaction ID, and the snapshot ID (field `frozen`, STS-002). This overrides POL-010's "until a different candidate digest appears" for `rollback_failed`.
 
 ## Trust boundaries
 
