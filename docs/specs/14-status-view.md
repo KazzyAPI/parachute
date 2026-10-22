@@ -5,10 +5,11 @@
 A read-only view of every managed stack, built only from the engines and the state file (CFG-010). Host-level checks such as certificate expiry are out of scope.
 
 ### STS-001 Command line
-`parachute status` MUST print a human-readable table of every stack and service in scope on every host, and `parachute status --json` MUST print the STS-002 document. It reads the state directory (`--state-dir`) and the hosts; it does not need a running Parachute daemon. Exit codes: 0 on success, 2 on invalid arguments or an unreadable state file, 4 when no host is reachable.
+`parachute status` MUST print a human-readable table of every stack and service in scope on every host, and `parachute status --json` MUST print the STS-002 document. It reads the state directory (`--state-dir`) and the hosts; it does not need a running Parachute daemon. Exit codes: 0 on success, 2 on invalid arguments, an [insecure TCP host](glossary.md) without `--allow-insecure-tcp` (DMN-003), or an unreadable or invalid state file (CFG-010), 4 when no host is reachable.
 
 - **Given** no Parachute daemon running, a state file from earlier cycles, and the Docker socket **When** `parachute status --json` runs **Then** it exits 0 and prints a document listing the stacks.
-- **Given** `DOCKER_HOST=tcp://127.0.0.1:1` **When** `parachute status` runs **Then** it exits 4.
+- **Given** `DOCKER_HOST=tcp://127.0.0.1:1` and `--allow-insecure-tcp` **When** `parachute status` runs **Then** it exits 4.
+- **Given** `DOCKER_HOST=tcp://127.0.0.1:1` without `--allow-insecure-tcp` or TLS settings **When** `parachute status` runs **Then** it exits 2 and the message contains `allow-insecure-tcp` (DMN-003).
 
 ### STS-002 JSON document
 `GET /v1/status` (API-001) and `parachute status --json` MUST return the same document:

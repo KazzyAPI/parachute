@@ -86,7 +86,7 @@ The Parachute process MUST use these exit codes. In run-once mode, when several 
 |---|---|
 | 0 | Success: every candidate is `fresh`, `updated`, `would_update`, `held`, or `skipped`. In daemon mode, a clean shutdown on `SIGTERM` or `SIGINT`. |
 | 1 | At least one candidate `failed` or `rolled_back`, or a host was unreachable (run-once). |
-| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token, unreadable or corrupt state file. |
+| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
 | 3 | At least one `rollback_failed` (run-once). |
 | 4 | No managed host reachable at startup. |
 
@@ -176,6 +176,7 @@ The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`
 | `--host` / `DOCKER_HOST` | `unix:///var/run/docker.sock` | DMN-001 |
 | `--api-version` / `DOCKER_API_VERSION` | negotiated | DMN-002 |
 | `--tlsverify` / `DOCKER_TLS_VERIFY` | `false` | DMN-003 |
+| `--allow-insecure-tcp` | `false` | DMN-003 |
 | `DOCKER_CERT_PATH` | `/etc/ssl/docker` | DMN-003 |
 | `--hosts` | unset | DMN-007 |
 | `--restore-verify-schedule` | unset (off) | RST-001 |
