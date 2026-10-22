@@ -15,7 +15,7 @@ A container without a `com.docker.compose.project` label MUST form a stack of on
 - **Given** a container `solo` started with `docker run` **When** a cycle runs **Then** the report lists stack `solo` with one service `solo`.
 
 ### DEP-003 One transaction per stack
-All updates detected in one stack in one cycle MUST be applied in a single transaction (UPD-001): one snapshot, one verification, and, on failure, one rollback of every container changed by that transaction. When a dependency (DEP-004) links containers in different stacks, those stacks MUST be joined into one transaction.
+All updates detected in one stack in one cycle MUST be applied in a single transaction (UPD-001): one snapshot, one verification, and, on failure, one rollback of every container changed by that transaction. When a dependency (DEP-004) links containers in different stacks, those stacks MUST be joined into one transaction. The one exception is Parachute's own container, which is always updated in a transaction of its own (UPD-018).
 
 - **Given** stack `shop` where both `web` and `worker` have newer images and `worker`'s new image fails verification **When** a cycle runs **Then** both `web` and `worker` are back on their previous images with their original container IDs, and the report shows one transaction ID for both with result `rolled_back`.
 - **Given** container `app` in stack `a` with label `parachute.depends-on=cache` where `cache` is a stack of one, and an update for `cache` **When** a cycle runs **Then** `app` and `cache` share one transaction ID.
