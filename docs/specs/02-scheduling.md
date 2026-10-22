@@ -14,7 +14,7 @@ Parachute MUST run cycles periodically. `--interval <seconds>` (a positive integ
 ### SCH-002 Cron schedule
 `--schedule <expr>` MUST accept a 6-field cron expression (`second minute hour day-of-month month day-of-week`) as an alternative to the interval. In schedule mode no cycle runs at startup; the first runs at the next matching time. An invalid expression MUST be a startup error (exit code 2) whose message contains the expression.
 
-- **Given** `--schedule "*/20 * * * * *"` **When** Parachute runs for 65 seconds **Then** cycles start at seconds 0, 20, and 40 of each minute and none at startup unless startup coincides with a match.
+- **Given** `--schedule "*/20 * * * * *"` **When** Parachute runs for 65 seconds **Then** the log shows three or four cycle starts, and every cycle start time has seconds `00`, `20`, or `40`.
 - **Given** `--schedule "0 0 4 * * *"` **When** Parachute starts **Then** the log announces the next cycle at 04:00:00 in the configured time zone.
 - **Given** `--schedule "not cron"` **When** Parachute starts **Then** it exits with code 2 and the message contains `not cron`.
 
@@ -26,7 +26,7 @@ Setting both `--interval` and `--schedule` MUST be a startup error (exit code 2)
 ### SCH-004 Time zone
 The `TZ` environment variable MUST set the time zone used for log timestamps, cron schedules, and maintenance windows (POL-007). The default is UTC. An unknown zone name MUST be a startup error (exit code 2).
 
-- **Given** `TZ=Europe/Berlin` and `--schedule "0 0 4 * * *"` **When** Parachute starts **Then** the announced next cycle is 04:00:00 Europe/Berlin time.
+- **Given** `TZ=Europe/Berlin` and `--schedule "0 0 4 * * *"` **When** Parachute starts **Then** the log announces the next cycle at 04:00:00 with UTC offset `+01:00` or `+02:00` (whichever applies on that date).
 - **Given** `TZ=Mars/Olympus` **When** Parachute starts **Then** it exits with code 2.
 
 ### SCH-005 Run once
@@ -40,7 +40,8 @@ With `--run-once`, Parachute MUST run exactly one cycle immediately, send its re
 ### SCH-006 No overlapping cycles
 A cycle MUST NOT start while another cycle or a restore verification (RST-007) is running. A scheduled start that falls during a running cycle MUST be skipped, logged at `info` level with the running cycle's ID, and counted in `parachute_scans_skipped` (API-008).
 
-- **Given** `--interval 5` and a cycle that takes 12 seconds (a pre-check hook sleeping 12 s) **When** Parachute runs for 20 seconds **Then** no two cycles overlap in time, the log records skipped starts, and `parachute_scans_skipped` is at least 1.
+- **Given** `--interval 5` and a registry proxy that delays every manifest response by 12 seconds **When** Parachute runs for 20 seconds **Then** no cycle starts before the previous cycle's end log line, and at least one `info` line records a skipped start and names the running cycle's ID.
+- **Given** the same with `--http-api-metrics` **When** Parachute has run for 20 seconds **Then** `parachute_scans_skipped` is at least 1.
 
 ### SCH-007 Startup message
 At startup Parachute MUST send one `info`-level notification summarising its configuration: version, managed hosts, schedule or interval, scope, armed state, and every relaxation of a safe default (POL-009). `--no-startup-message` MUST suppress it. The summary MUST also be logged.
