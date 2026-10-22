@@ -46,7 +46,7 @@ func (d *Detector) Detect(ctx context.Context, container domain.Container, crede
 	}
 	ref, err := registry.ParseReference(container.ImageRef)
 	if err != nil {
-		return Finding{State: domain.StateSkipped, Reason: ReasonLocalImage, Detail: err.Error()}, nil
+		return d.unresolvable(err), nil
 	}
 	if noPull {
 		return d.detectLocally(ctx, container)
@@ -82,6 +82,10 @@ func (d *Detector) detectLocally(ctx context.Context, container domain.Container
 		return Finding{State: domain.StateFresh}, nil
 	}
 	return Finding{UpdateAvailable: true, Candidate: local.ID}, nil
+}
+
+func (d *Detector) unresolvable(err error) Finding {
+	return Finding{State: domain.StateSkipped, Reason: ReasonLocalImage, Detail: err.Error()}
 }
 
 func (d *Detector) registryFailure(err error) (Finding, error) {

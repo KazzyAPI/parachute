@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/KazzyAPI/parachute/internal/clock"
 	"github.com/KazzyAPI/parachute/internal/config"
@@ -33,7 +34,7 @@ func New(deps Dependencies) *App {
 func (a *App) Run(ctx context.Context, args, environ []string) int {
 	cfg, err := a.loader().Load(args, environ)
 	if err != nil {
-		fmt.Fprintf(a.deps.Stderr, "parachute: %v\n", err)
+		slog.New(slog.NewTextHandler(a.deps.Stderr, nil)).Error(err.Error())
 		return ExitConfiguration
 	}
 	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr)

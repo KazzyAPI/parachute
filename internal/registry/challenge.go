@@ -57,7 +57,7 @@ func (a *Authenticator) basic(credential Credential) string {
 	return request.Header.Get("Authorization")
 }
 
-func (a *Authenticator) token(ctx context.Context, challenge Challenge, credential *Credential) (string, error) {
+func (a *Authenticator) token(ctx context.Context, challenge Challenge, credential *Credential) (token string, err error) {
 	realm, err := url.Parse(challenge.Params["realm"])
 	if err != nil || realm.Host == "" {
 		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("invalid token realm %q", challenge.Params["realm"])}
@@ -81,7 +81,11 @@ func (a *Authenticator) token(ctx context.Context, challenge Challenge, credenti
 	if err != nil {
 		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token request to %s: %w", realm.Host, err)}
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil && err == nil {
+			token, err = "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s: %w", realm.Host, closeErr)}
+		}
+	}()
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
 		return "", &Error{Reason: ReasonUnauthorized, Err: fmt.Errorf("token request to %s: %s", realm.Host, response.Status)}
 	}

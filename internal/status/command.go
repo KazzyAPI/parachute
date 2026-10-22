@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -48,9 +49,8 @@ func (c *Command) WriteJSON(document Document) error {
 }
 
 func (c *Command) WriteTable(document Document) error {
-	table := tabwriter.NewWriter(c.out, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(table, "armed: %t\n\n", document.Armed)
-	fmt.Fprintln(table, "HOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD")
+	var rows strings.Builder
+	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\n", document.Armed)
 	for _, host := range document.Hosts {
 		for _, stack := range host.Stacks {
 			for _, service := range stack.Services {
@@ -61,9 +61,13 @@ func (c *Command) WriteTable(document Document) error {
 				if service.Hold != nil {
 					hold = service.Hold.Reason
 				}
-				fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, stack.Name, service.Name, service.Container, service.Image, update, hold)
+				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, stack.Name, service.Name, service.Container, service.Image, update, hold)
 			}
 		}
+	}
+	table := tabwriter.NewWriter(c.out, 0, 4, 2, ' ', 0)
+	if _, err := io.WriteString(table, rows.String()); err != nil {
+		return fmt.Errorf("write status: %w", err)
 	}
 	if err := table.Flush(); err != nil {
 		return fmt.Errorf("write status: %w", err)
