@@ -1,11 +1,6 @@
 package harness
 
-import (
-	"bytes"
-	"errors"
-	"os/exec"
-	"strings"
-)
+import "time"
 
 type ContainerRun struct {
 	Args   []string
@@ -40,7 +35,7 @@ func (e *Env) containerArgs(name string, run ContainerRun) []string {
 		args = append(args, "--label", key+"="+value)
 	}
 	args = append(args, e.ParachuteImage())
-	if len(run.Args) > 0 && run.Args[0] != "healthcheck" && run.Args[0] != "status" {
+	if len(run.Args) > 0 && !isCommand(run.Args[0]) {
 		args = append(args, "--log-format", "json")
 	}
 	return append(args, run.Args...)
@@ -53,19 +48,7 @@ func (e *Env) StartParachuteContainer(name string, run ContainerRun) string {
 	return e.Name(name)
 }
 
-func (e *Env) RunParachuteContainer(name string, run ContainerRun) *Result {
+func (e *Env) RunParachuteContainer(name string, run ContainerRun, timeout time.Duration) *Result {
 	e.T.Helper()
-	cmd := exec.Command("docker", e.containerArgs(name, run)...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := cmd.Run()
-	result := &Result{env: e, Stdout: stdout.String(), Stderr: stderr.String()}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		result.Code = exitErr.ExitCode()
-	} else if err != nil {
-		e.T.Fatalf("docker run: %v", err)
-	}
-	e.T.Logf("parachute container exited %d\nstderr:\n%s", result.Code, strings.TrimSpace(result.Stderr))
-	return result
+	return e.runCommand(timeout, nil, "docker", e.containerArgs(name, run)...)
 }

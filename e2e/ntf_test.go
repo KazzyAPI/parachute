@@ -71,7 +71,6 @@ func TestNTF_002_one_digest_grouped_by_stack(t *testing.T) {
 	}
 	app.publishNewer()
 	notify(env, webhook)
-	time.Sleep(time.Second)
 	lines := strings.Split(singleReport(t, webhook).Message, "\n")
 	for _, project := range []string{shop, blog} {
 		index := slices.Index(lines, "  "+project)
@@ -177,7 +176,6 @@ func TestNTF_008_all_fresh_sends_nothing(t *testing.T) {
 	webhook := env.Webhook()
 	env.RunContainer("a", fixture(env), harness.ContainerOptions{})
 	assertExit(t, notify(env, webhook), 0)
-	time.Sleep(time.Second)
 	if received := webhook.Received(); len(received) != 0 {
 		t.Errorf("unexpected notifications %v", received)
 	}

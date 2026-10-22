@@ -121,7 +121,7 @@ func TestSEL_003_own_container_label_does_not_apply(t *testing.T) {
 	result := env.RunParachuteContainer("parachute", harness.ContainerRun{
 		Args:   []string{"--run-once", "--porcelain", "v1", "--no-pull", "--scope", env.Scope()},
 		Labels: map[string]string{"parachute.enable": "false"},
-	})
+	}, runTimeout)
 	assertExit(t, result, 0)
 	assertCandidates(t, result, []string{a}, nil)
 }

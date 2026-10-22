@@ -1,8 +1,14 @@
 package harness
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -45,6 +51,34 @@ func (l Log) Time() time.Time {
 		return time.Time{}
 	}
 	return parsed
+}
+
+func isCommand(arg string) bool {
+	return slices.Contains([]string{"healthcheck", "status", "restore-verify"}, arg)
+}
+
+func (e *Env) runCommand(timeout time.Duration, environ []string, name string, args ...string) *Result {
+	e.T.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = environ
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	started := time.Now()
+	err := cmd.Run()
+	result := &Result{env: e, Stdout: stdout.String(), Stderr: stderr.String(), Duration: time.Since(started)}
+	var exitErr *exec.ExitError
+	switch {
+	case ctx.Err() != nil:
+		e.T.Fatalf("%s did not exit within %s\nstderr:\n%s", filepath.Base(name), timeout, result.Stderr)
+	case errors.As(err, &exitErr):
+		result.Code = exitErr.ExitCode()
+	case err != nil:
+		e.T.Fatalf("run %s: %v", filepath.Base(name), err)
+	}
+	e.T.Logf("%s %v exited %d after %s\nstderr:\n%s", filepath.Base(name), args, result.Code, result.Duration, result.Stderr)
+	return result
 }
 
 type Result struct {

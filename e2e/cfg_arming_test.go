@@ -139,7 +139,7 @@ func TestCFG_006_armed_label_on_own_container_is_refused(t *testing.T) {
 	result := env.RunParachuteContainer("parachute", harness.ContainerRun{
 		Args:   []string{"--run-once", "--scope", env.Scope()},
 		Labels: map[string]string{"parachute.armed": "true"},
-	})
+	}, runTimeout)
 	assertExit(t, result, 2)
 	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
 }

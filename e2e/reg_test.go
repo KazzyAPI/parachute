@@ -73,7 +73,7 @@ func TestREG_003_docker_hub_key_forms(t *testing.T) {
 			Args:   []string{"--run-once", "--porcelain", "v1", "--scope", env.Scope()},
 			Env:    map[string]string{"HTTPS_PROXY": hub.ProxyURL(), "SSL_CERT_FILE": "/hub/ca.pem", "DOCKER_CONFIG": "/docker-config"},
 			Mounts: []string{filepath.Dir(hub.CAFile) + ":/hub:ro", configDir + ":/docker-config:ro"},
-		})
+		}, runTimeout)
 		want := "Basic " + base64.StdEncoding.EncodeToString([]byte("hubuser:hubpass"))
 		if tokens := hub.TokenAuthorizations(); len(tokens) <= index || tokens[index] != want {
 			t.Fatalf("key %s: token requests carried %v, want %s\n%s", key, tokens, want, result.Stderr)

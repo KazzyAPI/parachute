@@ -88,5 +88,11 @@ func (e *Env) ImageList() string {
 
 func (e *Env) VolumeList() string {
 	e.T.Helper()
-	return e.Docker("volume", "ls", "-q")
+	var own []string
+	for _, name := range strings.Fields(e.Docker("volume", "ls", "-q")) {
+		if strings.Contains(name, e.ID) || strings.HasPrefix(name, "parachute") {
+			own = append(own, name)
+		}
+	}
+	return strings.Join(own, "\n")
 }

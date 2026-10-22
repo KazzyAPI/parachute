@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +18,6 @@ type Registry struct {
 	env       *Env
 	container string
 	Host      string
-	Port      int
 	cliConfig string
 }
 
@@ -39,20 +37,29 @@ func (e *Env) AuthRegistry(user, password string) *Registry {
 
 func (e *Env) startRegistry(user, password string) *Registry {
 	e.T.Helper()
-	port := e.FreePort()
-	registry := &Registry{env: e, container: e.Name("registry-" + strconv.Itoa(port)), Host: "127.0.0.1:" + strconv.Itoa(port), Port: port, cliConfig: filepath.Join(e.Dir, "cli-"+strconv.Itoa(port))}
-	args := []string{"run", "-d", "--name", registry.container, "--label", "parachute-e2e=" + e.ID, "--label", "parachute.enable=false",
-		"-p", "127.0.0.1:" + strconv.Itoa(port) + ":5000", "--mount", "type=tmpfs,destination=/var/lib/registry"}
+	args := []string{"run", "-d", "--label", "parachute-e2e=" + e.ID, "--label", "parachute.enable=false",
+		"-p", "127.0.0.1::5000", "--mount", "type=tmpfs,destination=/var/lib/registry"}
 	if user != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 		if err != nil {
 			e.T.Fatal(err)
 		}
-		htpasswd := e.WriteFile(fmt.Sprintf("auth-%d/htpasswd", port), user+":"+string(hash)+"\n", 0o644)
-		args = append(args, "-v", filepath.Dir(htpasswd)+":/auth", "-e", "REGISTRY_AUTH=htpasswd",
+		authDir, err := os.MkdirTemp(e.Dir, "auth-")
+		if err != nil {
+			e.T.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(authDir, "htpasswd"), []byte(user+":"+string(hash)+"\n"), 0o644); err != nil {
+			e.T.Fatal(err)
+		}
+		args = append(args, "-v", authDir+":/auth", "-e", "REGISTRY_AUTH=htpasswd",
 			"-e", "REGISTRY_AUTH_HTPASSWD_REALM=e2e", "-e", "REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd")
 	}
-	e.Docker(append(args, "registry:2")...)
+	container := e.Docker(append(args, "registry:2")...)
+	host := e.Docker("port", container, "5000/tcp")
+	if fields := strings.Fields(host); len(fields) > 0 {
+		host = fields[0]
+	}
+	registry := &Registry{env: e, container: container, Host: host, cliConfig: filepath.Join(e.Dir, "cli-"+container[:12])}
 	if suite.desktop {
 		address := e.Docker("inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", registry.container)
 		e.Docker("run", "-d", "--network", "host", "--label", "parachute-e2e="+e.ID, "--label", "parachute.enable=false",

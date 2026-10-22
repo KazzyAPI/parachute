@@ -1,9 +1,7 @@
 package harness
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"slices"
@@ -42,7 +40,7 @@ func (p *Parachute) Unsetenv(name string) *Parachute {
 func (p *Parachute) commandArgs() []string {
 	var command []string
 	args := append([]string{}, p.args...)
-	if len(args) > 0 && (args[0] == "healthcheck" || args[0] == "status") {
+	if len(args) > 0 && isCommand(args[0]) {
 		command, args = args[:1], args[1:]
 	}
 	has := func(flag string) bool {
@@ -88,25 +86,7 @@ func (p *Parachute) build(ctx context.Context) *exec.Cmd {
 
 func (p *Parachute) Run(timeout time.Duration) *Result {
 	p.env.T.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := p.build(ctx)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	started := time.Now()
-	err := cmd.Run()
-	result := &Result{env: p.env, Stdout: stdout.String(), Stderr: stderr.String(), Duration: time.Since(started)}
-	var exitErr *exec.ExitError
-	switch {
-	case ctx.Err() != nil:
-		p.env.T.Fatalf("parachute did not exit within %s\nstderr:\n%s", timeout, result.Stderr)
-	case errors.As(err, &exitErr):
-		result.Code = exitErr.ExitCode()
-	case err != nil:
-		p.env.T.Fatalf("run parachute: %v", err)
-	}
-	p.env.T.Logf("parachute %v exited %d after %s\nstderr:\n%s", cmd.Args[1:], result.Code, result.Duration, result.Stderr)
-	return result
+	return p.env.runCommand(timeout, p.environment(), suite.binary, p.commandArgs()...)
 }
 
 func (p *Parachute) Start() *Process {
