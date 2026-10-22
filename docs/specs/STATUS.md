@@ -23,14 +23,15 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 | adr/0004-update-is-a-transaction.md | transaction | complete | spec/transaction | e3a8715 | 0 | 0 | 0 |
 | adr/0005-label-and-configuration-namespace.md | platform | complete | spec/platform | b8d07bb | 0 | 0 | 0 |
 | adr/0006-compose-is-the-unit-of-update.md | transaction | complete | spec/transaction | e3a8715 | 0 | 0 | 0 |
-| adr/0007-safe-by-default.md | unassigned | pending user decision (Q19) | - | - | 0 | 0 | 0 |
+| adr/0007-safe-by-default.md | integration | complete (accepted, Q19) | docs/spec-hardening | ae20953 | 0 | 0 | 0 |
 | adr/0008-state-storage.md | platform | complete | spec/platform | b8d07bb | 0 | 0 | 0 |
-| adr/0009-snapshot-format-and-storage.md | unassigned | pending user decision (Q19) | - | - | 0 | 0 | 0 |
+| adr/0009-snapshot-format-and-storage.md | integration | complete (accepted, Q19) | docs/spec-hardening | ae20953 | 0 | 0 | 0 |
 | adr/0010-docker-socket-access-and-security.md | platform | complete | spec/platform | 6837b83 | 0 | 0 | 0 |
 | adr/0011-untrusted-input-handling.md | migration | complete | spec/migration | be8e9e9 | 0 | 0 | 0 |
 | adr/0012-digest-pinned-updates.md | selection | complete | spec/selection | b2cffbb | 0 | 0 | 0 |
 | adr/0013-secret-redaction.md | platform | complete | spec/platform | 581c310 | 0 | 0 | 0 |
 | adr/0014-self-update-safety.md | transaction | complete | spec/transaction | 00c136f | 0 | 0 | 0 |
+| adr/0015-traceability-and-test-practice.md | integration | complete (new, Q15, Q23) | docs/spec-hardening | 5d5a07f | 0 | 0 | 0 |
 | migration.md | migration | complete | spec/migration | 451b72d | 0 | 0 | 0 |
 | specs/01-selection.md | selection | complete | spec/selection | e08ff31 | 1 | 2 | 0 |
 | specs/02-scheduling.md | selection | complete | spec/selection | 5c9bed9 | 0 | 3 | 0 |
@@ -64,7 +65,7 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 - specs/08-verification-and-rollback.md: added -; changed VER-001, VER-008, VER-010, VER-011; superseded/withdrawn -
 - specs/09-update-policies.md: added POL-011; changed POL-007, POL-010; superseded/withdrawn -
 - specs/10-notifications.md: added NTF-014; changed NTF-001, NTF-007, NTF-013; superseded/withdrawn -
-- specs/11-http-api-and-metrics.md: added API-009, API-010, API-011, API-012; changed API-002, API-008; superseded/withdrawn -
+- specs/11-http-api-and-metrics.md: added API-009, API-010, API-011, API-012; changed API-002, API-007, API-008; superseded/withdrawn -
 - specs/12-registry-auth.md: added REG-007, REG-008; changed REG-001, REG-002, REG-006; superseded/withdrawn -
 - specs/13-daemon-and-runtimes.md: added -; changed DMN-003, DMN-004, DMN-005, DMN-007; superseded/withdrawn -
 - specs/14-status-view.md: added STS-006, STS-007; changed STS-001, STS-002, STS-004, STS-005; superseded/withdrawn -
@@ -75,11 +76,22 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 
 Resolved in the integration pass on `docs/spec-hardening`:
 
-- ADR index lists 0011 to 0014; statuses match each ADR's own Status line (0007, 0009 stay Proposed).
-- [reasons.md](reasons.md) producers synced (UPD-007, UPD-020, HOK-008, DET-008, REG-007, REG-008, SEL-013); conflicts 3, 4, 7, 8 closed; `image_mismatch` proposed only (conflict 10, Q16).
+- ADR index lists 0011 to 0014; statuses match each ADR's own Status line.
+- [reasons.md](reasons.md) producers synced (UPD-007, UPD-020, HOK-008, DET-008, REG-007, REG-008, SEL-013); conflicts 3, 4, 7, 8, 10 closed (`image_mismatch` added, Q16).
 - Cross-references aligned: UPD-001, UPD-014, UPD-018 to UPD-020; POL-002, POL-006, POL-010, API-007 to DET-008 and the `frozen` field; UPD-017 helper proof by label (BKP-010); BKP-001, BKP-003 own-container `none`; SEL-012 engine-identified own container; CFG label table and CFG-010 handover format; REG-006 to ADR-0013; glossary to STS-006, STS-007; DMN-006 alias removed.
 - [README.md](README.md) M1 deviations list `--allow-insecure-tcp` and the M1-covered IDs whose meaning changed.
 
-Open, pending user decision: [open questions](open-questions.md) Q14 to Q26.
+Decisions applied 2026-10-23 ([open questions](open-questions.md) Q14 to Q26, all resolved as recommended):
+
+- Q14: own container identified only by the engine; `parachute.self` only excludes (SEL-012, SEL-013, UPD-018, CFG label reference, glossary, migration guide).
+- Q15, Q23: [ADR-0015](../adr/0015-traceability-and-test-practice.md) supersedes the drifted parts of ADR-0001 to ADR-0003 and allows a unit test for API-011; README test conventions and NTF intro updated.
+- Q16: `rolled_back`/`image_mismatch` (UPD-020, reasons.md).
+- Q17: the state-file route to lift a freeze is removed from the glossary.
+- Q18, Q21: ADR-0008 Amendment records the state-file replay limit; API-007 applies a stored approval only for the current candidate digest.
+- Q19: ADR-0007 and ADR-0009 accepted.
+- Q22: `--trusted-proxies` / `PARACHUTE_TRUSTED_PROXIES` (API-010, CFG settings reference).
+- Q20, Q24, Q25, Q26: specs already matched; no change.
+
+Still open: Q13 (URL lists with commas).
 
 Checks: every referenced requirement ID is in the README index; every relative link and anchor resolves; the old tool's name appears only in `docs/migration.md`; `make trace` passes (M1: 61 requirements, 61 tested).
