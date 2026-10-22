@@ -104,7 +104,7 @@ sed -i.bak 's/com\.centurylinklabs\.watchtower\./parachute./g' docker-compose.ym
 
 Old labels are ignored, not translated. A container still carrying only old labels is treated as unlabelled, so check anything you had opted out with `enable=false`.
 
-Set `parachute.*` labels on the container (in your compose file or `docker run --label`). Labels baked into an image are not read: an image cannot change how Parachute treats it.
+Set `parachute.*` labels on the container (in your compose file or `docker run --label`). Labels baked into an image are not read: an image cannot change how Parachute treats it. The only exceptions are `parachute.monitor-only=true`, `parachute.approval=required`, and `parachute.self=true`, which can only make Parachute more cautious (a container with `parachute.self=true` is never updated, unless it is Parachute's own container). Parachute finds its own container through Docker; it needs no label for that.
 
 ## 4. Metrics
 

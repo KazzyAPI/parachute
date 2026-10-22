@@ -137,7 +137,7 @@ State recovered from the state file (UPD-016) MUST NOT by itself justify a remov
 - **Given** a rolled-back update **When** the cycle ends **Then** no container carrying that transaction's `parachute.transaction` label exists.
 
 ### UPD-018 Self-update
-A **self-update** is an update of Parachute's **own container**: the container this instance runs in, as identified by the engine. A `parachute.self=true` label alone never makes a container this instance's own (SEL-012); another Parachute container is never changed by this instance. The design is [ADR-0014](../adr/0014-self-update-safety.md). Before its `handover` phase a self-update MUST follow these rules:
+A **self-update** is an update of Parachute's **own container**: the container this instance runs in, as identified by the engine. Parachute never needs a `parachute.self` label to find it, and the label never makes a container this instance's own (SEL-012); another Parachute container is never changed by this instance. The design is [ADR-0014](../adr/0014-self-update-safety.md). Before its `handover` phase a self-update MUST follow these rules:
 
 - **Approval.** It is always held with reason `approval_required` until its approved digest (UPD-020) is approved (API-007), as the glossary's **Self-update approval** says; no profile, flag, or label removes this hold.
 - **Order and scope.** It runs after every other stack in the cycle, as a transaction of the own container alone, even when that container belongs to a Compose project; no other container is stopped or joined to it (DEP-003).

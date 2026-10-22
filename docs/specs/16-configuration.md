@@ -208,7 +208,7 @@ Labels are read from monitored containers unless noted, and only when set at cre
 | `parachute.monitor-only` | boolean | `--monitor-only` (SEL-008) | SEL-007 |
 | `parachute.no-pull` | boolean | `--no-pull` (SEL-008) | DET-004 |
 | `parachute.scope` | text | | SEL-011 |
-| `parachute.self` | `true` (set by the official image) | | SEL-012, UPD-018 |
+| `parachute.self` | `true`; only excludes a container that is not Parachute's own (the official image carries it for information) | | SEL-012, SEL-013 |
 | `parachute.armed` | boolean, on Parachute's own container | `--armed` | CFG-006 |
 | `parachute.helper`, `parachute.transaction` | set by Parachute on helpers | | BKP-010 |
 | `parachute.stop-signal` | signal name | | UPD-006 |

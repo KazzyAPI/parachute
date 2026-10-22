@@ -114,13 +114,13 @@ Affects CFG-003, NTF-001. Lists are split on spaces and commas (CFG-003), so a `
 **Recommendation:** document percent-encoding (`%2C`) for now and accept repeated `--notification-url` flags; do not change the shared list syntax.
 
 ### Q14 How is Parachute's own container recognised?
-**Status:** Open.
+**Status:** Resolved 2026-10-23: B. The own container is identified only by the engine; `parachute.self` is never needed, and set or inherited it only excludes a container that is not the own one (SEL-012, SEL-013, UPD-018, CFG label reference).
 
 Affects SEL-012, SEL-013, UPD-018, CFG label reference. The official image bakes in `parachute.self=true`, while UPD-018 identifies the own container through the engine and SEL-013 honours the inherited label only because it is cautionary.
 - **A.** The image-baked `parachute.self=true` label marks Parachute containers (SEL-012 today).
 - **B.** The own container is identified only by the engine; the label is never needed and only ever makes Parachute more cautious.
 
-**Recommendation: B**, keeping the label only as a cautionary marker. Specs currently state both; SEL-012's label sentence is unchanged pending this answer.
+**Recommendation: B**, keeping the label only as a cautionary marker.
 
 ### Q15 Superseding ADR for drift in ADR-0001 to ADR-0003
 **Status:** Open.

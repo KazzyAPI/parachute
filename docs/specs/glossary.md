@@ -15,7 +15,7 @@
 - **Restore verification**: a scheduled test restore of a snapshot into throwaway containers (RST-001).
 - **Result state**: the outcome of a candidate in a cycle, for example `updated` or `held` (CFG-007).
 - **Scope**: a label value that limits a Parachute instance to some containers, so several instances can share a host (SEL-011).
-- **Self-update approval**: an update of Parachute's own container (`parachute.self=true`, UPD-018) is never applied automatically. It is always held with reason `approval_required` until approved (API-007). Neither the `convenient` profile (CFG-011), `--protect-databases=false`, nor `parachute.approval=auto` removes this hold.
+- **Self-update approval**: an update of Parachute's own container (the container the instance runs in, identified by the engine, not by a label; SEL-012, UPD-018) is never applied automatically. It is always held with reason `approval_required` until approved (API-007). Neither the `convenient` profile (CFG-011), `--protect-databases=false`, nor `parachute.approval=auto` removes this hold.
 - **Service**: the containers of one Compose service in a stack; the unit of update (DEP-001).
 - **Snapshot**: the stored copy of a stack's container configuration and data taken before an update. ID `snap-...` (BKP-006).
 - **Stack**: the containers of one Compose project on one host, or a single non-Compose container; the unit of snapshot, verification, and rollback (DEP-001, DEP-002).
@@ -62,7 +62,7 @@ A terminal state is never left. A new attempt is a new transaction with a new ID
 
 **Untrusted** (validated before use; a bad value fails only the item it belongs to, never crashes Parachute or affects other containers; [ADR-0011](../adr/0011-untrusted-input-handling.md)):
 
-- Image metadata from registries or pulled images: labels, configuration, `created` time, health check, entrypoint. Image labels never set Parachute behaviour (`parachute.*` labels are read only from the container, not inherited from the image config).
+- Image metadata from registries or pulled images: labels, configuration, `created` time, health check, entrypoint. Image labels never set Parachute behaviour (`parachute.*` labels are read only from the container, not inherited from the image config), except the cautionary ones of SEL-013, which can only make Parachute more cautious.
 - Registry responses: status codes, headers, bearer challenges and token realms, manifests (size-limited), token bodies.
 - The state file and `handover.json`: parsed strictly; an invalid file is a startup error (CFG-010), never overwritten; the status view never takes the armed state or an approval from it (STS-006).
 - Snapshot manifests and archives: validated (BKP-007) before rollback or restore verification; paths in them never escape the snapshot or target mount.
