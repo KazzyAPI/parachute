@@ -1,0 +1,44 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - forbidigo
+    - gochecknoglobals
+    - gochecknoinits
+    - gocritic
+    - misspell
+    - nilerr
+    - unconvert
+    - wastedassign
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^time\.Now$
+          msg: use the injected clock
+        - pattern: ^os\.Exit$
+          msg: only the composition root exits
+        - pattern: ^os\.(Getenv|LookupEnv|Environ)$
+          msg: only the composition root and the config loader read the environment
+  exclusions:
+    rules:
+      - path: internal/clock/
+        linters: [forbidigo]
+      - path: cmd/parachute/
+        linters: [forbidigo]
+      - path: tools/
+        linters: [forbidigo]
+      - path: e2e/
+        linters: [forbidigo]
+      - path: e2e/harness/suite.go
+        linters: [gochecknoglobals]
+
+formatters:
+  enable:
+    - gofmt
