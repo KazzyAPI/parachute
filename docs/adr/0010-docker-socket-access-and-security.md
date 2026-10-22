@@ -1,6 +1,6 @@
 # ADR-0010: Docker socket access and security model
 
-- **Status:** Proposed
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-22
 
 ## Context
@@ -20,3 +20,6 @@ Access to the Docker socket or Engine API is equivalent to root on that host. Pa
 
 ## Specs affected
 API-001, API-002, API-003, BKP-004, DMN-003, REG-006, NTF-001, BKP-010, RST-002, RST-005.
+
+## Amendment (2026-10-23)
+Decision 3 is narrowed: a plain or unverified `tcp://` host (loopback included) is a startup error (exit code 2) unless `--allow-insecure-tcp` / `PARACHUTE_ALLOW_INSECURE_TCP=true` is set; with it, Parachute warns at startup and at the start of every cycle and lists it as a relaxation (DMN-003). Decision 2 is extended by request limits, failed-authentication throttling, and constant-time token comparison (API-009 to API-011). Decision 4 is made precise by [ADR-0013](0013-secret-redaction.md).

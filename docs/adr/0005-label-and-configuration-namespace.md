@@ -1,6 +1,6 @@
 # ADR-0005: Label and configuration namespace
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context

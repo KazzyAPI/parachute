@@ -1,6 +1,6 @@
 # ADR-0008: State storage layout
 
-- **Status:** Proposed
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-22
 
 ## Context
@@ -22,3 +22,6 @@ ADR-0002 rules out a database. Some facts must still survive a restart: first-se
 
 ## Specs affected
 CFG-010, UPD-016, UPD-018, POL-002, POL-006, NTF-011, STS-001, RST-006.
+
+## Amendment (2026-10-23)
+The state file and `handover.json` are untrusted input ([glossary: Trust boundaries](../specs/glossary.md#trust-boundaries)): they are parsed strictly, never arm Parachute (CFG-006), and the status view never treats an approval recorded in them as having released a hold (STS-006).

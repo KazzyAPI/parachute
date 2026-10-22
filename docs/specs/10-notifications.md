@@ -8,7 +8,7 @@ How Parachute tells the operator what happened. Default behaviour is one quiet d
 Parachute MUST send each notification to every URL in `--notification-url` (a list, CFG-003). A delivery failure for one URL MUST NOT stop delivery to the others and MUST be logged at `error` with the URL's scheme and host, never the full URL.
 
 - **Given** two webhook URLs **When** a cycle with an update ends **Then** each webhook receives the report once.
-- **Given** one unreachable URL and one working URL **When** a cycle ends **Then** the working webhook receives the report and an `error` line names the unreachable host without its path or credentials.
+- **Given** an unreachable URL `generic://bob:hunter2@127.0.0.1:1/secret-path?token=q5ecret` and one working URL **When** a cycle ends **Then** the working webhook receives the report and one `error` line contains `127.0.0.1:1` and contains none of `hunter2`, `secret-path`, or `q5ecret`.
 
 ### NTF-002 One digest per cycle
 With `--notification-report` on (default), Parachute MUST send at most one report notification per cycle, covering all hosts. Its default body MUST group entries by host, then by stack, then by service, and list each entry's result state, reason, image reference, and transaction ID when present. Results of restore verification (RST-006) are sent the same way, one notification per run.
@@ -41,7 +41,7 @@ The notification title MUST be `Parachute on <hostname>`, where `<hostname>` is 
 ### NTF-007 Simple mode
 With `--notification-report=false`, Parachute MUST collect the log entries of a cycle at or above the notification level and send them as one notification at the end of the cycle. The template then receives a list of entries with fields `Time`, `Level`, `Message`, `Fields`; the default template is one message per line.
 
-- **Given** `--notification-report=false` and template `{{range .}}{{.Message}}|{{end}}` **When** a cycle with an update ends **Then** one notification arrives whose body is the cycle's `info`-and-above messages joined with `|`.
+- **Given** `--notification-report=false`, `--log-format json`, and template `{{range .}}{{.Message}}|{{end}}` **When** a cycle with an update ends **Then** one notification arrives whose body is the `msg` values of the cycle's `info`-and-above stderr log lines, in order, each followed by `|`.
 
 ### NTF-008 Empty output sends nothing
 When a template renders to an empty or whitespace-only string, no notification MUST be sent.
@@ -73,3 +73,9 @@ An entry with state `rollback_failed` MUST be sent as its own `error` notificati
 Per-provider notification settings (`--notifications`, and any setting whose name starts with `--notification-email-`, `--notification-slack-`, `--notification-msteams-`, or `--notification-gotify-`, plus their environment forms) MUST fail at startup with exit code 2 and a message that shows the matching service URL format (for example `slack://token@channel`), per CFG-005.
 
 - **Given** `PARACHUTE_NOTIFICATION_SLACK_HOOK_URL=https://hooks.example/x` **When** Parachute starts **Then** it exits with code 2 and the message contains `--notification-url` and `slack://`.
+
+### NTF-014 Notifications are redacted
+Every notification (report, simple mode, restore verification, the NTF-012 error notification, and `logger://` output) MUST be redacted per [glossary: Redaction](glossary.md#redaction) after its template is rendered, whatever the template, so no secret appears in a title or body ([ADR-0013](../adr/0013-secret-redaction.md)). Template fields (NTF-006, NTF-007) MUST NOT carry secret values.
+
+- **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7`, `--notification-report=false`, `--notifications-level debug`, and a working webhook **When** a cycle runs **Then** no notification received by the webhook contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, the base64 form of `user:s3cret-value`, or `pw-9z7`.
+- **Given** a registry whose bearer challenge names the unreachable realm `https://u:realmpw@127.0.0.1:1/token`, `--notification-report=false`, and a working webhook **When** a cycle runs **Then** the notification contains `[REDACTED]` and not `realmpw`.
