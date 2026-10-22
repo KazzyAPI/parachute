@@ -2,7 +2,7 @@
 
 **Status:** Draft
 
-How Parachute tells the operator what happened. Default behaviour is one quiet digest per cycle ([ADR-0007](../adr/0007-safe-by-default.md)). Delivery uses shoutrrr service URLs ([ADR-0002](../adr/0002-language-and-docker-client.md)). Tests use a `generic://` URL pointing at a fake webhook that records every request.
+How Parachute tells the operator what happened. Default behaviour is one quiet digest per cycle ([ADR-0007](../adr/0007-safe-by-default.md)). Delivery uses shoutrrr service URLs, through a maintained fork ([ADR-0002](../adr/0002-language-and-docker-client.md), [ADR-0015](../adr/0015-traceability-and-test-practice.md)). Tests use a `generic://` URL pointing at a fake webhook that records every request.
 
 ### NTF-001 Service URLs
 Parachute MUST send each notification to every URL in `--notification-url` (a list, CFG-003). A delivery failure for one URL MUST NOT stop delivery to the others and MUST be logged at `error` with the URL's scheme and host, never the full URL.

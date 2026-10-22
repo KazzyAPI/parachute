@@ -123,7 +123,7 @@ Affects SEL-012, SEL-013, UPD-018, CFG label reference. The official image bakes
 **Recommendation: B**, keeping the label only as a cautionary marker.
 
 ### Q15 Superseding ADR for drift in ADR-0001 to ADR-0003
-**Status:** Open.
+**Status:** Resolved 2026-10-23: New [ADR-0015](../adr/0015-traceability-and-test-practice.md) records the current test names, tracing rule, and shoutrrr fork; ADR-0001 to ADR-0003 are marked partly superseded.
 
 Affects ADR-0001, ADR-0002, ADR-0003, `tools/trace`. The specs and tooling drifted from the accepted ADRs: test names (ADR-0001 says a test name starts with its ID; `make trace` matches `TestABC_001_`), the tracing rule (ADR-0001 and ADR-0003 fail only on a `MUST` in an `Accepted` file; `make trace` fails on a `MUST` or `SHOULD` listed for a milestone), and notification delivery (ADR-0002 names shoutrrr; a fork is used). Accepted ADRs are not edited, so the drift needs a new ADR.
 
@@ -181,7 +181,7 @@ Affects API-010. Behind a reverse proxy every request has the proxy's source IP,
 **Recommendation:** per-IP throttling by default, plus a trusted-proxy setting that lists proxy addresses whose `X-Forwarded-For` is honoured.
 
 ### Q23 Testing constant-time token comparison
-**Status:** Open.
+**Status:** Resolved 2026-10-23: A code-level unit test covers API-011 as a documented exception to black-box testing (ADR-0015); the black-box test keeps the observable 401 part.
 
 Affects API-011, ADR-0003. The black-box timing criterion (median difference under 1 ms) is noisy on shared CI and cannot prove constant time.
 

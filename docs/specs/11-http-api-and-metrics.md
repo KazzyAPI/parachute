@@ -95,7 +95,10 @@ Parachute MUST count failed authentications (API-002) per source IP address over
 ### API-011 Constant-time token comparison
 Parachute MUST compare a presented token with `--http-api-token` and `--http-api-status-token` in time that does not depend on the presented token's content or length, by comparing fixed-length digests (SHA-256) of both values with a constant-time comparison. Both configured tokens are always compared, whichever matches.
 
-- **Given** a 64-character token **When** 100 requests with a wrong token equal to it except in the last character and 100 with a wrong token sharing no character with it are sent, interleaved, from source addresses chosen so that none is throttled (API-010) **Then** every response is 401 and the median response times of the two sets differ by less than 1 ms.
+The constant-time property is tested by a code-level unit test, a documented exception to black-box testing ([ADR-0015](../adr/0015-traceability-and-test-practice.md)); the black-box test covers the observable part.
+
+- **Given** a 64-character token and a status token **When** requests are sent with wrong tokens that equal the token except in the last character, share no character with it, are empty, are one character long, and are 1 KiB long, from source addresses chosen so that none is throttled (API-010) **Then** every response is 401.
+- **Given** the token comparison in a code-level unit test (ADR-0015) **When** it is called with a presented token equal to either configured token, differing from it only in the last character, a prefix of it, longer than it, and sharing no character with it **Then** it reports the right match every time, compares SHA-256 digests of the presented token with both configured tokens' digests on every call, and uses a constant-time comparison.
 
 ### API-012 Responses are redacted
 Every HTTP response body and header, on every endpoint and status code, MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). Error bodies MUST NOT echo the presented credentials. Metric label values MUST NOT contain secrets.

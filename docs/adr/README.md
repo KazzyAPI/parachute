@@ -9,9 +9,9 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 
 | ADR | Title | Status |
 |---|---|---|
-| [0001](0001-spec-driven-development.md) | Spec-driven development | Accepted |
-| [0002](0002-language-and-docker-client.md) | Go, using the official Docker client | Accepted |
-| [0003](0003-black-box-tests-from-specs.md) | Black-box tests derived from specs | Accepted |
+| [0001](0001-spec-driven-development.md) | Spec-driven development | Accepted (partly superseded by ADR-0015) |
+| [0002](0002-language-and-docker-client.md) | Go, using the official Docker client | Accepted (partly superseded by ADR-0015) |
+| [0003](0003-black-box-tests-from-specs.md) | Black-box tests derived from specs | Accepted (partly superseded by ADR-0015) |
 | [0004](0004-update-is-a-transaction.md) | An update is a transaction | Accepted |
 | [0005](0005-label-and-configuration-namespace.md) | Label and configuration namespace | Accepted |
 | [0006](0006-compose-is-the-unit-of-update.md) | The Compose stack is the unit of update | Accepted |
@@ -23,3 +23,4 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0012](0012-digest-pinned-updates.md) | Digest-pinned updates | Accepted |
 | [0013](0013-secret-redaction.md) | Secret redaction | Accepted |
 | [0014](0014-self-update-safety.md) | Self-update safety | Accepted |
+| [0015](0015-traceability-and-test-practice.md) | Traceability and test practice as built | Accepted |
