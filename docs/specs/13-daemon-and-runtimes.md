@@ -34,10 +34,11 @@ If no managed host is reachable at startup, Parachute MUST exit with code 4 and 
 - **Given** `DOCKER_HOST=tcp://127.0.0.1:1` and `--allow-insecure-tcp` **When** Parachute starts **Then** it exits with code 4 and the message contains `tcp://127.0.0.1:1`.
 
 ### DMN-005 Connection loss while running
-If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker request with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable. An open transaction on that host is rolled back as in UPD-016 when the host is reachable again.
+If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker request with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable (`reachable: false`); an unreachable host contributes no result entries for that cycle ([reasons.md](reasons.md#not-reason-codes)). An open transaction on that host is rolled back as in UPD-016 when the host is reachable again. A Docker request for one candidate that fails while the host stays reachable (the engine answers, with an error) MUST end that candidate `failed` with reason `engine_error` and MUST NOT affect other candidates.
 
 - **Given** a running Parachute and the daemon stopped for 20 seconds during an idle period **When** the daemon returns and a cycle runs **Then** the Parachute process is still running and the cycle completes.
 - **Given** a daemon paused for 6 minutes during a cycle **When** the cycle ends **Then** the report lists that host as unreachable and Parachute is still running.
+- **Given** an engine proxy in front of a reachable daemon that answers `500` to every image inspect request for container `a`'s image, and containers `a` and `b` **When** a cycle runs **Then** `a` is `failed` with reason `engine_error`, `b` gets its normal result, and the host is reported reachable.
 
 ### DMN-006 Health check command
 `parachute healthcheck` (also `parachute --health-check`) MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.

@@ -48,7 +48,7 @@ Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is
 - **Given** an unarmed Parachute whose `state.json` was copied from an armed instance, and a container with a newer image **When** a cycle runs **Then** the container is reported `would_update` and its ID and image, the local image list, and the volume list are unchanged.
 
 ### CFG-007 Result states and porcelain output
-Every candidate MUST end each cycle in exactly one of these states:
+Every candidate on a reachable host MUST end each cycle in exactly one of these states. The reason code for each state and its notification level and exit code are listed only in [reasons.md](reasons.md).
 
 | State | Meaning |
 |---|---|
@@ -57,7 +57,7 @@ Every candidate MUST end each cycle in exactly one of these states:
 | `would_update` | Update would be applied, but Parachute is unarmed. |
 | `held` | Update available but not applied this cycle: held by a policy (POL-001) or deferred by a `pre-update` hook (HOK-006, reason `hook_deferred`). |
 | `skipped` | Not checkable for a non-error reason (`digest_pinned`, `local_image`, `managed_by_runtime`). |
-| `failed` | Not updated because of an error; nothing changed (UPD-014, BKP-011, UPD-019, DET-003, DEP-008, POL-008, host unreachable). |
+| `failed` | Not updated because of an error; nothing changed (UPD-014, BKP-011, UPD-019, DET-003, DEP-008, POL-008, DMN-005). An unreachable host is not a result: it is reported per host and contributes no entries (DMN-005). |
 | `rolled_back` | Update applied, verification failed, previous state restored (reason `verify_failed`, `verify_timeout`, `transaction_timeout`, or `interrupted`; VER-011). |
 | `rollback_failed` | Update applied, and the previous state could not be fully restored (VER-010). |
 
