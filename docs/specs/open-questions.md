@@ -125,7 +125,7 @@ Affects SEL-012, SEL-013, UPD-018, CFG label reference. The official image bakes
 ### Q15 Superseding ADR for drift in ADR-0001 to ADR-0003
 **Status:** Open.
 
-Affects ADR-0001, ADR-0002, ADR-0003, `tools/trace`. The specs and tooling drifted from the accepted ADRs: the test-name format (`TestABC_001_` vs the ADR's form), MUST-only tracing vs the milestone rule (`make trace` checks `MUST` and `SHOULD` of milestone-listed IDs), and the use of a shoutrrr fork. Accepted ADRs are not edited, so the drift needs a new ADR.
+Affects ADR-0001, ADR-0002, ADR-0003, `tools/trace`. The specs and tooling drifted from the accepted ADRs: test names (ADR-0001 says a test name starts with its ID; `make trace` matches `TestABC_001_`), the tracing rule (ADR-0001 and ADR-0003 fail only on a `MUST` in an `Accepted` file; `make trace` fails on a `MUST` or `SHOULD` listed for a milestone), and notification delivery (ADR-0002 names shoutrrr; a fork is used). Accepted ADRs are not edited, so the drift needs a new ADR.
 
 **Recommendation:** one superseding ADR that records the current practice for all three.
 
