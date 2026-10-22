@@ -25,3 +25,5 @@ CFG-010, UPD-016, UPD-018, POL-002, POL-006, NTF-011, STS-001, RST-006.
 
 ## Amendment (2026-10-23)
 The state file and `handover.json` are untrusted input ([glossary: Trust boundaries](../specs/glossary.md#trust-boundaries)): they are parsed strictly, never arm Parachute (CFG-006), and the status view never treats an approval recorded in them as having released a hold (STS-006).
+
+Accepted limit for v1 (2026-10-23): write access to the state directory is trusted. Parachute cannot tell a state file it wrote from an older valid `state.json` that someone with write access restored, so such a replay can reset first-seen times (POL-002), remove a freeze or a failed-digest hold (POL-010), or bring back a recorded approval, which still applies only to the digest it names while that digest is the current candidate digest (POL-006, API-007). Detecting a replay (for example an HMAC keyed outside the state directory) is out of scope for v1. Operators protect the state directory like the Docker socket ([ADR-0010](0010-docker-socket-access-and-security.md)).

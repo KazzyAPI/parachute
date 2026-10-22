@@ -146,7 +146,7 @@ Affects glossary (Transaction state machine), POL-010, API-007, STS-006. The glo
 **Recommendation:** remove the state-file route from the glossary; the freeze ends only by approval (API-007).
 
 ### Q18 Replaying an old state file to undo a freeze or delay
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Out of scope for v1. ADR-0008's Amendment records the limit: write access to the state directory is trusted and an old state file can be replayed.
 
 Affects CFG-010, POL-002, POL-010, ADR-0008. Someone who can write the state directory can restore an older valid `state.json` and so reset first-seen times or remove a freeze. An HMAC keyed outside the state directory would detect it.
 
