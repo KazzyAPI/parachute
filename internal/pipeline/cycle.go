@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/KazzyAPI/parachute/internal/detect"
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/registry"
 )
@@ -13,15 +12,15 @@ type ContainerSource interface {
 	Containers(ctx context.Context) ([]domain.Container, error)
 }
 
-type FindingSource interface {
-	Detect(ctx context.Context, container domain.Container, credentials registry.Credentials, noPull bool) (detect.Finding, error)
+type ResultDetector interface {
+	Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, error)
 }
 
 type Host struct {
 	Name     string
 	Endpoint string
 	Source   ContainerSource
-	Detector FindingSource
+	Detector ResultDetector
 }
 
 type HostRun struct {
@@ -33,7 +32,6 @@ type HostRun struct {
 
 type Candidate struct {
 	Container domain.Container
-	Finding   detect.Finding
 	Result    domain.Result
 }
 

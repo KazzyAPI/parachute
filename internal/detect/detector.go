@@ -23,14 +23,6 @@ type DigestSource interface {
 	Digest(ctx context.Context, ref registry.Reference, credential *registry.Credential) (string, error)
 }
 
-type Finding struct {
-	UpdateAvailable bool
-	Candidate       string
-	State           domain.State
-	Reason          string
-	Detail          string
-}
-
 type Detector struct {
 	images   ImageSource
 	registry DigestSource
@@ -40,23 +32,23 @@ func NewDetector(images ImageSource, digests DigestSource) *Detector {
 	return &Detector{images: images, registry: digests}
 }
 
-func (d *Detector) Detect(ctx context.Context, container domain.Container, credentials registry.Credentials, noPull bool) (Finding, error) {
-	if registry.IsDigestPinned(container.ImageRef) {
-		return Finding{State: domain.StateSkipped, Reason: ReasonDigestPinned}, nil
+func (d *Detector) Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, error) {
+	if registry.IsDigestPinned(result.Image) {
+		return result.Conclude(domain.StateSkipped, ReasonDigestPinned, ""), nil
 	}
-	ref, err := registry.ParseReference(container.ImageRef)
+	ref, err := registry.ParseReference(result.Image)
 	if err != nil {
-		return d.unresolvable(err), nil
+		return result.Conclude(domain.StateSkipped, ReasonLocalImage, err.Error()), nil
 	}
 	if noPull {
-		return d.detectLocally(ctx, container)
+		return d.detectLocally(ctx, result)
 	}
-	image, found, err := d.images.Image(ctx, container.ImageID)
+	image, found, err := d.images.Image(ctx, result.ImageID)
 	if err != nil {
-		return Finding{}, err
+		return result, err
 	}
 	if found && len(image.Digests) == 0 {
-		return Finding{State: domain.StateSkipped, Reason: ReasonLocalImage}, nil
+		return result.Conclude(domain.StateSkipped, ReasonLocalImage, ""), nil
 	}
 	credential, hasCredential := credentials.For(ref)
 	var credentialPointer *registry.Credential
@@ -65,36 +57,32 @@ func (d *Detector) Detect(ctx context.Context, container domain.Container, crede
 	}
 	digest, err := d.registry.Digest(ctx, ref, credentialPointer)
 	if err != nil {
-		return d.registryFailure(err)
+		return d.registryFailure(result, err), nil
 	}
-	if slices.Contains(image.Digests, digest) || digest == container.ImageID {
-		return Finding{State: domain.StateFresh}, nil
+	if slices.Contains(image.Digests, digest) || digest == result.ImageID {
+		return result.Conclude(domain.StateFresh, "", ""), nil
 	}
-	return Finding{UpdateAvailable: true, Candidate: digest}, nil
+	return result.Available(digest), nil
 }
 
-func (d *Detector) detectLocally(ctx context.Context, container domain.Container) (Finding, error) {
-	local, found, err := d.images.Image(ctx, container.ImageRef)
+func (d *Detector) detectLocally(ctx context.Context, result domain.Result) (domain.Result, error) {
+	local, found, err := d.images.Image(ctx, result.Image)
 	if err != nil {
-		return Finding{}, err
+		return result, err
 	}
-	if !found || local.ID == container.ImageID {
-		return Finding{State: domain.StateFresh}, nil
+	if !found || local.ID == result.ImageID {
+		return result.Conclude(domain.StateFresh, "", ""), nil
 	}
-	return Finding{UpdateAvailable: true, Candidate: local.ID}, nil
+	return result.Available(local.ID), nil
 }
 
-func (d *Detector) unresolvable(err error) Finding {
-	return Finding{State: domain.StateSkipped, Reason: ReasonLocalImage, Detail: err.Error()}
-}
-
-func (d *Detector) registryFailure(err error) (Finding, error) {
+func (d *Detector) registryFailure(result domain.Result, err error) domain.Result {
 	var registryErr *registry.Error
 	if !errors.As(err, &registryErr) {
-		return Finding{State: domain.StateFailed, Reason: registry.ReasonUnreachable, Detail: err.Error()}, nil
+		return result.Conclude(domain.StateFailed, registry.ReasonUnreachable, err.Error())
 	}
 	if registryErr.Reason == registry.ReasonNotFound {
-		return Finding{State: domain.StateSkipped, Reason: ReasonLocalImage, Detail: err.Error()}, nil
+		return result.Conclude(domain.StateSkipped, ReasonLocalImage, err.Error())
 	}
-	return Finding{State: domain.StateFailed, Reason: registryErr.Reason, Detail: err.Error()}, nil
+	return result.Conclude(domain.StateFailed, registryErr.Reason, err.Error())
 }

@@ -47,6 +47,7 @@ type Result struct {
 	Reason          string `json:"reason"`
 	Transaction     string `json:"txn"`
 	Snapshot        string `json:"snapshot"`
+	Detail          string `json:"-"`
 }
 
 func NewResult(host string, container Container) Result {
@@ -59,6 +60,16 @@ func NewResult(host string, container Container) Result {
 		Image:     container.ImageRef,
 		ImageID:   container.ImageID,
 	}
+}
+
+func (r Result) Conclude(state State, reason, detail string) Result {
+	r.State, r.Reason, r.Detail = state, reason, detail
+	return r
+}
+
+func (r Result) Available(candidate string) Result {
+	r.State, r.CandidateDigest = StateWouldUpdate, candidate
+	return r
 }
 
 func (r Result) UpdateAvailable() bool {

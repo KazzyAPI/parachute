@@ -20,20 +20,10 @@ func NewClassifyStage(labels LabelSwitch, monitorOnly SwitchSettings) *ClassifyS
 func (s *ClassifyStage) Run(_ context.Context, cycle *Cycle) error {
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
-			candidate.Result.State, candidate.Result.Reason = s.classify(candidate)
-			candidate.Result.CandidateDigest = candidate.Finding.Candidate
+			if candidate.Result.State == domain.StateWouldUpdate && s.labels.Switch(candidate.Container, "monitor-only", s.monitorOnly.Global, s.monitorOnly.LabelWins) {
+				candidate.Result = candidate.Result.Conclude(domain.StateHeld, reasonMonitorOnly, "")
+			}
 		}
 	}
 	return nil
-}
-
-func (s *ClassifyStage) classify(candidate *Candidate) (domain.State, string) {
-	finding := candidate.Finding
-	if !finding.UpdateAvailable {
-		return finding.State, finding.Reason
-	}
-	if s.labels.Switch(candidate.Container, "monitor-only", s.monitorOnly.Global, s.monitorOnly.LabelWins) {
-		return domain.StateHeld, reasonMonitorOnly
-	}
-	return domain.StateWouldUpdate, ""
 }

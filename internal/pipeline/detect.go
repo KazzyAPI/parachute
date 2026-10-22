@@ -44,7 +44,7 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)
-			finding, err := host.Host.Detector.Detect(ctx, candidate.Container, credentials, noPull)
+			result, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -56,9 +56,9 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 				break
 			}
 			if err != nil {
-				finding.State, finding.Reason, finding.Detail = domain.StateFailed, reasonEngineError, err.Error()
+				result = result.Conclude(domain.StateFailed, reasonEngineError, err.Error())
 			}
-			candidate.Finding = finding
+			candidate.Result = result
 		}
 	}
 	return nil

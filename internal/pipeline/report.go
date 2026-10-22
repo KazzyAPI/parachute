@@ -70,8 +70,8 @@ func (s *ReportStage) log(ctx context.Context, cycleID string, candidate *Candid
 	if result.CandidateDigest != "" {
 		attributes = append(attributes, "candidate_digest", result.CandidateDigest)
 	}
-	if candidate.Finding.Detail != "" {
-		attributes = append(attributes, "detail", candidate.Finding.Detail)
+	if result.Detail != "" {
+		attributes = append(attributes, "detail", result.Detail)
 	}
 	s.logger.Log(ctx, s.levels[result.State.Level()], "container checked", attributes...)
 }
