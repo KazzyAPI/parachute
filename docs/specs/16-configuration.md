@@ -80,7 +80,7 @@ Porcelain mode does not change notification settings. Any value other than `v1` 
 - **Given** `NO_COLOR=1 --log-format pretty` **When** Parachute logs **Then** the output contains no `ESC[` sequences.
 
 ### CFG-009 Exit codes
-The Parachute process (daemon and run-once mode) MUST use these exit codes; they match the per-state exit codes in [reasons.md](reasons.md). In run-once mode, when several apply, the highest wins. After startup a daemon exits only on a signal, with 0. The commands `parachute status` (STS-001) and `parachute healthcheck` (DMN-006) use the same meanings for 0, 2, and 4 and have their own lists.
+The Parachute process (daemon and run-once mode) MUST use these exit codes; they match the per-state exit codes in [reasons.md](reasons.md). In run-once mode, when several apply, the highest wins. After startup a daemon exits only on a signal, with 0. `parachute status` (STS-001) uses 0, 2, and 4 with the same meanings; `parachute healthcheck` (DMN-006) uses only 0 and 1.
 
 | Code | Meaning |
 |---|---|
