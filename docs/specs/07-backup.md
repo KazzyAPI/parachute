@@ -38,14 +38,22 @@ Snapshots MUST be stored on the same host as the containers they protect, in the
 - **Given** `--backup-volume /srv/parachute` **When** a snapshot is taken **Then** `/srv/parachute/<snapshot-id>/manifest.json` exists on the host.
 
 ### BKP-006 Snapshot ID and manifest
-Each snapshot MUST have an ID matching `snap-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}` and a `manifest.json` containing at least: `format` (`parachute.snapshot/v1`), `id`, `transaction` (the transaction ID), `host`, `stack`, `created` (RFC 3339 UTC), `containers` (inspected configuration per container), `mounts` (per mount: container, destination, source, archive file name, `sha256`, size in bytes, `consistency` of `stopped` or `live`), and `dumps` (per dump: container, file name, `sha256`). Data archives are gzip-compressed tar files.
+Each snapshot MUST have an ID matching `snap-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}` and a `manifest.json` containing at least: `format` (`parachute.snapshot/v1`), `id`, `transaction` (the transaction ID), `host`, `stack`, `created` (RFC 3339 UTC), `containers` (inspected configuration per container), `mounts` (per mount: container, destination, source, archive file name, `sha256`, size in bytes, `consistency` of `stopped` or `live`), `dumps` (per dump: container, file name, `sha256`), and `skipped` (BKP-012). Data archives are gzip-compressed tar files.
 
 - **Given** a committed update **When** the test reads the snapshot's `manifest.json` **Then** `transaction` equals the replacement's `parachute.transaction` label and every listed archive exists with the recorded `sha256`.
 
 ### BKP-007 Snapshot validity
-A snapshot is **valid** when its manifest is readable and every listed archive and dump exists with the recorded checksum. Parachute MUST check validity after writing a snapshot and before using it in rollback or restore verification. A snapshot that fails the check after writing counts as a snapshot failure (BKP-001); one that fails before rollback is reported in the rollback result (VER-010).
+Snapshot manifests and archives are untrusted ([glossary: Trust boundaries](glossary.md#trust-boundaries)). A snapshot is **valid** when all of these hold:
 
-- **Given** a snapshot whose archive is truncated by the test before rollback is needed **When** the update's verification fails **Then** the result is `rollback_failed` with reason `snapshot_invalid`, and the original container is still restored.
+1. `manifest.json` is a regular file (not a symbolic link) of at most 16 MiB, parses as JSON, has `format` `parachute.snapshot/v1`, an `id` equal to the directory name, and, when used for a transaction, the `host`, `stack`, and `transaction` of that transaction.
+2. Every archive and dump file name in the manifest is a single path component matching `[A-Za-z0-9._-]+`, is not `.` or `..`, and names a regular file (not a symbolic link) directly inside the snapshot directory.
+3. Every listed archive and dump has the recorded size and `sha256`.
+
+Parachute MUST check validity after writing a snapshot, and again immediately before restoring from it in rollback or restore verification, reading every archive in full. A snapshot that fails the check after writing counts as a snapshot failure (BKP-001); one that fails before rollback is reported in the rollback result (VER-010) and no data is restored from it.
+
+- **Given** a snapshot whose archive is truncated by the test after the replacement's `start` event and before its verification fails **When** rollback runs **Then** the result is `rollback_failed` with reason `snapshot_invalid`, and the original container is still restored.
+- **Given** a snapshot whose manifest the test changes after the replacement's `start` event so that an archive file name is `../../outside.tar.gz` (with a matching file and checksum at that path) **When** the update's verification fails **Then** the result is `rollback_failed` with reason `snapshot_invalid` and the volume's content is unchanged from just before rollback.
+- **Given** a snapshot whose archive the test replaces with a symbolic link to a valid copy of itself **When** restore verification runs **Then** the result is `fail` with reason `snapshot_invalid`.
 
 ### BKP-008 Retention
 Parachute MUST keep the snapshots of the newest `--backup-retention` transactions per stack (default `3`) and remove older ones after each commit and after each completed rollback (result `rolled_back`), so repeated rollbacks cannot fill the store. After a `rollback_failed` result nothing is removed (VER-010). Only directories containing a manifest with `format` `parachute.snapshot/v1` are counted or removed.
@@ -78,3 +86,10 @@ Parachute MUST NOT copy into a snapshot, or restore into, a **system mount**: a 
 - **Given** `--backup-volume /srv/parachute` and a container with `/srv` bind-mounted writable at `/srv` **When** a snapshot is taken **Then** `/srv` is listed under `skipped`.
 - **Given** a local volume created with `--opt type=none --opt o=bind --opt device=/etc` mounted at `/conf` **When** a snapshot is taken **Then** `/conf` is listed under `skipped`.
 - **Given** a container with `/etc` bind-mounted writable at `/host-etc` whose update fails verification **When** rollback finishes **Then** the report entry contains `data not restored: system mount /host-etc`.
+
+### BKP-013 Restores stay inside their target
+When restoring data from a snapshot (rollback or restore verification), Parachute MUST write each archive only into its **target**: in rollback, the mount at the manifest's destination of the original container as the engine reports it now; in restore verification, the throwaway volume (RST-002). The manifest's `source` MUST NOT be used as a write target. Before writing anything to a target, Parachute MUST check every member of the archive and MUST reject the whole snapshot as `snapshot_invalid`, writing nothing from it, when any member has an absolute path or a `..` component, is a block or character device, or is a symbolic or hard link whose target resolves outside the target.
+
+- **Given** a snapshot whose archive the test replaces after the replacement's `start` event with one containing the member `../escape` and updates the manifest's `sha256` and size to match **When** the update's verification fails **Then** the result is `rollback_failed` with reason `snapshot_invalid`, no file named `escape` exists in the volume's parent directory on the host, and the volume's content is unchanged from just before rollback.
+- **Given** a snapshot whose archive, with matching manifest checksum, contains a symbolic link `link -> /etc` and a member `link/passwd` **When** restore verification runs **Then** the result is `fail` with reason `snapshot_invalid` and the host's `/etc/passwd` is unchanged.
+- **Given** a snapshot whose manifest the test changes so that a mount's `source` is `/srv/victim` (a host directory with known content) **When** rollback restores that snapshot **Then** `/srv/victim` is unchanged and the original container's own mount receives the data.
