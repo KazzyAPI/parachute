@@ -52,7 +52,7 @@ A dependent whose network mode is `container:<A>` MUST be recreated (not only re
 ### DEP-008 Dependency cycles
 A dependency cycle MUST NOT hang or crash Parachute. Every container on the cycle MUST get result `failed` with reason `dependency_cycle`, the report MUST name the containers on the cycle, and other stacks MUST still be processed.
 
-- **Given** `a` labelled `parachute.depends-on=b`, `b` labelled `parachute.depends-on=a`, updates for both, and an unrelated `c` with an update **When** a cycle runs **Then** the cycle ends within the normal time, `a` and `b` are `failed` with reason `dependency_cycle` and unchanged, and `c` is `updated`.
+- **Given** `a` labelled `parachute.depends-on=b`, `b` labelled `parachute.depends-on=a`, updates for both, and an unrelated `c` with an update **When** a cycle runs **Then** the cycle ends within 60 seconds of its start, `a` and `b` are `failed` with reason `dependency_cycle` and unchanged, and `c` is `updated`.
 
 ### DEP-009 Replicas of a service
 All containers of a service (replicas, distinguished by `com.docker.compose.container-number`) MUST be updated in the same transaction and each MUST keep its container number and name.
