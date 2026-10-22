@@ -36,7 +36,7 @@ Order of precedence is the order of the rows (POL-001): the first that applies i
 | `previous_attempt_failed` | A transaction to this candidate digest already ended `rolled_back` or `rollback_failed`. | POL-010, UPD-018 | held for digest (after `rollback_failed`: frozen) |
 | `delay` | The candidate digest is younger than `--delay-days`. | POL-002 | re-evaluated |
 | `maintenance_window` | The cycle is outside the maintenance window. | POL-007 | re-evaluated |
-| `hook_deferred` | A `pre-update` hook exited 75; no container was stopped. | HOK-006 | re-evaluated |
+| `hook_deferred` | A `pre-update` hook exited 75; no container was stopped. | HOK-006, HOK-008 | re-evaluated |
 
 ### skipped
 
@@ -52,12 +52,12 @@ Nothing was changed (UPD-014). The detail text names the failing step, field, la
 
 | Code | Meaning | Produced by | Next cycle |
 |---|---|---|---|
-| `registry_unreachable` | Transport error, timeout, TLS error, `5xx` or other unexpected status, malformed or oversized response, or invalid token realm, after the `HEAD` → `GET` fallback. | DET-003 | re-evaluated |
+| `registry_unreachable` | Transport error, timeout, TLS error, `5xx` or other unexpected status, malformed or oversized response, or invalid token realm, after the `HEAD` → `GET` fallback; an invalid or mismatched candidate digest; a forbidden redirect. | DET-003, DET-008, REG-007, REG-008 | re-evaluated |
 | `registry_unauthorized` | The registry or its token endpoint answered `401` or `403`, or credentials were withheld from a non-HTTPS non-loopback token realm. | REG-001, REG-004 | re-evaluated |
-| `engine_error` | A Docker engine request for this candidate failed while the host stayed reachable. | DMN-005 (M1 behaviour) | re-evaluated |
+| `engine_error` | A Docker engine request for this candidate failed while the host stayed reachable. | DMN-005, SEL-013 | re-evaluated |
 | `invalid_label` | A `parachute.*` label has an invalid value. | POL-008 | re-evaluated |
 | `dependency_cycle` | The container is on a dependency cycle. | DEP-008 | re-evaluated |
-| `pull_failed` | Pulling the new image failed. | UPD-014 | re-evaluated |
+| `pull_failed` | Pulling the new image failed, or the pulled image's repository digests do not contain the approved digest. | UPD-014, UPD-020 | re-evaluated |
 | `config_unreproducible` | The container's configuration cannot be carried through (for example `AutoRemove`, Podman pod recreation). | UPD-007, DMN-012 | re-evaluated |
 | `insufficient_space` | The snapshot store has too little free space. | BKP-011 | re-evaluated |
 | `pre_update_hook_failed` | A `pre-update` hook failed or timed out. | HOK-007 | re-evaluated |
@@ -75,6 +75,7 @@ The previous state was restored and passed its base check (VER-010). The candida
 | `verify_failed` | A replacement exited, became `unhealthy`, or failed a check. | VER-001 to VER-005, UPD-018 | held for digest |
 | `verify_timeout` | A replacement did not pass within its effective deadline. | VER-006 | held for digest |
 | `transaction_timeout` | The transaction ceiling was reached in or after the `update` phase. | UPD-019 | held for digest |
+| `config_unreproducible` | A created replacement's configuration differs from the original (beyond UPD-004 and UPD-005). | UPD-007 | held for digest |
 | `interrupted` | Parachute stopped during `update`, `verify`, or `rollback`; rolled back at the next start. | UPD-016 | held for digest |
 
 ### rollback_failed
@@ -108,10 +109,11 @@ Restore verification (RST) has its own results, `pass` (reason `null`) and `fail
 
 1. **DET-003 vs REG-001/REG-004 vs DET-006.** DET-003 says any failure of `HEAD` then `GET` gives `registry_unreachable`. Chosen mapping (matches M1): `401`/`403` from the registry or token endpoint → `failed`/`registry_unauthorized`; `404` for the manifest → `skipped`/`local_image`; everything else → `failed`/`registry_unreachable`. DET-003's `registry_unreachable` covers only the "everything else" case.
 2. **`not_found`.** M1 code has a `not_found` reason in the registry client; it is never emitted (see above).
-3. **`engine_error`.** Emitted by M1 for engine request errors on a reachable host but named in no spec. Adopted here; DMN owner to add it to DMN-005.
-4. **Host unreachable in CFG-007.** CFG-007 lists "host unreachable" under `failed`. M1 reports it per host with no per-candidate entries; that is the chosen behaviour. CFG owner to remove it from the `failed` row.
+3. **`engine_error`.** Emitted by M1 for engine request errors on a reachable host but named in no spec. Adopted here; DMN-005 and SEL-013 now produce it.
+4. **Host unreachable in CFG-007.** CFG-007 lists "host unreachable" under `failed`. M1 reports it per host with no per-candidate entries; that is the chosen behaviour. CFG-007 now says so.
 5. **`rollback_failed` reasons.** VER-010 and UPD-018 step 5 name no reason code; `restore_failed` is added for both. UPD-018 step 6 keeps `interrupted`.
 6. **`interrupted` before the `update` phase.** UPD-016 only covers rollback. An interruption before any replacement exists is reported `failed`/`interrupted`, since nothing changed.
-7. **Retry after `rollback_failed`.** POL-010 lifts the hold when a new candidate digest appears; VER-010 forbids automatic retry. Chosen: after `rollback_failed` the stack is frozen until operator acknowledgement (glossary). POL owner to align POL-010.
-8. **Self-update and `convenient`.** CFG-011's `convenient` profile removes approval holds; it does not remove the self-update hold (`approval_required`, UPD-018). UPD/CFG owners to align.
+7. **Retry after `rollback_failed`.** POL-010 lifts the hold when a new candidate digest appears; VER-010 forbids automatic retry. Chosen: after `rollback_failed` the stack is frozen until operator acknowledgement (glossary). POL-010 now says so. Closed.
+8. **Self-update and `convenient`.** CFG-011's `convenient` profile removes approval holds; it does not remove the self-update hold (`approval_required`, UPD-018). CFG-011 and UPD-018 now say so.
 9. **Restore-verification reasons.** RST names only `snapshot_invalid`; `verify_failed`, `verify_timeout`, and `restore_failed` are reused for the other failures.
+10. **Replacement image ID differs from the checked one (proposed, pending user decision).** UPD-020 requires the replacement's image ID to equal the pulled image's ID and calls a difference a configuration mismatch (UPD-007, `rolled_back`/`config_unreproducible`). Proposed: a separate `rolled_back` reason `image_mismatch` (Produced by UPD-020, Next cycle: held for digest). Not in the table until decided ([open questions](open-questions.md)).
