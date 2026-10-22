@@ -39,20 +39,15 @@ func NewStore(directory string, files FileSystem) *Store {
 	return &Store{path: filepath.Join(directory, "state.json"), files: files}
 }
 
-func (s *Store) Path() string { return s.path }
-
-func (s *Store) Open() (Document, error) {
+func (s *Store) Open() error {
 	document, found, err := s.Read()
 	if err != nil {
-		return Document{}, err
+		return err
 	}
 	if !found {
 		document = Document{Format: Format, Results: []domain.Result{}}
 	}
-	if err := s.Save(document); err != nil {
-		return Document{}, err
-	}
-	return document, nil
+	return s.Save(document)
 }
 
 func (s *Store) Read() (Document, bool, error) {

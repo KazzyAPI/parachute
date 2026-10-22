@@ -108,7 +108,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter)
 
 func (c *Container) Daemon() (*Daemon, func() error, error) {
 	store := state.NewStore(c.cfg.StateDir, c.deps.System)
-	if _, err := store.Open(); err != nil {
+	if err := store.Open(); err != nil {
 		return nil, nil, configurationError(err)
 	}
 	trigger, err := c.trigger()

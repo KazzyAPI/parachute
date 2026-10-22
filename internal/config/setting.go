@@ -29,9 +29,6 @@ type Setting struct {
 }
 
 func (s Setting) Flag() string {
-	if s.Name == "" {
-		return ""
-	}
 	return "--" + s.Name
 }
 

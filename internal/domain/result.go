@@ -30,8 +30,6 @@ func (s State) Level() Level {
 		return LevelWarn
 	case StateRollbackFailed:
 		return LevelError
-	case StateUpdated, StateWouldUpdate, StateHeld:
-		return LevelInfo
 	}
 	return LevelInfo
 }

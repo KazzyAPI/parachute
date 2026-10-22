@@ -70,7 +70,7 @@ func (r *Resolver) resolveOne(setting Setting, args Arguments, env map[string]st
 }
 
 func (r *Resolver) pick(setting Setting, args Arguments, env map[string]string, profile string) Value {
-	if flagValues, ok := args.Flags[setting.Name]; ok && setting.Name != "" {
+	if flagValues, ok := args.Flags[setting.Name]; ok {
 		return Value{Raw: strings.Join(flagValues, ","), Source: SourceFlag}
 	}
 	if raw, ok := env[setting.Label()]; ok && raw != "" {

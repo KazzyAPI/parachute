@@ -75,10 +75,6 @@ func (s *Syntax) Decimal(raw string) (float64, error) {
 	return strconv.ParseFloat(raw, 64)
 }
 
-func (s *Syntax) Duration(raw string) (time.Duration, error) {
-	return time.ParseDuration(raw)
-}
-
 func (s *Syntax) List(raw string) []string {
 	trimmed := strings.TrimSpace(raw)
 	if len(trimmed) >= 2 && (trimmed[0] == '"' || trimmed[0] == '\'') && trimmed[len(trimmed)-1] == trimmed[0] {

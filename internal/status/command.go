@@ -55,7 +55,7 @@ func (c *Command) WriteTable(document Document) error {
 		for _, stack := range host.Stacks {
 			for _, service := range stack.Services {
 				update, hold := "no", "-"
-				if service.UpdateAvailable && service.CandidateDigest != nil {
+				if service.UpdateAvailable {
 					update = *service.CandidateDigest
 				}
 				if service.Hold != nil {
