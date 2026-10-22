@@ -22,7 +22,7 @@ func newTestLoader() *Loader {
 	registry := NewRegistry(DefaultSettings())
 	removed, suggester, syntax := NewRemovedSettings(), NewSuggester(3), NewSyntax()
 	return NewLoader(registry, NewArgumentParser(registry, removed, suggester), NewEnvironmentReader(registry, removed, suggester),
-		NewResolver(registry, syntax, fakeSystem{}), syntax, fakeSystem{})
+		NewResolver(registry, syntax, fakeSystem{}), fakeSystem{})
 }
 
 func TestListSyntaxAcceptsQuotesCommasAndSpaces(t *testing.T) {

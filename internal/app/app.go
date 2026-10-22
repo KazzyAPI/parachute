@@ -76,7 +76,6 @@ func (a *App) loader() *config.Loader {
 		config.NewArgumentParser(registry, removed, suggester),
 		config.NewEnvironmentReader(registry, removed, suggester),
 		config.NewResolver(registry, syntax, a.deps.System),
-		syntax,
 		a.deps.System,
 	)
 }

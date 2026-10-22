@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Source int
@@ -18,8 +19,13 @@ const (
 )
 
 type Value struct {
-	Raw    string
-	Source Source
+	Raw      string
+	Source   Source
+	Bool     bool
+	Int      int
+	Decimal  float64
+	Duration time.Duration
+	List     []string
 }
 
 type FileSystem interface {
@@ -55,34 +61,36 @@ func (r *Resolver) Resolve(args Arguments, env map[string]string) (map[string]Va
 }
 
 func (r *Resolver) resolveOne(setting Setting, args Arguments, env map[string]string, profile string) (Value, error) {
-	value := r.pick(setting, args, env, profile)
-	if setting.FromFile && value.Raw != "" {
-		contents, err := r.fileContents(setting, value.Raw)
+	raw, source := r.pick(setting, args, env, profile)
+	if setting.FromFile && raw != "" {
+		contents, err := r.fileContents(setting, raw)
 		if err != nil {
 			return Value{}, err
 		}
-		value.Raw = contents
+		raw = contents
 	}
-	if err := r.syntax.Validate(setting, value.Raw); err != nil {
-		return Value{}, fmt.Errorf("invalid value %q for %s", value.Raw, setting.Label())
+	value, err := r.syntax.Parse(setting, raw)
+	if err != nil {
+		return Value{}, err
 	}
+	value.Source = source
 	return value, nil
 }
 
-func (r *Resolver) pick(setting Setting, args Arguments, env map[string]string, profile string) Value {
+func (r *Resolver) pick(setting Setting, args Arguments, env map[string]string, profile string) (string, Source) {
 	if flagValues, ok := args.Flags[setting.Name]; ok {
-		return Value{Raw: strings.Join(flagValues, ","), Source: SourceFlag}
+		return strings.Join(flagValues, ","), SourceFlag
 	}
 	if raw, ok := env[setting.Label()]; ok && raw != "" {
 		if setting.EnvPresence {
 			raw = "true"
 		}
-		return Value{Raw: raw, Source: SourceEnv}
+		return raw, SourceEnv
 	}
 	if profileDefault := setting.DefaultFor(profile); profileDefault != setting.Default {
-		return Value{Raw: profileDefault, Source: SourceProfile}
+		return profileDefault, SourceProfile
 	}
-	return Value{Raw: setting.Default, Source: SourceDefault}
+	return setting.Default, SourceDefault
 }
 
 func (r *Resolver) fileContents(setting Setting, raw string) (string, error) {

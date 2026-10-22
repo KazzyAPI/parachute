@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -25,33 +26,36 @@ func NewSyntax() *Syntax {
 	}
 }
 
-func (s *Syntax) Validate(setting Setting, raw string) error {
+func (s *Syntax) Parse(setting Setting, raw string) (Value, error) {
+	value := Value{Raw: raw}
 	var err error
 	switch setting.Kind {
 	case KindBool:
-		_, err = s.Bool(raw)
-	case KindPositiveInt:
-		var value int
-		value, err = s.Int(raw)
-		if err == nil && value <= 0 {
+		value.Bool, err = s.parseBool(raw)
+	case KindPositiveInt, KindNonNegativeInt:
+		value.Int, err = s.parseInt(raw)
+		if err == nil && setting.Kind == KindPositiveInt && value.Int <= 0 {
 			err = errSyntax
 		}
-	case KindNonNegativeInt:
-		_, err = s.Int(raw)
 	case KindDecimal:
-		_, err = s.Decimal(raw)
+		value.Decimal, err = s.parseDecimal(raw)
 	case KindDuration:
-		_, err = time.ParseDuration(raw)
+		value.Duration, err = time.ParseDuration(raw)
 	case KindEnum:
 		if raw != setting.Default && !slices.Contains(setting.Choices, raw) {
 			err = errSyntax
 		}
-	case KindString, KindList:
+	case KindList:
+		value.List = s.List(raw)
+	case KindString:
 	}
-	return err
+	if err != nil {
+		return Value{}, fmt.Errorf("invalid value %q for %s: %w", raw, setting.Label(), err)
+	}
+	return value, nil
 }
 
-func (s *Syntax) Bool(raw string) (bool, error) {
+func (s *Syntax) parseBool(raw string) (bool, error) {
 	switch strings.ToLower(raw) {
 	case "true", "1":
 		return true, nil
@@ -61,14 +65,14 @@ func (s *Syntax) Bool(raw string) (bool, error) {
 	return false, errSyntax
 }
 
-func (s *Syntax) Int(raw string) (int, error) {
+func (s *Syntax) parseInt(raw string) (int, error) {
 	if !s.integer.MatchString(raw) {
 		return 0, errSyntax
 	}
 	return strconv.Atoi(raw)
 }
 
-func (s *Syntax) Decimal(raw string) (float64, error) {
+func (s *Syntax) parseDecimal(raw string) (float64, error) {
 	if !s.decimal.MatchString(raw) {
 		return 0, errSyntax
 	}

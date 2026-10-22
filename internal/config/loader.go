@@ -16,12 +16,11 @@ type Loader struct {
 	arguments *ArgumentParser
 	env       *EnvironmentReader
 	resolver  *Resolver
-	syntax    *Syntax
 	system    System
 }
 
-func NewLoader(registry *Registry, arguments *ArgumentParser, env *EnvironmentReader, resolver *Resolver, syntax *Syntax, system System) *Loader {
-	return &Loader{registry: registry, arguments: arguments, env: env, resolver: resolver, syntax: syntax, system: system}
+func NewLoader(registry *Registry, arguments *ArgumentParser, env *EnvironmentReader, resolver *Resolver, system System) *Loader {
+	return &Loader{registry: registry, arguments: arguments, env: env, resolver: resolver, system: system}
 }
 
 func (l *Loader) Load(args, environ []string) (Config, error) {
@@ -37,7 +36,7 @@ func (l *Loader) Load(args, environ []string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	b := &binder{registry: l.registry, syntax: l.syntax, values: values}
+	b := &binder{registry: l.registry, values: values}
 	cfg, err := l.bind(b, parsed)
 	if err != nil {
 		return Config{}, err
@@ -47,7 +46,7 @@ func (l *Loader) Load(args, environ []string) (Config, error) {
 			return Config{}, err
 		}
 	}
-	return cfg, b.err
+	return cfg, nil
 }
 
 func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
