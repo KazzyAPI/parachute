@@ -78,7 +78,7 @@ func (e *Env) ContainerState(name string) (id, image string) {
 func (e *Env) ImageList() string {
 	e.T.Helper()
 	var own []string
-	for _, line := range strings.Split(e.Docker("image", "ls", "-a", "--digests", "--no-trunc", "--format", "{{.Repository}}:{{.Tag}}@{{.Digest}} {{.ID}}"), "\n") {
+	for _, line := range strings.Split(e.Docker("image", "ls", "-a", "--no-trunc", "--format", "{{.Repository}}:{{.Tag}} {{.ID}}"), "\n") {
 		if strings.Contains(line, e.ID) {
 			own = append(own, line)
 		}

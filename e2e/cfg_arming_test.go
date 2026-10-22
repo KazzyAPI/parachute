@@ -22,8 +22,8 @@ func TestCFG_006_unarmed_reports_would_update_and_changes_nothing(t *testing.T) 
 		t.Errorf("webhook did not receive a would_update report for %s: %v", a, webhook.Received())
 	}
 	assertUnchanged(env, a, id, image)
-	if env.ImageList() != images || env.VolumeList() != volumes {
-		t.Errorf("image or volume list changed")
+	if afterImages, afterVolumes := env.ImageList(), env.VolumeList(); afterImages != images || afterVolumes != volumes {
+		t.Errorf("image or volume list changed:\nimages before:\n%s\nafter:\n%s\nvolumes before:\n%s\nafter:\n%s", images, afterImages, volumes, afterVolumes)
 	}
 }
 
@@ -58,8 +58,8 @@ func TestCFG_006_copied_state_file_cannot_arm(t *testing.T) {
 	result := runOnce(env)
 	assertState(t, result, a, "would_update", "")
 	assertUnchanged(env, a, id, image)
-	if env.ImageList() != images || env.VolumeList() != volumes {
-		t.Errorf("image or volume list changed")
+	if afterImages, afterVolumes := env.ImageList(), env.VolumeList(); afterImages != images || afterVolumes != volumes {
+		t.Errorf("image or volume list changed:\nimages before:\n%s\nafter:\n%s\nvolumes before:\n%s\nafter:\n%s", images, afterImages, volumes, afterVolumes)
 	}
 }
 

@@ -73,8 +73,8 @@ func TestDET_002_changed_image_unarmed_downloads_no_blobs(t *testing.T) {
 	if gets := blobGets(app.registry.ParachuteRequests()); len(gets) > 0 {
 		t.Errorf("blob downloads during detection: %v", gets)
 	}
-	if env.ImageList() != images {
-		t.Error("local image list changed")
+	if after := env.ImageList(); after != images {
+		t.Errorf("local image list changed:\nbefore:\n%s\nafter:\n%s", images, after)
 	}
 }
 
