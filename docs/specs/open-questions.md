@@ -167,7 +167,7 @@ Affects BKP-011. When a mount size or the store's free space cannot be measured,
 **Recommendation:** fail, result `failed` with reason `snapshot_failed` naming the measurement (current spec).
 
 ### Q21 Approvals stored in an untrusted state file
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Persistence kept; a stored approval applies only while its digest equals the current candidate digest (POL-006 already said so; API-007 now says it explicitly). The replay limit is recorded with Q18 in ADR-0008.
 
 Affects API-007, POL-006, STS-006, CFG-010. API-007 persists approvals in the state file so they survive restarts, but the state file is untrusted, so an edited file could approve an update. Options: trust persisted approvals (current), bind them to the digest and a per-instance secret, or not persist them.
 
