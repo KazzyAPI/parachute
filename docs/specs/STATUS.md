@@ -6,7 +6,7 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 
 | Group | Branch | State | Commits |
 |---|---|---|---|
-| selection | spec/selection | pending | 0 |
+| selection | spec/selection | in progress | 1 |
 | transaction | spec/transaction | pending | 0 |
 | backup | spec/backup | pending | 0 |
 | platform | spec/platform | pending | 0 |
@@ -27,7 +27,7 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 | adr/0009-snapshot-format-and-storage.md | unassigned | pending | - | - | 0 | 0 | 0 |
 | adr/0010-docker-socket-access-and-security.md | unassigned | pending | - | - | 0 | 0 | 0 |
 | migration.md | unassigned | pending | - | - | 0 | 0 | 0 |
-| specs/01-selection.md | unassigned | pending | - | - | 0 | 0 | 0 |
+| specs/01-selection.md | selection | in progress | spec/selection | e08ff31 | 1 | 2 | 0 |
 | specs/02-scheduling.md | unassigned | pending | - | - | 0 | 0 | 0 |
 | specs/03-update-detection.md | unassigned | pending | - | - | 0 | 0 | 0 |
 | specs/04-update-transaction.md | unassigned | pending | - | - | 0 | 0 | 0 |
@@ -46,6 +46,7 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 
 ## Requirement IDs
 
+- specs/01-selection.md: added SEL-013; changed SEL-003, SEL-012; superseded/withdrawn -
 
 ## Cross-group issues
 
