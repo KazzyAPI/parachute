@@ -1,6 +1,6 @@
 # Parachute
 
-> **Pre-alpha. Specs only, no working code yet. Do not point this at real data.**
+> **Pre-alpha. Milestone 1 is report-only: Parachute finds and reports available updates but never changes a container. Do not point this at real data.**
 
 Safe Docker updates with automatic backup and rollback.
 

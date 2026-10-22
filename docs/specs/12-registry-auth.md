@@ -5,10 +5,11 @@
 How Parachute authenticates to registries for detection and pulls. Tests use a local `registry:2` with htpasswd authentication.
 
 ### REG-001 Credentials from a Docker config file
-Parachute MUST read registry credentials from the `auths` section of `config.json` in the directory named by `DOCKER_CONFIG` (default `/`, so `/config.json`). Without a matching entry, requests are anonymous.
+Parachute MUST read registry credentials from the `auths` section of `config.json` in the directory named by `DOCKER_CONFIG` (default `/`, so `/config.json`). Without a matching entry, requests are anonymous. Credentials MUST be sent only over HTTPS or to a loopback host (`localhost`, `127.0.0.0/8`, `::1`): when a registry's bearer challenge names a plain `http://` token realm on any other host, Parachute MUST NOT contact that realm with credentials, and the result is `failed` with reason `registry_unauthorized`.
 
 - **Given** a registry requiring authentication and `config.json` with valid credentials for it **When** a cycle runs with a newer image there **Then** the update is detected and pulled.
 - **Given** no `config.json` **When** a cycle runs against that registry **Then** the result is `failed` with reason `registry_unauthorized`.
+- **Given** credentials for a registry whose challenge names the token realm `http://auth.example.test/token` **When** a cycle runs **Then** no request reaches that realm and the result is `failed` with reason `registry_unauthorized`.
 
 ### REG-002 The file is re-read every cycle
 Parachute MUST read `config.json` at the start of every cycle, so a replaced or edited file takes effect without a restart. Mounting the file itself (not its directory) MUST work.
