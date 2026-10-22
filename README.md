@@ -17,6 +17,6 @@ Parachute is **spec-driven**. The specs and ADRs are the source of truth, and te
 | [`docs/adr/`](docs/adr/) | Architecture decisions. The code must follow them. |
 | [`docs/specs/`](docs/specs/) | Behavior requirements, one file per domain. |
 | [`docs/specs/README.md`](docs/specs/README.md) | The spec format, requirement IDs, and how tests trace to them. |
-| [`docs/migration.md`](docs/migration.md) | Moving from Watchtower. |
+| [`docs/migration.md`](docs/migration.md) | Moving from another updater. |
 
 Start with [`docs/specs/README.md`](docs/specs/README.md), then [`docs/specs/open-questions.md`](docs/specs/open-questions.md).
