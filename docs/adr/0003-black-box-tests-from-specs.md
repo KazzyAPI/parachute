@@ -1,6 +1,6 @@
 # ADR-0003: Black-box tests derived from specs
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context
