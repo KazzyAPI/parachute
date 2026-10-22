@@ -95,7 +95,7 @@ The Parachute process (daemon and run-once mode) MUST use these exit codes; they
 - **Given** a running daemon **When** it receives `SIGTERM` while idle **Then** it exits with code 0 within 5 seconds.
 
 ### CFG-010 State file
-Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. The file MUST always be complete, valid JSON (written by replacing, never in place). The file is untrusted input ([glossary: Trust boundaries](glossary.md#trust-boundaries)): it is parsed strictly, and it never arms Parachute (CFG-006). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
+Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. The file MUST always be complete, valid JSON (written by replacing, never in place). The file is untrusted input ([glossary: Trust boundaries](glossary.md#trust-boundaries)): it is parsed strictly, and it never arms Parachute (CFG-006). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. During a self-update the only other file is the handover marker `<state-dir>/handover.json`, format `parachute.handover/v1` (UPD-018). Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
 
 - **Given** an empty state directory **When** Parachute starts **Then** `state.json` exists and has `"format": "parachute.state/v1"`.
 - **Given** a `state.json` containing `{broken` **When** Parachute starts **Then** it exits with code 2, the message names the file, and the file still contains `{broken`.
@@ -200,7 +200,7 @@ Commands: `parachute` (daemon), `parachute healthcheck` (DMN-006), `parachute st
 
 ## Label reference
 
-Labels are read from monitored containers unless noted. "Overrides" names the global setting the label overrides (CFG-002).
+Labels are read from monitored containers unless noted, and only when set at creation: a label inherited from the image is ignored unless it is cautionary (SEL-013). "Overrides" names the global setting the label overrides (CFG-002).
 
 | Label | Values | Overrides | Spec |
 |---|---|---|---|
@@ -210,7 +210,7 @@ Labels are read from monitored containers unless noted. "Overrides" names the gl
 | `parachute.scope` | text | | SEL-011 |
 | `parachute.self` | `true` (set by the official image) | | SEL-012, UPD-018 |
 | `parachute.armed` | boolean, on Parachute's own container | `--armed` | CFG-006 |
-| `parachute.helper` | set by Parachute | | BKP-010 |
+| `parachute.helper`, `parachute.transaction` | set by Parachute on helpers | | BKP-010 |
 | `parachute.stop-signal` | signal name | | UPD-006 |
 | `parachute.depends-on` | container names | | DEP-004 |
 | `parachute.lifecycle.pre-check`, `.pre-update`, `.post-update`, `.post-check` | shell command | | HOK-001 |
@@ -228,4 +228,4 @@ Labels are read from monitored containers unless noted. "Overrides" names the gl
 | `parachute.tag-follow` | `none`, `patch`, `minor` | `--tag-follow` | POL-005 |
 | `parachute.maintenance-window`, `parachute.maintenance-window-duration` | cron, duration | `--maintenance-window*` | POL-007 |
 | `parachute.transaction`, `parachute.updated-at`, `parachute.previous-image`, `parachute.snapshot` | set by Parachute on replacements | | UPD-005 |
-| `parachute.restore-verify` | set by Parachute | | RST-002 |
+| `parachute.helper`, `parachute.restore-verify` | set by Parachute on restore-verification resources | | RST-002, BKP-010 |
