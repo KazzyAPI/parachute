@@ -160,7 +160,7 @@ Affects ADR-0007 (safe by default), ADR-0009 (snapshot format and storage). Both
 **Recommendation:** accept both as written.
 
 ### Q20 Free space that cannot be measured
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Fail with `failed`/`snapshot_failed` naming the measurement; BKP-011 already says so, no spec change.
 
 Affects BKP-011. When a mount size or the store's free space cannot be measured, should the transaction fail, or proceed without the check?
 
@@ -188,14 +188,14 @@ Affects API-011, ADR-0003. The black-box timing criterion (median difference und
 **Recommendation:** allow a code-level unit test for API-011 as a documented exception to black-box testing.
 
 ### Q24 HTTP limit values
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Keep the values; API-009 and API-010 already state them, no spec change.
 
 Affects API-009, API-010. Are 8 KiB for request line and headers, 1 KiB for a body, 10 s to complete headers (60 s idle), and 10 failures per 60 s the right numbers?
 
 **Recommendation:** keep them (current spec); revisit if real clients hit them.
 
 ### Q25 Self-update when the own container publishes ports or has a static IP
-**Status:** Open.
+**Status:** Resolved 2026-10-23: A. Refuse with `failed`/`config_unreproducible` naming the field; UPD-018 already says so, no spec change.
 
 Affects UPD-018, UPD-007. The replacement must run beside the old instance, so a published host port or static IP would collide.
 - **A.** Refuse with `failed`/`config_unreproducible` naming the field (current spec).
@@ -204,7 +204,7 @@ Affects UPD-018, UPD-007. The replacement must run beside the old instance, so a
 **Recommendation: A.**
 
 ### Q26 Originals left over after a crash past commit
-**Status:** Open.
+**Status:** Resolved 2026-10-23: Warn at startup naming the leftover container and never delete it; UPD-009 and UPD-017 already say so, no spec change.
 
 Affects UPD-009, UPD-016, UPD-017. If Parachute crashes after recording `committed` but before removing a renamed original, the original remains; UPD-017 forbids removal without in-process proof.
 
