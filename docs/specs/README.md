@@ -17,6 +17,8 @@ Parachute MUST ...
 - Each acceptance criterion is checkable from outside the program against a real engine and a local registry.
 - Each file carries one status at the top: `Draft` (not yet reviewed), `Accepted`, or `Deferred` (a section whose tests may fail until a later milestone).
 - Unresolved decisions do not go into requirements; they go into [open-questions.md](open-questions.md).
+- Result states and reason codes are listed only in [reasons.md](reasons.md). A requirement that produces a new code adds it there in the same commit.
+- Transaction states, trust boundaries, and redaction are defined once in the glossary: [Transaction state machine](glossary.md#transaction-state-machine), [Trust boundaries](glossary.md#trust-boundaries), [Redaction](glossary.md#redaction). Requirements reference these sections instead of restating them.
 
 ## IDs
 

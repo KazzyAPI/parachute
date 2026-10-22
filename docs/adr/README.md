@@ -19,3 +19,12 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0008](0008-state-storage.md) | State storage layout | Proposed |
 | [0009](0009-snapshot-format-and-storage.md) | Snapshot format and storage | Proposed |
 | [0010](0010-docker-socket-access-and-security.md) | Docker socket access and security model | Proposed |
+
+Preassigned numbers for ADRs being written (use these numbers; do not take them for other decisions):
+
+| ADR | Title |
+|---|---|
+| 0011 | Untrusted input handling |
+| 0012 | Digest-pinned updates |
+| 0013 | Secret redaction |
+| 0014 | Self-update safety |
