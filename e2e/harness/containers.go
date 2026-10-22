@@ -36,7 +36,8 @@ func (e *Env) Tag(source, target string) string {
 
 func (e *Env) Rehome(ref, host string) string {
 	e.T.Helper()
-	return e.Tag(ref, host+ref[strings.Index(ref, "/"):])
+	_, path, _ := strings.Cut(ref, "/")
+	return e.Tag(ref, host+"/"+path)
 }
 
 func (e *Env) RunContainer(name, image string, options ContainerOptions) string {

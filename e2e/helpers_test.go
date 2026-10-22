@@ -91,8 +91,8 @@ func (u updatable) publishNewer() {
 }
 
 func refRepo(ref string) string {
-	path := ref[strings.LastIndex(ref, "/")+1:]
-	return path[:strings.Index(path, ":")]
+	repo, _, _ := strings.Cut(ref[strings.LastIndex(ref, "/")+1:], ":")
+	return repo
 }
 
 func assertUnchanged(env *harness.Env, container, id, image string) {
@@ -148,14 +148,15 @@ func assertDuration(t *testing.T, got, want, tolerance time.Duration) {
 	}
 }
 
-func dockerConfig(entries map[string]string) string {
+func dockerConfig(t *testing.T, entries map[string]string) string {
+	t.Helper()
 	auths := map[string]map[string]string{}
 	for host, credentials := range entries {
 		auths[host] = map[string]string{"auth": base64.StdEncoding.EncodeToString([]byte(credentials))}
 	}
 	contents, err := json.Marshal(map[string]any{"auths": auths})
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	return string(contents)
 }

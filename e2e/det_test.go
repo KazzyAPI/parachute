@@ -155,7 +155,8 @@ func TestDET_005_digest_pinned_is_skipped(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
 	digest := env.Docker("inspect", "--format", "{{index .RepoDigests 0}}", app.ref)
-	pinned := app.ref[:strings.LastIndex(app.ref, ":")] + digest[strings.Index(digest, "@"):]
+	_, pin, _ := strings.Cut(digest, "@")
+	pinned := app.ref[:strings.LastIndex(app.ref, ":")] + "@" + pin
 	a := env.RunContainer("a", pinned, harness.ContainerOptions{})
 	id, image := env.ContainerState(a)
 	app.publishNewer()

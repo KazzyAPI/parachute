@@ -39,7 +39,11 @@ func run(m *testing.M) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer os.RemoveAll(workDir)
+	defer func() {
+		if err := os.RemoveAll(workDir); err != nil {
+			fmt.Fprintln(os.Stderr, "cleanup:", err)
+		}
+	}()
 	repoRoot, err := filepath.Abs("..")
 	if err != nil {
 		return 0, err
@@ -112,6 +116,7 @@ func (s *Suite) ParachuteImage() (string, error) {
 func (s *Suite) removeRunResources() {
 	images, err := s.command("", nil, "docker", "images", "-q", "--filter", "label=parachute-e2e.run="+s.runID)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "cleanup:", err, images)
 		return
 	}
 	for _, image := range strings.Fields(images) {

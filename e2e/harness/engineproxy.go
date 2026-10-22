@@ -111,16 +111,12 @@ func (d *FakeTLSDaemon) serve(listener net.Listener, certificate tls.Certificate
 }
 
 func (d *FakeTLSDaemon) handle(conn net.Conn, certificate tls.Certificate) {
-	defer conn.Close()
 	reader := bufio.NewReader(conn)
-	first, err := reader.Peek(1)
-	if err != nil {
-		return
-	}
-	if first[0] != 0x16 {
+	if first, err := reader.Peek(1); err == nil && first[0] != 0x16 {
 		d.plain.Add(1)
-		return
+	} else if err == nil {
+		server := tls.Server(&bufferedConn{Conn: conn, reader: reader}, &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12})
+		_ = server.Handshake()
 	}
-	server := tls.Server(&bufferedConn{Conn: conn, reader: reader}, &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12})
-	_ = server.Handshake()
+	_ = conn.Close()
 }

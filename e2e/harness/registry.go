@@ -137,6 +137,9 @@ func (e *Env) FreePort() int {
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	defer listener.Close()
-	return listener.Addr().(*net.TCPAddr).Port
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		e.T.Fatal(err)
+	}
+	return port
 }
