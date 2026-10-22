@@ -7,8 +7,8 @@ The configuration surface, the arming switch, machine-readable output, logging, 
 ### CFG-001 Names
 Every setting MUST be available as a flag `--<name>` and as an environment variable `PARACHUTE_<NAME>` (upper case, `-` replaced by `_`), except the Docker client variables `DOCKER_HOST`, `DOCKER_API_VERSION`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and the variables `TZ` and `NO_COLOR`, which keep their standard names. Per-container settings are labels `parachute.<name>`. The full list is in [Settings reference](#settings-reference) and [Label reference](#label-reference).
 
-- **Given** `PARACHUTE_INTERVAL=60` **When** Parachute starts **Then** it behaves as with `--interval 60`.
-- **Given** `PARACHUTE_STOP_TIMEOUT=5s` **When** a container is updated **Then** it behaves as with `--stop-timeout 5s`.
+- **Given** `PARACHUTE_INTERVAL=60` **When** Parachute starts **Then** the startup message announces the next cycle 60 seconds after the first, as with `--interval 60`.
+- **Given** `PARACHUTE_STOP_TIMEOUT=5s` and a container that ignores `SIGTERM` **When** it is updated **Then** the Docker event stream shows its `kill` with `SIGKILL` 5 seconds after the stop signal, as with `--stop-timeout 5s`.
 
 ### CFG-002 Precedence
 For each global setting, a flag MUST win over its environment variable, which wins over the default. A per-container label wins over the global setting where the label reference says so; `parachute.monitor-only` and `parachute.no-pull` follow SEL-008 instead.
@@ -44,7 +44,7 @@ Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is
 
 - **Given** a fresh install, unarmed, and a container with a newer image **When** a cycle runs **Then** the webhook receives a report listing it as `would_update`, and the container's ID and image, the local image list, and the volume list are unchanged.
 - **Given** the same with `PARACHUTE_ARMED=true` **When** a cycle runs **Then** the container is updated.
-- **Given** a Parachute that was armed and then restarted without the setting **When** a cycle runs **Then** nothing is changed.
+- **Given** a Parachute that was armed and then restarted without the setting, and a container with a newer image **When** a cycle runs **Then** the container is reported `would_update` and its ID and image are unchanged.
 - **Given** an unarmed Parachute whose `state.json` was copied from an armed instance, and a container with a newer image **When** a cycle runs **Then** the container is reported `would_update` and its ID and image, the local image list, and the volume list are unchanged.
 
 ### CFG-007 Result states and porcelain output
@@ -76,11 +76,11 @@ Porcelain mode does not change notification settings. Any value other than `v1` 
 ### CFG-008 Logging
 `--log-level` MUST accept `error`, `warn`, `info` (default), `debug`, `trace`; `--debug` and `--trace` are shorthands for the last two. `--log-format` MUST accept `auto` (default: `pretty` on a terminal, else `logfmt`), `logfmt`, `pretty`, `json`. With `json`, each line MUST have keys `time` (RFC 3339), `level`, `msg`, and, when they apply, `cycle`, `txn`, `host`, `stack`, `service`, `container`, `phase`. `--no-color` or a non-empty `NO_COLOR` MUST remove colour codes.
 
-- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON and the phase lines carry `txn` and `phase`.
+- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON, at least one line has `"phase": "verify"`, and every line with a `phase` key also has a `txn` key.
 - **Given** `NO_COLOR=1 --log-format pretty` **When** Parachute logs **Then** the output contains no `ESC[` sequences.
 
 ### CFG-009 Exit codes
-The Parachute process MUST use these exit codes. In run-once mode, when several apply, the highest wins.
+The Parachute process (daemon and run-once mode) MUST use these exit codes; they match the per-state exit codes in [reasons.md](reasons.md). In run-once mode, when several apply, the highest wins. After startup a daemon exits only on a signal, with 0. The commands `parachute status` (STS-001) and `parachute healthcheck` (DMN-006) use the same meanings for 0, 2, and 4 and have their own lists.
 
 | Code | Meaning |
 |---|---|
@@ -88,13 +88,14 @@ The Parachute process MUST use these exit codes. In run-once mode, when several 
 | 1 | At least one candidate `failed` or `rolled_back`, or a host was unreachable (run-once). |
 | 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
 | 3 | At least one `rollback_failed` (run-once). |
-| 4 | No managed host reachable at startup. |
+| 4 | No managed host reachable at startup (DMN-004), including a failed TLS handshake (DMN-003) or a rejected forced API version (DMN-002). |
 
 - **Given** `--run-once` with one `rolled_back` and one `rollback_failed` **When** Parachute exits **Then** the code is 3.
+- **Given** `--run-once` with one `failed` and one `fresh` candidate **When** Parachute exits **Then** the code is 1.
 - **Given** a running daemon **When** it receives `SIGTERM` while idle **Then** it exits with code 0 within 5 seconds.
 
 ### CFG-010 State file
-Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. The file MUST always be complete, valid JSON (written by replacing, never in place). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
+Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. The file MUST always be complete, valid JSON (written by replacing, never in place). The file is untrusted input ([glossary: Trust boundaries](glossary.md#trust-boundaries)): it is parsed strictly, and it never arms Parachute (CFG-006). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
 
 - **Given** an empty state directory **When** Parachute starts **Then** `state.json` exists and has `"format": "parachute.state/v1"`.
 - **Given** a `state.json` containing `{broken` **When** Parachute starts **Then** it exits with code 2, the message names the file, and the file still contains `{broken`.

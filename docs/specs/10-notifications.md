@@ -41,7 +41,7 @@ The notification title MUST be `Parachute on <hostname>`, where `<hostname>` is 
 ### NTF-007 Simple mode
 With `--notification-report=false`, Parachute MUST collect the log entries of a cycle at or above the notification level and send them as one notification at the end of the cycle. The template then receives a list of entries with fields `Time`, `Level`, `Message`, `Fields`; the default template is one message per line.
 
-- **Given** `--notification-report=false` and template `{{range .}}{{.Message}}|{{end}}` **When** a cycle with an update ends **Then** one notification arrives whose body is the cycle's `info`-and-above messages joined with `|`.
+- **Given** `--notification-report=false`, `--log-format json`, and template `{{range .}}{{.Message}}|{{end}}` **When** a cycle with an update ends **Then** one notification arrives whose body is the `msg` values of the cycle's `info`-and-above stderr log lines, in order, each followed by `|`.
 
 ### NTF-008 Empty output sends nothing
 When a template renders to an empty or whitespace-only string, no notification MUST be sent.
