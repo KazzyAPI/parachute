@@ -47,8 +47,8 @@ A container labelled `parachute.approval=required` MUST be held with reason `app
 ### POL-007 Maintenance windows
 With `--maintenance-window <cron>` (6-field, SCH-002 syntax) and `--maintenance-window-duration` (default `2h`), an update MUST start its `snapshot` phase only while a window is open: from a cron match until the duration has passed. Labels `parachute.maintenance-window` and `parachute.maintenance-window-duration` override per container. Without a window, updates may start at any time. A transaction that has started finishes even if the window closes.
 
-- **Given** a window `0 0 2 * * *` of `1h` and a cycle at 14:00 **When** an update is available **Then** it is `held` with reason `maintenance_window` and the report states the next window start (02:00).
-- **Given** a window that opened 10 minutes ago **When** a cycle runs **Then** the update is applied.
+- **Given** a window of `1h` whose cron expression matches only the time 12 hours after the test starts **When** a cycle runs with an update available **Then** it is `held` with reason `maintenance_window` and the report states that next window start.
+- **Given** a window of `1h` whose cron expression matches only the time 10 minutes before the test starts **When** a cycle runs **Then** the update is applied.
 
 ### POL-008 Per-container overrides
 Every policy setting that has a label MUST be overridable per container by that label, and the label MUST win over the global setting. A label with an invalid value MUST make that container's result `failed` with reason `invalid_label` naming the label, and other containers are unaffected.
@@ -63,7 +63,14 @@ Each relaxation of a safe default MUST be logged at `warn` once at startup (glob
 - **Given** a container labelled `parachute.approval=auto` **When** it is first seen **Then** one `warn` line names the container and the label; a second cycle logs no new line for it.
 
 ### POL-010 A failed digest is not retried
-After a transaction for a candidate digest ends `rolled_back` or `rollback_failed`, Parachute MUST hold updates of that container to that digest with reason `previous_attempt_failed` until a different candidate digest appears or the update is approved (API-007).
+After a transaction for a candidate digest ends `rolled_back`, Parachute MUST hold updates of that container to that digest with reason `previous_attempt_failed` until a different candidate digest appears or the update is approved (API-007). After a transaction ends `rollback_failed`, the stack is **frozen** ([glossary: Transaction state machine](glossary.md#transaction-state-machine)): every update of every container in that stack MUST be held with reason `previous_attempt_failed`, whatever the candidate digest, until an operator approves the failed container's update (API-007); a new candidate digest does not end the freeze.
 
 - **Given** an update that rolled back **When** the next cycle runs with the same registry state **Then** the container is `held` with reason `previous_attempt_failed` and unchanged.
 - **Given** the same and then a newer image pushed **When** the next cycle runs **Then** the update to the newer image is attempted.
+- **Given** a stack `app` + `web` whose transaction for `app` ended `rollback_failed`, and then newer images pushed for both **When** the next cycle runs **Then** both are `held` with reason `previous_attempt_failed`, no container in the stack changed, and `parachute status` shows the stack as frozen with the `rollback_failed` transaction ID.
+- **Given** the same and then `POST /v1/approve?container=app` **When** the next cycle runs **Then** the updates of the stack are attempted.
+
+### POL-011 The state file never weakens a policy
+The state file is untrusted ([glossary: Trust boundaries](glossary.md#trust-boundaries)). Each approval MUST be stored with the host, container ID, and candidate digest it was given for, and MUST be applied only when all three equal the held update; otherwise it is discarded and logged at `info`. Nothing read from the state file MUST arm Parachute (CFG-006), approve an update, or end a hold except an approval stored this way.
+
+- **Given** an approval for `db` and then Parachute stopped, `db` removed and created again with the same name, image, and labels (a new container ID), and Parachute started **When** the next cycle runs **Then** `db` is `held` with reason `approval_required` and unchanged.
