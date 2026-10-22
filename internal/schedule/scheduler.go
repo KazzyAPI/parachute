@@ -5,10 +5,12 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/KazzyAPI/parachute/internal/domain"
 )
 
 type CycleRunner interface {
-	RunCycle(ctx context.Context, id string)
+	Run(ctx context.Context, id string) domain.Report
 }
 
 type Clock interface {
@@ -49,8 +51,16 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		} else if err := s.start(ctx, &cycles); err != nil {
 			return err
 		}
+		next = s.following(next)
+	}
+}
+
+func (s *Scheduler) following(previous time.Time) time.Time {
+	next := s.trigger.Next(previous)
+	for now := s.clock.Now(); !next.After(now); {
 		next = s.trigger.Next(next)
 	}
+	return next
 }
 
 func (s *Scheduler) start(ctx context.Context, cycles *sync.WaitGroup) error {
@@ -61,7 +71,7 @@ func (s *Scheduler) start(ctx context.Context, cycles *sync.WaitGroup) error {
 	s.setRunning(id)
 	cycles.Go(func() {
 		defer s.setRunning("")
-		s.runner.RunCycle(ctx, id)
+		s.runner.Run(ctx, id)
 	})
 	return nil
 }

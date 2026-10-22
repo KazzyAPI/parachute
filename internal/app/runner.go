@@ -34,7 +34,3 @@ func (r *Runner) Run(ctx context.Context, id string) domain.Report {
 	}
 	return cycle.Report
 }
-
-func (r *Runner) RunCycle(ctx context.Context, id string) {
-	r.Run(ctx, id)
-}
