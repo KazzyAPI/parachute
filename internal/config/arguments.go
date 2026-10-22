@@ -7,7 +7,7 @@ import (
 )
 
 type Arguments struct {
-	Command     string
+	Command     Command
 	Positionals []string
 	Flags       map[string][]string
 }
@@ -16,11 +16,11 @@ type ArgumentParser struct {
 	registry *Registry
 	removed  *RemovedSettings
 	suggest  *Suggester
-	commands []string
+	commands []Command
 }
 
 func NewArgumentParser(registry *Registry, removed *RemovedSettings, suggest *Suggester) *ArgumentParser {
-	return &ArgumentParser{registry: registry, removed: removed, suggest: suggest, commands: []string{"healthcheck", "status", "restore-verify"}}
+	return &ArgumentParser{registry: registry, removed: removed, suggest: suggest, commands: []Command{CommandHealthcheck, CommandStatus, CommandRestoreVerify}}
 }
 
 func (p *ArgumentParser) Parse(args []string) (Arguments, error) {
@@ -61,12 +61,12 @@ func (p *ArgumentParser) Parse(args []string) (Arguments, error) {
 }
 
 func (p *ArgumentParser) addPositional(parsed *Arguments, arg string) error {
-	if parsed.Command == "" && len(parsed.Positionals) == 0 {
+	if parsed.Command == CommandDaemon && len(parsed.Positionals) == 0 {
 		if replacement, removed := p.removed.Command(arg); removed {
 			return fmt.Errorf("the %s command was removed: %s", arg, replacement)
 		}
-		if slices.Contains(p.commands, arg) {
-			parsed.Command = arg
+		if slices.Contains(p.commands, Command(arg)) {
+			parsed.Command = Command(arg)
 			return nil
 		}
 	}

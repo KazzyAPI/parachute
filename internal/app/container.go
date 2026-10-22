@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -40,22 +42,26 @@ func (c *Container) selector() *selection.Selector {
 	return selection.NewSelector(c.cfg.Selection, c.labels, c.logger)
 }
 
-func (c *Container) docker() (*engine.Docker, error) {
+func (c *Container) verifiedDocker(ctx context.Context) (*engine.Docker, func() error, error) {
 	endpoint := engine.Endpoint{
 		Host: c.cfg.Engine.Host, APIVersion: c.cfg.Engine.APIVersion, TLSVerify: c.cfg.Engine.TLSVerify,
 		CertPath: c.cfg.Engine.CertPath, UserAgent: c.userAgent(),
 	}
 	if _, err := endpoint.Scheme(); err != nil {
-		return nil, configurationError(err)
+		return nil, nil, configurationError(err)
 	}
 	if endpoint.Plaintext() {
 		c.logger.Warn("Docker host uses tcp:// without TLS verification; anyone who can reach this port controls the host", "host", endpoint.Host)
 	}
 	docker, err := engine.NewDocker(endpoint)
 	if err != nil {
-		return nil, unreachableError(err)
+		return nil, nil, unreachableError(err)
 	}
-	return docker, nil
+	if err := docker.Verify(ctx); err != nil {
+		reachErr := fmt.Errorf("no managed host is reachable: %s: %w", endpoint.Host, err)
+		return nil, nil, unreachableError(errors.Join(reachErr, docker.Close()))
+	}
+	return docker, docker.Close, nil
 }
 
 func (c *Container) trigger() (schedule.Trigger, error) {
@@ -74,10 +80,9 @@ func (c *Container) reporter() (*notify.Reporter, error) {
 	if err != nil {
 		return nil, configurationError(err)
 	}
-	minimum := domain.ParseLevel(c.cfg.Notify.Level)
 	sender := notify.NewShoutrrrSender(c.cfg.Notify.URLs, c.logger)
-	views := notify.NewViewBuilder(minimum, c.cfg.Notify.Hostname)
-	return notify.NewReporter(c.cfg.Notify, sender, views, renderer, c.deps.Clock, minimum), nil
+	views := notify.NewViewBuilder(domain.ParseLevel(c.cfg.Notify.Level), c.cfg.Notify.Hostname)
+	return notify.NewReporter(c.cfg.Notify, sender, views, renderer, c.deps.Clock), nil
 }
 
 func (c *Container) host(source *engine.Retrying) pipeline.Host {
@@ -106,7 +111,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter)
 	)
 }
 
-func (c *Container) Daemon() (*Daemon, func() error, error) {
+func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	store := state.NewStore(c.cfg.StateDir, c.deps.System)
 	if err := store.Open(); err != nil {
 		return nil, nil, configurationError(err)
@@ -119,7 +124,7 @@ func (c *Container) Daemon() (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	docker, err := c.docker()
+	docker, closeDocker, err := c.verifiedDocker(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -129,31 +134,25 @@ func (c *Container) Daemon() (*Daemon, func() error, error) {
 	hosts := []pipeline.Host{c.host(retrying)}
 	runner := NewRunner(c.cyclePipeline(store, reporter), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	ids := schedule.NewCycleIDs(c.deps.Random)
+	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, ids, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
 	if c.cfg.RunOnce {
-		scheduleText = "run once"
+		loop, scheduleText = NewSingleCycle(ids, c.deps.Clock, runner), "run once"
 	}
 	return NewDaemon(DaemonParts{
-		Engine:         docker,
-		Endpoint:       c.cfg.Engine.Host,
+		Guard:          NewArmedLabelGuard(docker, c.deps.System, c.labels),
 		Announcer:      reporter,
 		Marker:         health.NewMarker(c.cfg.RuntimeDir, c.deps.System, c.deps.System),
-		Once:           runner,
-		Loop:           schedule.NewScheduler(trigger, c.deps.Clock, ids, runner, c.logger, c.cfg.Schedule.Location),
-		IDs:            ids,
-		Clock:          c.deps.Clock,
-		Hostname:       c.deps.System,
-		Labels:         c.labels,
+		Loop:           loop,
 		Summary:        StartupSummary{Version: c.deps.Version, Hosts: hosts, Schedule: scheduleText, Settings: c.cfg},
-		RunOnce:        c.cfg.RunOnce,
 		StartupMessage: c.cfg.StartupMessage,
 		Logger:         c.logger,
-	}), docker.Close, nil
+	}), closeDocker, nil
 }
 
 func (c *Container) Healthcheck() error {
 	if health.NewMarker(c.cfg.RuntimeDir, c.deps.System, c.deps.System).Healthy() {
 		return nil
 	}
-	return &ExitError{Code: ExitFailures, Err: errors.New("no ready Parachute daemon is running")}
+	return &ExitError{Code: domain.ExitFailures, Err: errors.New("no ready Parachute daemon is running")}
 }

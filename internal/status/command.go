@@ -12,30 +12,21 @@ import (
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
-type StateReader interface {
-	Read() (state.Document, bool, error)
-}
-
 type Clock interface {
 	Now() time.Time
 }
 
 type Command struct {
 	builder *Builder
-	state   StateReader
 	clock   Clock
 	out     io.Writer
 }
 
-func NewCommand(builder *Builder, stateReader StateReader, clock Clock, out io.Writer) *Command {
-	return &Command{builder: builder, state: stateReader, clock: clock, out: out}
+func NewCommand(builder *Builder, clock Clock, out io.Writer) *Command {
+	return &Command{builder: builder, clock: clock, out: out}
 }
 
-func (c *Command) Document(ctx context.Context) (Document, error) {
-	saved, _, err := c.state.Read()
-	if err != nil {
-		return Document{}, err
-	}
+func (c *Command) Document(ctx context.Context, saved state.Document) (Document, error) {
 	return c.builder.Build(ctx, saved, c.clock.Now())
 }
 
@@ -55,7 +46,7 @@ func (c *Command) WriteTable(document Document) error {
 		for _, stack := range host.Stacks {
 			for _, service := range stack.Services {
 				update, hold := "no", "-"
-				if service.UpdateAvailable {
+				if service.UpdateAvailable && service.CandidateDigest != nil {
 					update = *service.CandidateDigest
 				}
 				if service.Hold != nil {

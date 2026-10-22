@@ -3,7 +3,7 @@ package config
 import "time"
 
 type Config struct {
-	Command        string
+	Command        Command
 	JSON           bool
 	Profile        string
 	Relaxed        []string

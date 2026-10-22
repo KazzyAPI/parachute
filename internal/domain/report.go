@@ -65,3 +65,27 @@ func (r Report) AllHostsReachable() bool {
 	}
 	return true
 }
+
+const (
+	ExitSuccess        = 0
+	ExitFailures       = 1
+	ExitConfiguration  = 2
+	ExitRollbackFailed = 3
+	ExitUnreachable    = 4
+)
+
+func (r Report) ExitCode() int {
+	code := ExitSuccess
+	if !r.AllHostsReachable() {
+		code = ExitFailures
+	}
+	for _, result := range r.Results() {
+		switch result.State {
+		case StateRollbackFailed:
+			code = max(code, ExitRollbackFailed)
+		case StateFailed, StateRolledBack:
+			code = max(code, ExitFailures)
+		}
+	}
+	return code
+}

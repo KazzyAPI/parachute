@@ -63,10 +63,12 @@ func (b *ViewBuilder) Build(report domain.Report, title string) ReportView {
 	return view
 }
 
+func (b *ViewBuilder) Shows(level domain.Level) bool { return level >= b.minimum }
+
 func (b *ViewBuilder) stacks(results []domain.Result) []StackView {
 	var stacks []StackView
 	for _, result := range results {
-		if result.State.Level() < b.minimum {
+		if !b.Shows(result.State.Level()) {
 			continue
 		}
 		if len(stacks) == 0 || stacks[len(stacks)-1].Name != result.Stack {

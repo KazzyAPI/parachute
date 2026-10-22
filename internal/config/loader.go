@@ -41,7 +41,7 @@ func (l *Loader) Load(args, environ []string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if cfg.Command != "healthcheck" {
+	if cfg.Command != CommandHealthcheck {
 		if err := b.unimplemented(); err != nil {
 			return Config{}, err
 		}
@@ -67,7 +67,7 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Log:            l.log(b),
 	}
 	if b.boolean("health-check") {
-		cfg.Command = "healthcheck"
+		cfg.Command = CommandHealthcheck
 	}
 	if b.boolean("revive-stopped") && !cfg.Selection.IncludeStopped {
 		return Config{}, errors.New("--revive-stopped requires --include-stopped")

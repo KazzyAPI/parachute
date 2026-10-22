@@ -7,17 +7,26 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/KazzyAPI/parachute/internal/clock"
 	"github.com/KazzyAPI/parachute/internal/config"
+	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/logging"
-	"github.com/KazzyAPI/parachute/internal/osys"
+	"github.com/KazzyAPI/parachute/internal/state"
 )
+
+type System interface {
+	config.System
+	config.FileSystem
+	state.FileSystem
+	health.FileSystem
+	health.Process
+}
 
 type Dependencies struct {
 	Stdout   io.Writer
 	Stderr   io.Writer
-	System   *osys.System
-	Clock    *clock.System
+	System   System
+	Clock    Clock
 	Random   io.Reader
 	Version  string
 	Terminal bool
@@ -35,7 +44,7 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 	cfg, err := a.loader().Load(args, environ)
 	if err != nil {
 		slog.New(slog.NewTextHandler(a.deps.Stderr, nil)).Error(err.Error())
-		return ExitConfiguration
+		return domain.ExitConfiguration
 	}
 	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr)
 	container := NewContainer(cfg, a.deps, logger)
@@ -43,19 +52,19 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 		logger.Error(err.Error())
 		return exitCodeOf(err)
 	}
-	return ExitSuccess
+	return domain.ExitSuccess
 }
 
 func (a *App) dispatch(ctx context.Context, container *Container) error {
 	switch container.cfg.Command {
-	case "healthcheck":
+	case config.CommandHealthcheck:
 		return container.Healthcheck()
-	case "status":
+	case config.CommandStatus:
 		return container.Status(ctx)
-	case "restore-verify":
+	case config.CommandRestoreVerify:
 		return configurationError(errors.New("the restore-verify command is not implemented in this milestone"))
 	}
-	daemon, closeEngine, err := container.Daemon()
+	daemon, closeEngine, err := container.Daemon(ctx)
 	if err != nil {
 		return err
 	}

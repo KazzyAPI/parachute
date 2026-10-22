@@ -24,30 +24,26 @@ type Reporter struct {
 	views    *ViewBuilder
 	renderer *Renderer
 	sleeper  Sleeper
-	minimum  domain.Level
+	title    string
 	pending  sync.WaitGroup
 }
 
-func NewReporter(settings config.Notify, sender Sender, views *ViewBuilder, renderer *Renderer, sleeper Sleeper, minimum domain.Level) *Reporter {
-	return &Reporter{settings: settings, sender: sender, views: views, renderer: renderer, sleeper: sleeper, minimum: minimum}
-}
-
-func (r *Reporter) Title() string {
-	if r.settings.SkipTitle {
-		return ""
+func NewReporter(settings config.Notify, sender Sender, views *ViewBuilder, renderer *Renderer, sleeper Sleeper) *Reporter {
+	title := "Parachute on " + settings.Hostname
+	if settings.TitleTag != "" {
+		title = "[" + settings.TitleTag + "] " + title
 	}
-	title := "Parachute on " + r.settings.Hostname
-	if r.settings.TitleTag != "" {
-		title = "[" + r.settings.TitleTag + "] " + title
+	if settings.SkipTitle {
+		title = ""
 	}
-	return title
+	return &Reporter{settings: settings, sender: sender, views: views, renderer: renderer, sleeper: sleeper, title: title}
 }
 
 func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 	if len(r.settings.URLs) == 0 {
 		return nil
 	}
-	body, err := r.renderer.Render(r.views.Build(report, r.Title()))
+	body, err := r.renderer.Render(r.views.Build(report, r.title))
 	if err != nil {
 		return err
 	}
@@ -56,17 +52,17 @@ func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 	}
 	r.pending.Go(func() {
 		if r.sleeper.Sleep(ctx, r.settings.Delay) == nil {
-			r.sender.Send(ctx, r.Title(), body)
+			r.sender.Send(ctx, r.title, body)
 		}
 	})
 	return nil
 }
 
 func (r *Reporter) Announce(ctx context.Context, level domain.Level, body string) {
-	if len(r.settings.URLs) == 0 || level < r.minimum {
+	if len(r.settings.URLs) == 0 || !r.views.Shows(level) {
 		return
 	}
-	r.sender.Send(ctx, r.Title(), body)
+	r.sender.Send(ctx, r.title, body)
 }
 
 func (r *Reporter) Wait() {
