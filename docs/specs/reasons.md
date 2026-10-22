@@ -76,6 +76,7 @@ The previous state was restored and passed its base check (VER-010). The candida
 | `verify_timeout` | A replacement did not pass within its effective deadline. | VER-006 | held for digest |
 | `transaction_timeout` | The transaction ceiling was reached in or after the `update` phase. | UPD-019 | held for digest |
 | `config_unreproducible` | A created replacement's configuration differs from the original (beyond UPD-004 and UPD-005). | UPD-007 | held for digest |
+| `image_mismatch` | A created replacement's image ID differs from the pulled, checked image's ID. | UPD-020 | held for digest |
 | `interrupted` | Parachute stopped during `update`, `verify`, or `rollback`; rolled back at the next start. | UPD-016 | held for digest |
 
 ### rollback_failed
@@ -116,4 +117,4 @@ Restore verification (RST) has its own results, `pass` (reason `null`) and `fail
 7. **Retry after `rollback_failed`.** POL-010 lifts the hold when a new candidate digest appears; VER-010 forbids automatic retry. Chosen: after `rollback_failed` the stack is frozen until operator acknowledgement (glossary). POL-010 now says so. Closed.
 8. **Self-update and `convenient`.** CFG-011's `convenient` profile removes approval holds; it does not remove the self-update hold (`approval_required`, UPD-018). CFG-011 and UPD-018 now say so.
 9. **Restore-verification reasons.** RST names only `snapshot_invalid`; `verify_failed`, `verify_timeout`, and `restore_failed` are reused for the other failures.
-10. **Replacement image ID differs from the checked one (proposed, pending user decision).** UPD-020 requires the replacement's image ID to equal the pulled image's ID and calls a difference a configuration mismatch (UPD-007, `rolled_back`/`config_unreproducible`). Proposed: a separate `rolled_back` reason `image_mismatch` (Produced by UPD-020, Next cycle: held for digest). Not in the table until decided ([open questions](open-questions.md)).
+10. **Replacement image ID differs from the checked one.** UPD-020 required the replacement's image ID to equal the pulled image's ID and called a difference a configuration mismatch (UPD-007, `rolled_back`/`config_unreproducible`). Chosen ([Q16](open-questions.md#q16-rollback-reason-when-the-replacements-image-id-differs-from-the-checked-one)): a separate `rolled_back` reason `image_mismatch`, because it points at the image, not the container's configuration. UPD-020 now says so. Closed.

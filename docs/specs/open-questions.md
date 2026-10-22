@@ -130,13 +130,13 @@ Affects ADR-0001, ADR-0002, ADR-0003, `tools/trace`. The specs and tooling drift
 **Recommendation:** one superseding ADR that records the current practice for all three.
 
 ### Q16 Rollback reason when the replacement's image ID differs from the checked one
-**Status:** Open.
+**Status:** Resolved 2026-10-23: B. New `rolled_back` reason `image_mismatch` (UPD-020, [reasons.md](reasons.md) conflict 10).
 
 Affects UPD-020, UPD-007, [reasons.md](reasons.md) conflict 10. UPD-020 calls a replacement whose image ID differs from the pulled, checked image a configuration mismatch (`rolled_back`/`config_unreproducible`).
 - **A.** Keep `config_unreproducible`.
 - **B.** A new `rolled_back` reason `image_mismatch`.
 
-**Recommendation: B.** It points at the image, not the container's configuration. Not yet in the reason table.
+**Recommendation: B.** It points at the image, not the container's configuration.
 
 ### Q17 Lifting a freeze by editing the state file
 **Status:** Open.
