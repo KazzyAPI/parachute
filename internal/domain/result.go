@@ -1,0 +1,80 @@
+package domain
+
+type State string
+
+const (
+	StateFresh          State = "fresh"
+	StateUpdated        State = "updated"
+	StateWouldUpdate    State = "would_update"
+	StateHeld           State = "held"
+	StateSkipped        State = "skipped"
+	StateFailed         State = "failed"
+	StateRolledBack     State = "rolled_back"
+	StateRollbackFailed State = "rollback_failed"
+)
+
+type Level int
+
+const (
+	LevelDebug Level = iota
+	LevelInfo
+	LevelWarn
+	LevelError
+)
+
+func (s State) Level() Level {
+	switch s {
+	case StateFresh, StateSkipped:
+		return LevelDebug
+	case StateFailed, StateRolledBack:
+		return LevelWarn
+	case StateRollbackFailed:
+		return LevelError
+	case StateUpdated, StateWouldUpdate, StateHeld:
+		return LevelInfo
+	}
+	return LevelInfo
+}
+
+type Result struct {
+	Host            string `json:"host"`
+	Stack           string `json:"stack"`
+	Compose         bool   `json:"compose"`
+	Service         string `json:"service"`
+	Container       string `json:"container"`
+	Image           string `json:"image"`
+	ImageID         string `json:"image_id"`
+	CandidateDigest string `json:"candidate_digest"`
+	State           State  `json:"state"`
+	Reason          string `json:"reason"`
+	Transaction     string `json:"txn"`
+	Snapshot        string `json:"snapshot"`
+}
+
+func NewResult(host string, container Container) Result {
+	return Result{
+		Host:      host,
+		Stack:     container.Stack(),
+		Compose:   container.IsCompose(),
+		Service:   container.Service(),
+		Container: container.Name,
+		Image:     container.ImageRef,
+		ImageID:   container.ImageID,
+	}
+}
+
+func (r Result) UpdateAvailable() bool {
+	return r.CandidateDigest != "" && r.State != StateFresh
+}
+
+func ParseLevel(name string) Level {
+	switch name {
+	case "debug":
+		return LevelDebug
+	case "warn":
+		return LevelWarn
+	case "error":
+		return LevelError
+	}
+	return LevelInfo
+}
