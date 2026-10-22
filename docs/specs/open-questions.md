@@ -107,3 +107,8 @@ Affects API-004. Should `/v1/update` accept a filter (for example `?image=` or `
 Affects BKP-001, BKP-005. Should Parachute estimate snapshot size and refuse early when the store lacks space, rather than failing during the copy?
 
 **Recommendation:** yes, as a SHOULD in a later revision: refuse when free space is below the sum of mount sizes plus 10 %. The current spec already fails safe (BKP-009).
+
+### Q13 List settings and URLs that contain commas
+Affects CFG-003, NTF-001. Lists are split on spaces and commas (CFG-003), so a `--notification-url` whose query string contains a comma (for example `...?to=a@example.com,b@example.com`) is split into two broken URLs. Should URL lists split only on whitespace, accept a repeated flag instead, or require commas inside URLs to be percent-encoded?
+
+**Recommendation:** document percent-encoding (`%2C`) for now and accept repeated `--notification-url` flags; do not change the shared list syntax.

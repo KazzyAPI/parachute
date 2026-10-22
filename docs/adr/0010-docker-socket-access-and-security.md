@@ -16,6 +16,7 @@ Access to the Docker socket or Engine API is equivalent to root on that host. Pa
 ## Consequences
 - Operators must treat the Parachute container and its main token like root credentials; the README must say so. The status token is the one to give to dashboards and browsers.
 - A socket proxy that restricts API calls is not supported until we can list the exact calls Parachute needs.
+- The image runs as root. The mounted Docker socket is owned by `root` and a `docker` group whose ID differs between hosts, so a fixed non-root `USER` cannot open it without per-host setup; since socket access is already root-equivalent, a non-root user inside the container would add no real isolation. Operators who want one can pass `--user <uid>:<docker gid>`.
 
 ## Specs affected
 API-001, API-002, API-003, BKP-004, DMN-003, REG-006, NTF-001, BKP-010, RST-002, RST-005.
