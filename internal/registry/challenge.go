@@ -69,6 +69,9 @@ func (a *Authenticator) token(ctx context.Context, challenge Challenge, credenti
 		}
 	}
 	realm.RawQuery = query.Encode()
+	if credential != nil && realm.Scheme != "https" && !isLoopback(realm.Host) {
+		return "", &Error{Reason: ReasonUnauthorized, Err: fmt.Errorf("refusing to send credentials to non-HTTPS token realm on %s", realm.Host)}
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, realm.String(), nil)
 	if err != nil {
 		return "", &Error{Reason: ReasonUnreachable, Err: err}

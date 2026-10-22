@@ -44,17 +44,21 @@ func (r Reference) APIHost() string {
 }
 
 func (r Reference) Scheme() string {
-	host := r.Domain
+	if isLoopback(r.Domain) {
+		return "http"
+	}
+	return "https"
+}
+
+func isLoopback(host string) bool {
 	if splitHost, _, err := net.SplitHostPort(host); err == nil {
 		host = splitHost
 	}
 	if host == "localhost" {
-		return "http"
+		return true
 	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return "http"
-	}
-	return "https"
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (r Reference) ManifestURL() string {
