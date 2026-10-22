@@ -71,7 +71,6 @@ After a transaction for a candidate digest ends `rolled_back`, Parachute MUST ho
 - **Given** the same and then `POST /v1/approve?container=app` **When** the next cycle runs **Then** the updates of the stack are attempted.
 
 ### POL-011 The state file never weakens a policy
-The state file is untrusted ([glossary: Trust boundaries](glossary.md#trust-boundaries)). Each approval MUST be stored with the host, container ID, and candidate digest it was given for, and MUST be applied only when all three equal the held update; otherwise it is discarded and logged at `info`. Nothing read from the state file MUST arm Parachute (CFG-006), approve an update, or end a hold except an approval stored this way. A first-seen time (POL-002) later than the current time MUST be replaced by the current time and logged at `warn`.
+The state file is untrusted ([glossary: Trust boundaries](glossary.md#trust-boundaries)). Each approval MUST be stored with the host, container ID, and candidate digest it was given for, and MUST be applied only when all three equal the held update; otherwise it is discarded and logged at `info`. Nothing read from the state file MUST arm Parachute (CFG-006), approve an update, or end a hold except an approval stored this way.
 
 - **Given** an approval for `db` and then Parachute stopped, `db` removed and created again with the same name, image, and labels (a new container ID), and Parachute started **When** the next cycle runs **Then** `db` is `held` with reason `approval_required` and unchanged.
-- **Given** a first-seen time for the candidate digest that is in the future **When** a cycle runs with `--delay-days 1` **Then** the result is `held` with reason `delay` and an end time one day after the cycle's start.
