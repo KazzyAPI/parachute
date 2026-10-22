@@ -11,7 +11,7 @@ Before the `update` phase, Parachute MUST create a valid snapshot (BKP-007) for 
 - **Given** the same and `parachute.backup=none` on the container **When** a cycle runs **Then** the container is updated and the replacement's `parachute.snapshot` label is `none`.
 
 ### BKP-002 Snapshot contents
-A snapshot MUST contain: the full inspected configuration of every container in the stack; and the data of every named volume, anonymous volume, and writable bind mount mounted by an affected container. Read-only mounts, tmpfs mounts, and bind mounts whose source is not a directory or regular file (for example sockets) MUST be left out. A container label `parachute.backup.exclude` (comma-separated mount destinations) MUST leave those mounts out.
+A snapshot MUST contain: the full inspected configuration of every container in the stack; and the data of every named volume, anonymous volume, and writable bind mount mounted by an affected container. Read-only mounts, tmpfs mounts, and bind mounts whose source is not a directory or regular file (for example sockets) MUST be left out. A container label `parachute.backup.exclude` (comma-separated mount destinations) MUST leave those mounts out. System mounts are never copied (BKP-012).
 
 - **Given** a container with named volume `data` at `/data`, writable bind mount at `/conf`, read-only bind at `/etc/ro`, and `/var/run/docker.sock` mounted **When** a snapshot is taken **Then** its manifest lists `/data` and `/conf` and not `/etc/ro` or the socket.
 - **Given** `parachute.backup.exclude=/media` and a bind mount at `/media` **When** a snapshot is taken **Then** the manifest does not list `/media`.
@@ -69,3 +69,12 @@ Before running `pre-update` hooks or dumps, or stopping any container, Parachute
 
 - **Given** `--backup-volume` on a host path with 2 GiB free and a container whose named volume holds 1.5 GiB **When** a cycle runs **Then** the result is `failed` with reason `insufficient_space`, the container keeps its ID and image, no `die` event was emitted for it, no snapshot directory was created, and the entry contains both byte counts.
 - **Given** the same store and a volume holding 100 MiB **When** a cycle runs **Then** the update proceeds and commits.
+
+### BKP-012 System mounts are never copied
+Parachute MUST NOT copy into a snapshot, or restore into, a **system mount**: a bind mount whose source, after symbolic links are resolved on the host, is `/`, `/etc`, `/usr`, `/boot`, `/var`, or `/var/lib`; is `/proc`, `/sys`, `/dev`, `/run`, `/var/run`, `/var/lib/docker`, or `/var/lib/containers` or a path under one of them; is a Docker or Podman API socket; or is the snapshot store (BKP-005) or a directory containing it. A volume whose `local`-driver `device` option names such a path is a system mount too. No label can include a system mount. Each system mount of an affected container MUST be logged at `warn` naming the container, destination, and source; listed in the manifest under `skipped` (per mount: container, destination, source); and named in the detail of the container's report entry. A skipped system mount does not fail the transaction. If the transaction rolls back, the rollback report names it as `data not restored: system mount <destination>`.
+
+- **Given** a container with writable bind mounts of `/etc` at `/host-etc`, `/proc` at `/host-proc`, and `/srv/app` at `/data` **When** a snapshot is taken **Then** the manifest's `mounts` lists only `/data`, its `skipped` lists `/host-etc` and `/host-proc`, one `warn` line names each of them, and the result is `updated`.
+- **Given** a host symbolic link `/srv/etc-link` pointing to `/etc`, bind-mounted writable at `/cfg` **When** a snapshot is taken **Then** `/cfg` is listed under `skipped` and not under `mounts`.
+- **Given** `--backup-volume /srv/parachute` and a container with `/srv` bind-mounted writable at `/srv` **When** a snapshot is taken **Then** `/srv` is listed under `skipped`.
+- **Given** a local volume created with `--opt type=none --opt o=bind --opt device=/etc` mounted at `/conf` **When** a snapshot is taken **Then** `/conf` is listed under `skipped`.
+- **Given** a container with `/etc` bind-mounted writable at `/host-etc` whose update fails verification **When** rollback finishes **Then** the report entry contains `data not restored: system mount /host-etc`.
