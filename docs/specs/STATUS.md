@@ -11,6 +11,7 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 | backup | spec/backup | complete | 12 |
 | platform | spec/platform | complete | 13 |
 | migration | spec/migration | complete | 7 |
+| integration | docs/spec-hardening | complete | - |
 
 ## Files
 
@@ -22,9 +23,9 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 | adr/0004-update-is-a-transaction.md | transaction | complete | spec/transaction | e3a8715 | 0 | 0 | 0 |
 | adr/0005-label-and-configuration-namespace.md | platform | complete | spec/platform | b8d07bb | 0 | 0 | 0 |
 | adr/0006-compose-is-the-unit-of-update.md | transaction | complete | spec/transaction | e3a8715 | 0 | 0 | 0 |
-| adr/0007-safe-by-default.md | unassigned | pending | - | - | 0 | 0 | 0 |
+| adr/0007-safe-by-default.md | unassigned | pending user decision (Q19) | - | - | 0 | 0 | 0 |
 | adr/0008-state-storage.md | platform | complete | spec/platform | b8d07bb | 0 | 0 | 0 |
-| adr/0009-snapshot-format-and-storage.md | unassigned | pending | - | - | 0 | 0 | 0 |
+| adr/0009-snapshot-format-and-storage.md | unassigned | pending user decision (Q19) | - | - | 0 | 0 | 0 |
 | adr/0010-docker-socket-access-and-security.md | platform | complete | spec/platform | 6837b83 | 0 | 0 | 0 |
 | adr/0011-untrusted-input-handling.md | migration | complete | spec/migration | be8e9e9 | 0 | 0 | 0 |
 | adr/0012-digest-pinned-updates.md | selection | complete | spec/selection | b2cffbb | 0 | 0 | 0 |
@@ -72,4 +73,13 @@ Generated from `git log` / `git diff` of `docs/spec-hardening..spec/<group>`. Ow
 
 ## Cross-group issues
 
-None detected.
+Resolved in the integration pass on `docs/spec-hardening`:
+
+- ADR index lists 0011 to 0014; statuses match each ADR's own Status line (0007, 0009 stay Proposed).
+- [reasons.md](reasons.md) producers synced (UPD-007, UPD-020, HOK-008, DET-008, REG-007, REG-008, SEL-013); conflicts 3, 4, 7, 8 closed; `image_mismatch` proposed only (conflict 10, Q16).
+- Cross-references aligned: UPD-001, UPD-014, UPD-018 to UPD-020; POL-002, POL-006, POL-010, API-007 to DET-008 and the `frozen` field; UPD-017 helper proof by label (BKP-010); BKP-001, BKP-003 own-container `none`; SEL-012 engine-identified own container; CFG label table and CFG-010 handover format; REG-006 to ADR-0013; glossary to STS-006, STS-007; DMN-006 alias removed.
+- [README.md](README.md) M1 deviations list `--allow-insecure-tcp` and the M1-covered IDs whose meaning changed.
+
+Open, pending user decision: [open questions](open-questions.md) Q14 to Q26.
+
+Checks: every referenced requirement ID is in the README index; every relative link and anchor resolves; the old tool's name appears only in `docs/migration.md`; `make trace` passes (M1: 61 requirements, 61 tested).
