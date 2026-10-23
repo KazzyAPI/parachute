@@ -18,7 +18,7 @@ func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 	admin := strings.Repeat("a", 63) + "Z"
 	statusToken := "read-only-token"
 	key := []byte("per-process-key")
-	tokens := NewTokens(key, admin, statusToken)
+	tokens := newTokenSet(key, admin, statusToken)
 	if reflect.ValueOf(tokens.compare).Pointer() != reflect.ValueOf(subtle.ConstantTimeCompare).Pointer() {
 		t.Fatal("tokens are not compared with subtle.ConstantTimeCompare")
 	}
@@ -35,20 +35,20 @@ func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 	adminDigest, statusDigest := digest(admin), digest(statusToken)
 	for _, tc := range []struct {
 		presented string
-		want      Match
+		want      tokenMatch
 	}{
-		{admin, Match{Admin: true}},
-		{statusToken, Match{Status: true}},
-		{admin[:63] + "Y", Match{}},
-		{statusToken[:len(statusToken)-1] + "X", Match{}},
-		{admin[:10], Match{}},
-		{admin + "a", Match{}},
-		{statusToken + "x", Match{}},
-		{strings.Repeat("-", 64), Match{}},
-		{"", Match{}},
+		{admin, tokenMatch{Admin: true}},
+		{statusToken, tokenMatch{Status: true}},
+		{admin[:63] + "Y", tokenMatch{}},
+		{statusToken[:len(statusToken)-1] + "X", tokenMatch{}},
+		{admin[:10], tokenMatch{}},
+		{admin + "a", tokenMatch{}},
+		{statusToken + "x", tokenMatch{}},
+		{strings.Repeat("-", 64), tokenMatch{}},
+		{"", tokenMatch{}},
 	} {
 		calls = nil
-		if got := tokens.Match(tc.presented); got != tc.want {
+		if got := tokens.match(tc.presented); got != tc.want {
 			t.Errorf("Match(%q) = %+v, want %+v", tc.presented, got, tc.want)
 		}
 		presentedDigest := digest(tc.presented)
@@ -64,7 +64,7 @@ func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 }
 
 func TestEmptyStatusTokenMatchesNothing(t *testing.T) {
-	if got := NewTokens([]byte("key"), "admin-token", "").Match(""); got != (Match{}) {
+	if got := newTokenSet([]byte("key"), "admin-token", "").match(""); got != (tokenMatch{}) {
 		t.Errorf("empty presented token matched %+v", got)
 	}
 }

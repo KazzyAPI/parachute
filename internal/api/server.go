@@ -23,6 +23,7 @@ const (
 	headerLimit        = 8 << 10
 	netHTTPHeaderSlack = 4096
 	headerTimeout      = 10 * time.Second
+	shutdownTimeout    = 10 * time.Second
 	idleTimeout        = 60 * time.Second
 )
 
@@ -87,18 +88,18 @@ type Parts struct {
 type Server struct {
 	parts    Parts
 	respond  responder
-	tokens   *Tokens
-	throttle *Throttle
-	sources  Sources
+	tokens   *tokenSet
+	throttle *failureThrottle
+	sources  sourceResolver
 }
 
 func NewServer(parts Parts) *Server {
 	return &Server{
 		parts:    parts,
 		respond:  responder{redactor: parts.Redactor},
-		tokens:   NewTokens(parts.TokenKey, parts.Settings.Token, parts.Settings.StatusToken),
-		throttle: NewThrottle(parts.Clock, parts.Logger),
-		sources:  Sources{trusted: parts.Settings.TrustedProxies},
+		tokens:   newTokenSet(parts.TokenKey, parts.Settings.Token, parts.Settings.StatusToken),
+		throttle: newFailureThrottle(parts.Clock, parts.Logger),
+		sources:  sourceResolver{trusted: parts.Settings.TrustedProxies},
 	}
 }
 
@@ -118,7 +119,12 @@ func (s *Server) Serve(ctx context.Context) error {
 		return fmt.Errorf("serve the HTTP API: %w", err)
 	case <-ctx.Done():
 	}
-	shutdownErr := server.Shutdown(context.WithoutCancel(ctx))
+	stopping, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	defer cancel()
+	shutdownErr := server.Shutdown(stopping)
+	if shutdownErr != nil {
+		shutdownErr = errors.Join(shutdownErr, server.Close())
+	}
 	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve the HTTP API: %w", err)
 	}
@@ -150,15 +156,16 @@ func (s *Server) handler(ctx context.Context) http.Handler {
 			s.respond.json(w, http.StatusRequestEntityTooLarge, errorBody{Error: "request body too large"})
 			return
 		}
-		source := s.sources.Of(r)
-		if retryAfter, throttled := s.throttle.Check(source); throttled {
+		source := s.sources.of(r)
+		if retryAfter, throttled := s.throttle.reserve(source); throttled {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			s.respond.json(w, http.StatusTooManyRequests, errorBody{Error: "too many failed authentications"})
 			return
 		}
 		statusEndpoint := isStatusEndpoint(r)
-		if !s.tokens.Allows(r, statusEndpoint) {
-			s.throttle.Fail(source)
+		allowed := s.tokens.allows(r, statusEndpoint)
+		s.throttle.release(source, !allowed)
+		if !allowed {
 			w.Header().Add("WWW-Authenticate", `Bearer realm="parachute"`)
 			if statusEndpoint {
 				w.Header().Add("WWW-Authenticate", `Basic realm="parachute"`)

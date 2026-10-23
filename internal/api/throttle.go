@@ -16,8 +16,9 @@ const (
 )
 
 type failures struct {
-	times  []time.Time
-	warned bool
+	times   []time.Time
+	pending int
+	warned  bool
 }
 
 func (f *failures) prune(now time.Time) {
@@ -37,15 +38,15 @@ func (f *failures) newest() time.Time {
 	return f.times[len(f.times)-1]
 }
 
-type Throttle struct {
+type failureThrottle struct {
 	clock   Clock
 	logger  *slog.Logger
 	lock    sync.Mutex
 	entries map[netip.Prefix]*failures
 }
 
-func NewThrottle(clock Clock, logger *slog.Logger) *Throttle {
-	return &Throttle{clock: clock, logger: logger, entries: map[netip.Prefix]*failures{}}
+func newFailureThrottle(clock Clock, logger *slog.Logger) *failureThrottle {
+	return &failureThrottle{clock: clock, logger: logger, entries: map[netip.Prefix]*failures{}}
 }
 
 func sourceKey(source netip.Addr) netip.Prefix {
@@ -56,28 +57,7 @@ func sourceKey(source netip.Addr) netip.Prefix {
 	return netip.PrefixFrom(source, source.BitLen())
 }
 
-func (t *Throttle) Check(source netip.Addr) (int, bool) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	entry := t.entries[sourceKey(source)]
-	if entry == nil {
-		return 0, false
-	}
-	now := t.clock.Now()
-	entry.prune(now)
-	if len(entry.times) < failureLimit {
-		entry.warned = false
-		return 0, false
-	}
-	retryAfter := int(math.Ceil(entry.times[0].Add(failureWindow).Sub(now).Seconds()))
-	if !entry.warned {
-		entry.warned = true
-		t.logger.Warn("too many failed authentications, requests are throttled", "source", source.String(), "retry_after", retryAfter)
-	}
-	return min(max(retryAfter, 1), 60), true
-}
-
-func (t *Throttle) Fail(source netip.Addr) {
+func (t *failureThrottle) reserve(source netip.Addr) (int, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	key := sourceKey(source)
@@ -91,17 +71,49 @@ func (t *Throttle) Fail(source netip.Addr) {
 	}
 	now := t.clock.Now()
 	entry.prune(now)
-	entry.times = append(entry.times, now)
+	if len(entry.times)+entry.pending < failureLimit {
+		entry.pending++
+		entry.warned = false
+		return 0, false
+	}
+	retryAfter := 1
+	if len(entry.times) > 0 {
+		retryAfter = int(math.Ceil(entry.times[0].Add(failureWindow).Sub(now).Seconds()))
+	}
+	if !entry.warned {
+		entry.warned = true
+		t.logger.Warn("too many failed authentications, requests are throttled", "source", source.String(), "retry_after", retryAfter)
+	}
+	return min(max(retryAfter, 1), 60), true
 }
 
-func (t *Throttle) evictOldest() {
+func (t *failureThrottle) release(source netip.Addr, failed bool) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	key := sourceKey(source)
+	entry := t.entries[key]
+	if entry == nil {
+		return
+	}
+	entry.pending--
+	if failed {
+		entry.times = append(entry.times, t.clock.Now())
+	}
+	if len(entry.times) == 0 && entry.pending == 0 {
+		delete(t.entries, key)
+	}
+}
+
+func (t *failureThrottle) evictOldest() {
 	var oldest netip.Prefix
 	var oldestTime time.Time
-	first := true
+	found := false
 	for key, entry := range t.entries {
-		if newest := entry.newest(); first || newest.Before(oldestTime) {
-			oldest, oldestTime, first = key, newest, false
+		if newest := entry.newest(); entry.pending == 0 && (!found || newest.Before(oldestTime)) {
+			oldest, oldestTime, found = key, newest, true
 		}
 	}
-	delete(t.entries, oldest)
+	if found {
+		delete(t.entries, oldest)
+	}
 }

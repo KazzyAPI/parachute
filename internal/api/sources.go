@@ -25,15 +25,15 @@ func ParseTrustedProxies(entries []string) ([]netip.Prefix, error) {
 	return prefixes, nil
 }
 
-type Sources struct {
+type sourceResolver struct {
 	trusted []netip.Prefix
 }
 
-func (s Sources) trusts(address netip.Addr) bool {
+func (s sourceResolver) trusts(address netip.Addr) bool {
 	return slices.ContainsFunc(s.trusted, func(prefix netip.Prefix) bool { return prefix.Contains(address) })
 }
 
-func (s Sources) Of(r *http.Request) netip.Addr {
+func (s sourceResolver) of(r *http.Request) netip.Addr {
 	peerAddress, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
 		return netip.Addr{}
