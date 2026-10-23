@@ -56,28 +56,30 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if err := d.parts.Marker.Ready(); err != nil {
 		return err
 	}
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	defer d.clearMarker()
 	defer d.parts.Announcer.Wait()
-	if err := d.serve(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	if err := d.serve(ctx, stop); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 	d.parts.Logger.Info("Parachute stopped")
 	return nil
 }
 
-func (d *Daemon) serve(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func (d *Daemon) serve(ctx context.Context, stopLoop context.CancelFunc) error {
+	serverCtx, stopServer := context.WithCancel(ctx)
+	defer stopServer()
 	served := make(chan error, 1)
 	go func() {
-		err := d.parts.Server.Serve(ctx)
+		err := d.parts.Server.Serve(serverCtx)
 		if err != nil {
-			cancel()
+			stopLoop()
 		}
 		served <- err
 	}()
 	loopErr := d.parts.Loop.Run(ctx)
-	cancel()
+	stopServer()
 	if serveErr := <-served; serveErr != nil {
 		return serveErr
 	}
