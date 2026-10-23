@@ -54,7 +54,7 @@ Nothing was changed (UPD-014). The detail text names the failing step, field, la
 |---|---|---|---|
 | `registry_unreachable` | Transport error, timeout, TLS error, `5xx` or other unexpected status, malformed or oversized response, or invalid token realm, after the `HEAD` → `GET` fallback; an invalid or mismatched candidate digest, including a missing or invalid `Docker-Content-Digest` on a `200` `HEAD` response (no `GET` fallback); a forbidden redirect. | DET-003, DET-008, REG-007, REG-008 | re-evaluated |
 | `registry_unauthorized` | The registry or its token endpoint answered `401` or `403`, or credentials were withheld from a non-HTTPS non-loopback token realm. | REG-001, REG-004 | re-evaluated |
-| `engine_error` | A Docker engine request for this candidate failed while the host stayed reachable. | DMN-005, SEL-013 | re-evaluated |
+| `engine_error` | A Docker engine request for this candidate failed before the `update` phase while the host stayed reachable. | DMN-005, SEL-013 | re-evaluated |
 | `invalid_label` | A `parachute.*` label has an invalid value. | POL-008 | re-evaluated |
 | `dependency_cycle` | The container is on a dependency cycle. | DEP-008 | re-evaluated |
 | `pull_failed` | Pulling the new image failed, or the pulled image's repository digests do not contain the approved digest. | UPD-014, UPD-020 | re-evaluated |
