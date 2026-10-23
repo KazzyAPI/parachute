@@ -63,7 +63,10 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		StartupMessage: !b.boolean("no-startup-message"),
 		Selection:      l.selection(b, parsed),
 		Detection:      Detection{WarnOnHeadFailure: b.raw("warn-on-head-failure"), DockerConfigDir: b.raw("DOCKER_CONFIG")},
-		Engine:         Engine{Host: b.raw("host"), APIVersion: b.raw("api-version"), TLSVerify: b.boolean("tlsverify"), CertPath: b.raw("DOCKER_CERT_PATH")},
+		Engine:         l.engine(b),
+		Policy:         l.policy(b),
+		API:            l.api(b),
+		Hosts:          l.hosts(b),
 		Log:            l.log(b),
 	}
 	if b.boolean("health-check") {
@@ -128,6 +131,8 @@ func (l *Loader) notify(b *binder) (Notify, error) {
 		SkipTitle: b.boolean("notification-skip-title"),
 		Delay:     b.seconds("notifications-delay"),
 		Template:  b.raw("notification-template"),
+		Report:    b.boolean("notification-report"),
+		LogStdout: b.boolean("notification-log-stdout"),
 	}, nil
 }
 

@@ -17,6 +17,9 @@ type Config struct {
 	Detection      Detection
 	Notify         Notify
 	Engine         Engine
+	Policy         Policy
+	API            API
+	Hosts          []HostSpec
 	Log            Log
 	StartupMessage bool
 }
@@ -53,13 +56,41 @@ type Notify struct {
 	SkipTitle bool
 	Delay     time.Duration
 	Template  string
+	Report    bool
+	LogStdout bool
 }
 
 type Engine struct {
-	Host       string
-	APIVersion string
-	TLSVerify  bool
-	CertPath   string
+	Host             string
+	APIVersion       string
+	TLSVerify        bool
+	CertPath         string
+	AllowInsecureTCP bool
+}
+
+type Policy struct {
+	DelayDays        float64
+	ProtectDatabases bool
+	TagFollow        string
+	Window           string
+	WindowDuration   time.Duration
+	ReminderDays     float64
+}
+
+type API struct {
+	Port           int
+	Update         bool
+	Metrics        bool
+	Status         bool
+	PeriodicPolls  bool
+	Token          string
+	StatusToken    string
+	TrustedProxies []string
+}
+
+type HostSpec struct {
+	Name     string
+	Endpoint string
 }
 
 type Log struct {

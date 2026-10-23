@@ -21,6 +21,12 @@ func (b *binder) seconds(label string) time.Duration {
 	return time.Duration(b.values[label].Int) * time.Second
 }
 
+func (b *binder) integer(label string) int { return b.values[label].Int }
+
+func (b *binder) decimal(label string) float64 { return b.values[label].Decimal }
+
+func (b *binder) duration(label string) time.Duration { return b.values[label].Duration }
+
 func (b *binder) list(label string) []string { return b.values[label].List }
 
 func (b *binder) relaxed() []string {
