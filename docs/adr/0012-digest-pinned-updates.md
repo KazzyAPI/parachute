@@ -1,6 +1,6 @@
 # ADR-0012: Digest-pinned updates
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-23
 
 ## Context
@@ -29,3 +29,6 @@ Detection resolves a tag (for example `app:1`) to a manifest digest. The delay (
 
 ## Specs affected
 DET-007, DET-008, POL-002, POL-006, POL-010, API-007, UPD-001, UPD-005, UPD-014, UPD-018.
+
+## Amendment (2026-10-23)
+Specs affected also includes UPD-020 (pull by the approved digest), the requirement that states this decision.
