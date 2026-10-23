@@ -68,10 +68,9 @@ func (c *Collector) Take(cycleID string) []Entry {
 	var taken, kept []Entry
 	for index, entry := range c.shared.items {
 		switch cycle := entry.Fields["cycle"]; {
-		case index < start:
 		case cycle != "" && cycle != cycleID:
 			kept = append(kept, entry)
-		default:
+		case index >= start:
 			taken = append(taken, entry)
 		}
 	}

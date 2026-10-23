@@ -52,8 +52,9 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 		return domain.ExitConfiguration
 	}
 	redactor = redact.New(a.secretSources(cfg)...)
+	stdout := redact.NewWriter(a.deps.Stdout, redactor)
 	deps := a.deps
-	deps.Stdout = redact.NewWriter(a.deps.Stdout, redactor)
+	deps.Stdout = stdout
 	entries := logging.NewCollector(domain.ParseLevel(cfg.Notify.Level))
 	var collectors []slog.Handler
 	if !cfg.Notify.Report {
@@ -64,7 +65,11 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 		logger.Warn("trace logging is on: trace lines are not redacted and can contain credentials and other secrets")
 	}
 	container := NewContainer(cfg, deps, logger, redactor, entries)
-	if err := a.dispatch(ctx, container); err != nil {
+	err = a.dispatch(ctx, container)
+	if flushErr := stdout.Flush(); flushErr != nil && err == nil {
+		err = fmt.Errorf("write stdout: %w", flushErr)
+	}
+	if err != nil {
 		logger.Error(err.Error())
 		return exitCodeOf(err)
 	}
