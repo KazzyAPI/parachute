@@ -111,8 +111,8 @@ A failed transaction MUST NOT prevent transactions of unrelated stacks in the sa
 If Parachute stops (crash, kill, host reboot) while a transaction is in an open state, then at its next start, before running any cycle, it MUST end that transaction as the [transaction state machine](glossary.md#transaction-state-machine) prescribes, keep its transaction ID, and report the result:
 
 - `policy`, `snapshot`: start again every container stopped for the snapshot; state `aborted`, result `failed`, reason `interrupted`.
-- `update`, `verify`, `rolling_back`: roll back (VER-008); result `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason.
-- `handover`: UPD-018 step 6.
+- `update`, `verify`, or `rolling_back` of an ordinary stack: roll back (VER-008); result `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason.
+- `handover`, or `rolling_back` of a self-update: UPD-018 step 6.
 
 An instance in handover mode (UPD-018 step 2) MUST NOT do this until it owns the state file. Recovery removes only what UPD-017 allows.
 

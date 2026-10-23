@@ -49,9 +49,10 @@ snapshot -> handover                      (self-update; replaces update and veri
 handover -> committed                     (replacement verified; old instance records commit, removes marker)
 handover -> rolling_back                  (replacement failed verification, UPD-018 step 4)
 handover -> rollback_failed               (old instance stopped while the marker exists and the state is still handover, step 6; new instance records it)
+rolling_back -> rollback_failed           (self-update, step 6: old instance stopped during its rollback while the marker exists)
 ```
 
-Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, `rolling_back` go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover` follows UPD-018 step 6.
+Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, and the `rolling_back` of an ordinary stack go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover`, or `rolling_back` of a self-update, follows UPD-018 step 6.
 
 A terminal state is never left. A new attempt is a new transaction with a new ID.
 
