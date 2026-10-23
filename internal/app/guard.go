@@ -4,49 +4,46 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/engine"
+	"github.com/KazzyAPI/parachute/internal/pipeline"
 )
 
-const containerIDPrefixLength = 12
-
-type ContainerLister interface {
-	Containers(ctx context.Context) ([]domain.Container, error)
-}
-
 type LabelReader interface {
-	Bool(container domain.Container, name string) (bool, bool)
+	Is(container domain.Container, name string) bool
 }
 
-type Hostnamer interface {
-	Hostname() (string, error)
+type SelfMarker interface {
+	Mark(hosts []engine.SelfHost) bool
 }
 
 type ArmedLabelGuard struct {
-	engine   ContainerLister
-	hostname Hostnamer
-	labels   LabelReader
+	host   pipeline.Host
+	self   SelfMarker
+	labels LabelReader
 }
 
-func NewArmedLabelGuard(engine ContainerLister, hostname Hostnamer, labels LabelReader) *ArmedLabelGuard {
-	return &ArmedLabelGuard{engine: engine, hostname: hostname, labels: labels}
+func NewArmedLabelGuard(host pipeline.Host, self SelfMarker, labels LabelReader) *ArmedLabelGuard {
+	return &ArmedLabelGuard{host: host, self: self, labels: labels}
 }
 
 func (g *ArmedLabelGuard) Check(ctx context.Context) error {
-	hostname, err := g.hostname.Hostname()
-	if err != nil {
-		return fmt.Errorf("cannot determine own hostname: %w", err)
-	}
-	if len(hostname) < containerIDPrefixLength {
-		return nil
-	}
-	containers, err := g.engine.Containers(ctx)
+	containers, err := g.host.Source.Containers(ctx)
 	if err != nil {
 		return unreachableError(err)
 	}
+	g.self.Mark([]engine.SelfHost{{Local: engine.LocalEndpoint(g.host.Endpoint), Containers: containers}})
 	for _, container := range containers {
-		if armed, _ := g.labels.Bool(container, "armed"); armed && strings.HasPrefix(container.ID, hostname) {
+		if !container.Own || !g.labels.Is(container, "armed") {
+			continue
+		}
+		image, _, err := g.host.Source.Image(ctx, container.ImageID)
+		if err != nil {
+			return unreachableError(fmt.Errorf("inspect image of own container: %w", err))
+		}
+		container.ImageLabels = image.Labels
+		if g.labels.Is(container, "armed") {
 			return configurationError(errors.New("updates are not implemented in this milestone (parachute.armed=true on own container)"))
 		}
 	}

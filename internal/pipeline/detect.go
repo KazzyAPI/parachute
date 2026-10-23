@@ -43,6 +43,9 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 	}
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
+			if candidate.Result.State != "" {
+				continue
+			}
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)
 			result, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
 			if ctx.Err() != nil {
@@ -50,9 +53,8 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 			}
 			var unreachable *engine.UnreachableError
 			if errors.As(err, &unreachable) {
-				host.Reachable = false
+				host.Unreachable(s.logger, cycle.ID, err)
 				host.Candidates = nil
-				s.logger.Error("host unreachable", "cycle", cycle.ID, "host", host.Host.Name, "endpoint", host.Host.Endpoint, "error", err.Error())
 				break
 			}
 			if err != nil {
