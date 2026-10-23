@@ -40,7 +40,7 @@ An unknown flag, an unknown `PARACHUTE_*` environment variable, or a removed set
 - **Given** a container labelled `parachute.enabel=false` **When** a cycle runs **Then** one `warn` line names the container and `parachute.enabel`, and the container is still a candidate.
 
 ### CFG-006 Armed mode
-Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is set, its own container carries the label `parachute.armed=true`, or the `convenient` profile is active (CFG-011). Arming is read at every start from these sources only; it is never remembered and never read from the state file, so a copied or restored `state.json` cannot arm an instance. While unarmed, Parachute MUST run cycles, detection, and policies, report every update it would apply as `would_update` (NTF-010), and MUST NOT pull images, stop, create, rename, or remove containers, create helpers or snapshots, run `pre-update` or `post-update` hooks, or run scheduled restore verification (RST-001). The `parachute restore-verify` command changes no managed container, so it needs no arming: run by hand (including with `docker exec` inside an unarmed Parachute container), it creates its throwaway resources and pulls their images (RST-002) whether or not Parachute is armed. The startup message and status view MUST show the armed state.
+Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is set, its own container carries the label `parachute.armed=true`, or the `convenient` profile is active (CFG-011). Arming is read at every start from these sources only; it is never remembered and never read from the state file, so a copied or restored `state.json` cannot arm an instance. Parachute's own container is identified as [ADR-0016](../adr/0016-identifying-own-container.md) says; a Parachute that is not containerised can be armed only by `--armed`, `PARACHUTE_ARMED`, or the profile. While unarmed, Parachute MUST run cycles, detection, and policies, report every update it would apply as `would_update` (NTF-010), and MUST NOT pull images, stop, create, rename, or remove containers, create helpers or snapshots, run `pre-update` or `post-update` hooks, or run scheduled restore verification (RST-001). The `parachute restore-verify` command changes no managed container, so it needs no arming: run by hand (including with `docker exec` inside an unarmed Parachute container), it creates its throwaway resources and pulls their images (RST-002) whether or not Parachute is armed. The startup message and status view MUST show the armed state.
 
 - **Given** a fresh install, unarmed, and a container with a newer image **When** a cycle runs **Then** the webhook receives a report listing it as `would_update`, and the container's ID and image, the local image list, and the volume list are unchanged.
 - **Given** the same with `PARACHUTE_ARMED=true` **When** a cycle runs **Then** the container is updated.
@@ -86,7 +86,7 @@ The Parachute process (daemon and run-once mode) MUST use these exit codes; they
 |---|---|
 | 0 | Success: every candidate is `fresh`, `updated`, `would_update`, `held`, or `skipped`. In daemon mode, a clean shutdown on `SIGTERM` or `SIGINT`. |
 | 1 | At least one candidate `failed` or `rolled_back`, or a host was unreachable (run-once). |
-| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md#insecure-tcp-host) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
+| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md#insecure-tcp-host) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010), missing `--helper-image` where BKP-010 requires it. |
 | 3 | At least one `rollback_failed` (run-once). |
 | 4 | No managed host reachable at startup (DMN-004), including a failed TLS handshake (DMN-003) or a rejected forced API version (DMN-002). |
 
@@ -155,7 +155,7 @@ Log lines at every level except `trace`, startup and error messages (including t
 | `--backup` | `stop` | BKP-003 |
 | `--backup-volume` | `parachute-snapshots` | BKP-005 |
 | `--backup-retention` | `3` | BKP-008 |
-| `--helper-image` | image of Parachute's own container | BKP-010 |
+| `--helper-image` | image of Parachute's own container; when not containerised, none, and required only when armed and for `parachute restore-verify` | BKP-010 |
 | `--verify-timeout` | `120s` | VER-006 |
 | `--verify-stable` | `30s` | VER-003 |
 | `--delay-days` | `2` | POL-002 |
