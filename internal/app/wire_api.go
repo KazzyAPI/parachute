@@ -67,7 +67,7 @@ func (c *Container) server(parts ServerParts) (Server, error) {
 		return idleServer{}, nil
 	}
 	if settings.Token == "" {
-		return nil, configurationError(errors.New("the HTTP API is enabled but --http-api-token is not set (http-api-token)"))
+		return nil, configurationError(errors.New("--http-api-token is required when an HTTP API endpoint is enabled"))
 	}
 	hosts := make([]string, 0, len(parts.Hosts))
 	for _, host := range parts.Hosts {
