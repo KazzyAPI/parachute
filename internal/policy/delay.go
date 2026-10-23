@@ -30,15 +30,18 @@ func (r *DelayRule) Hold(s Subject) (domain.Hold, bool, error) {
 func (r *DelayRule) firstSeen(s Subject) (time.Time, error) {
 	digest := s.Result.CandidateDigest
 	for _, record := range r.store.Current().FirstSeen {
-		if record.Host == s.Host && record.Container == s.Container.ID && record.Digest == digest {
+		if record.Host == s.Host && record.Container == s.Container.Name && record.Digest == digest {
+			if record.Time.After(s.Now) {
+				return s.Now, nil
+			}
 			return record.Time, nil
 		}
 	}
 	seen := s.Now.UTC()
 	err := r.store.Update(func(document *state.Document) error {
 		document.FirstSeen = append(slices.DeleteFunc(document.FirstSeen, func(record state.FirstSeen) bool {
-			return record.Host == s.Host && record.Container == s.Container.ID
-		}), state.FirstSeen{Host: s.Host, Container: s.Container.ID, Digest: digest, Time: seen})
+			return record.Host == s.Host && record.Container == s.Container.Name
+		}), state.FirstSeen{Host: s.Host, Container: s.Container.Name, Digest: digest, Time: seen})
 		return nil
 	})
 	return seen, err
