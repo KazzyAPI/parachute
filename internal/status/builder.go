@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -14,19 +15,20 @@ import (
 const cycleID = "status"
 
 type Builder struct {
-	hosts    []pipeline.Host
-	discover pipeline.Stage
-	redactor Redactor
-	armed    bool
+	hosts     []pipeline.Host
+	inventory pipeline.Stage
+	redactor  Redactor
+	armed     bool
+	lock      sync.Mutex
 }
 
-func NewBuilder(hosts []pipeline.Host, discover pipeline.Stage, redactor Redactor, armed bool) *Builder {
-	return &Builder{hosts: hosts, discover: discover, redactor: redactor, armed: armed}
+func NewBuilder(hosts []pipeline.Host, inventory pipeline.Stage, redactor Redactor, armed bool) *Builder {
+	return &Builder{hosts: hosts, inventory: inventory, redactor: redactor, armed: armed}
 }
 
 func (b *Builder) Build(ctx context.Context, saved state.Document, generated time.Time) (Document, error) {
-	cycle := pipeline.NewCycle(cycleID, generated, b.armed, b.hosts)
-	if err := b.discover.Run(ctx, cycle); err != nil {
+	cycle, err := b.list(ctx, generated)
+	if err != nil {
 		return Document{}, fmt.Errorf("list containers: %w", err)
 	}
 	if len(cycle.Hosts) > 0 && len(cycle.ReachableHosts()) == 0 {
@@ -51,6 +53,13 @@ func (b *Builder) Build(ctx context.Context, saved state.Document, generated tim
 	return document, nil
 }
 
+func (b *Builder) list(ctx context.Context, generated time.Time) (*pipeline.Cycle, error) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	cycle := pipeline.NewCycle(cycleID, generated, b.armed, b.hosts)
+	return cycle, b.inventory.Run(ctx, cycle)
+}
+
 func (b *Builder) place(stacks []Stack, container domain.Container, service Service) []Stack {
 	name := b.redactor.Redact(container.Stack())
 	for index := range stacks {
@@ -73,7 +82,7 @@ func (b *Builder) service(container domain.Container, previous domain.Result) Se
 		service.CandidateDigest = &digest
 	}
 	if previous.State == domain.StateHeld {
-		service.Hold = &Hold{Reason: previous.Reason, Until: previous.HoldUntil}
+		service.Hold = &Hold{Reason: b.redactor.Redact(previous.Reason), Until: previous.HoldUntil}
 	}
 	return service
 }
