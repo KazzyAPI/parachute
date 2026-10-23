@@ -1,6 +1,6 @@
 # ADR-0014: Self-update safety
 
-- **Status:** Accepted (amended 2026-10-23, see Amendment)
+- **Status:** Accepted
 - **Date:** 2026-10-23
 
 ## Context
@@ -15,7 +15,7 @@ Parachute can update its own container. That container holds the Docker socket, 
 6. **No data snapshot.** The own container is always snapshotted in backup mode `none`. The new instance writes nothing in the state directory before it owns the state file, so a rollback never needs a data restore.
 7. **Marker is untrusted.** `handover.json` has a format version and is validated against the engine: it must name the starting instance's own container, or the starting instance's container must carry the marker's transaction ID and run the marker's digest. Anything else is a startup error (exit 2) and the file is kept for the operator.
 8. **Removal needs proof.** The new instance removes the old container only when its ID and `<name>-parachute-<suffix>` name both match the committed transaction (UPD-017).
-9. **Failure is loud and frozen.** If the old instance disappears during `handover`, the new instance records `rollback_failed` / `interrupted`, sends an `error` notification, changes no container, and the stack stays frozen until approval. A superseded instance that is started again exits with code 2.
+9. **Failure is loud and frozen.** If the old instance disappears while the transaction is still open (`handover` or `rolling_back`), the new instance records `rollback_failed` / `interrupted`, sends an `error` notification, and changes no container. The freeze applies to the own container only, never to the rest of its Compose project. If the recorded state is already `committed`, the new instance finishes the commit and the result stays `updated`; nothing is frozen. The operator releases the freeze with `POST /v1/approve` for the own container; the release needs no held update (the new instance already runs the approved digest) and is bound to the frozen transaction ID (API-007, POL-010, POL-011). A superseded instance that is started again exits with code 2.
 10. **Side by side must be possible.** An own container that publishes host ports or uses a static IP address cannot run beside its replacement, so its self-update fails with `config_unreproducible` and nothing changes.
 
 ## Consequences
@@ -25,7 +25,4 @@ Parachute can update its own container. That container holds the Docker socket, 
 - The handover marker format is now part of the interface (`parachute.handover/v1`).
 
 ## Specs affected
-UPD-001, UPD-008, UPD-009, UPD-016, UPD-017, UPD-018, UPD-019, UPD-020, DEP-003, VER-001, VER-010, SEL-012, API-007, CFG-010, CFG-011.
-
-## Amendment (2026-10-23)
-A self-update that ends `rollback_failed` freezes only the own container, not its Compose project. The operator releases the freeze with `POST /v1/approve` for the own container, which works even when no update is held for it (after decision 9 the new instance already runs the approved digest); the release is bound to the frozen transaction ID (API-007, POL-010, POL-011).
+UPD-001, UPD-008, UPD-009, UPD-016, UPD-017, UPD-018, UPD-019, UPD-020, DEP-003, VER-001, VER-010, SEL-012, POL-010, POL-011, API-007, CFG-010, CFG-011.
