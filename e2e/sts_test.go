@@ -59,30 +59,49 @@ func TestSTS_001_status_with_insecure_host_exits_2(t *testing.T) {
 	assertContains(t, result.Stderr, "allow-insecure-tcp")
 }
 
-func TestSTS_002_document_shape(t *testing.T) {
+func TestSTS_002_held_and_fresh_services_in_document_shape(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
-	held := env.RunContainer("held", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.monitor-only": "true"}})
-	fresh := env.RunContainer("fresh", env.Registry().Push("other", "1", "1"), harness.ContainerOptions{})
+	stack := env.Name("shop")
+	held := env.RunContainer("held", app.ref, harness.ContainerOptions{Labels: composeLabels(stack, "web")})
+	fresh := env.RunContainer("fresh", env.Registry().Push("other", "1", "1"), harness.ContainerOptions{Labels: composeLabels(stack, "cache")})
 	app.publishNewer()
-	assertExit(t, runOnce(env), 0)
-	document := statusDocument(t, env)
-	for _, key := range []string{"format", "generated", "armed", "last_cycle", "hosts"} {
-		if _, ok := document[key]; !ok {
-			t.Errorf("document misses %s", key)
-		}
+	process, api := startAPI(env, "--http-api-status", "--delay-days", "1")
+	waitCycleFinished(process, 1)
+	document := apiStatus(t, api)
+	if document["format"] != "parachute.status/v1" {
+		t.Errorf("format %v", document["format"])
+	}
+	assertKeys(t, "document", document, "format", "generated", "armed", "last_cycle", "hosts")
+	assertKeys(t, "last_cycle", document["last_cycle"], "id", "started", "ended")
+	for _, host := range document["hosts"].([]any) {
+		assertKeys(t, "host", host, "name", "reachable", "stacks")
+	}
+	entry := assertKeys(t, "stack", statusStacks(document)[stack], "name", "compose", "last_backup", "last_restore_verification",
+		"last_good_restore_age_seconds", "frozen", "services")
+	if frozen, ok := entry["frozen"].([]any); !ok || len(frozen) != 0 || entry["compose"] != true {
+		t.Errorf("stack %v", entry)
 	}
 	services := statusServices(document)
-	for _, key := range []string{"name", "container", "image", "image_id", "update_available", "candidate_digest", "hold", "drift", "last_transaction"} {
-		if _, ok := services[fresh][key]; !ok {
-			t.Errorf("service misses %s", key)
-		}
+	for _, name := range []string{held, fresh} {
+		assertKeys(t, name, services[name], "name", "container", "image", "image_id", "update_available", "candidate_digest",
+			"hold", "drift", "last_transaction")
 	}
-	if services[held]["hold"] == nil {
-		t.Errorf("held service has no hold: %v", services[held])
+	hold := assertKeys(t, "hold", services[held]["hold"], "reason", "until")
+	if hold["reason"] != "delay" || hold["until"] == nil {
+		t.Errorf("held service hold %v", hold)
 	}
 	if services[fresh]["hold"] != nil || services[fresh]["update_available"] != false {
 		t.Errorf("fresh service: %v", services[fresh])
+	}
+}
+
+func TestSTS_002_unarmed_daemon_reports_armed_false(t *testing.T) {
+	env := harness.NewEnv(t)
+	env.RunContainer("a", fixture(env), harness.ContainerOptions{})
+	_, api := startAPI(env, "--http-api-status")
+	if armed := apiStatus(t, api)["armed"]; armed != false {
+		t.Errorf("armed %v", armed)
 	}
 }
 
