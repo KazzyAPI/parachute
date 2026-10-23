@@ -54,7 +54,6 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Command:        parsed.Command,
 		JSON:           b.boolean("json"),
 		Profile:        b.raw("profile"),
-		Relaxed:        b.relaxed(),
 		Armed:          b.boolean("armed"),
 		RunOnce:        b.boolean("run-once"),
 		Porcelain:      b.raw("porcelain"),
@@ -69,6 +68,7 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Hosts:          l.hosts(b),
 		Log:            l.log(b),
 	}
+	cfg.Relaxations = b.relaxations()
 	if b.boolean("health-check") {
 		cfg.Command = CommandHealthcheck
 	}

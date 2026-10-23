@@ -10,7 +10,7 @@ const defaultTemplate = `{{- range .Hosts}}
 {{- if not .Reachable}}{{.Name}}: unreachable
 {{else if .Stacks}}{{.Name}}
 {{range .Stacks}}  {{.Name}}
-{{range .Services}}    {{.Name}} ({{.Container}}): {{.State}}{{if .Reason}} ({{.Reason}}){{end}} {{.Image}}{{if .TransactionID}} {{.TransactionID}}{{end}}
+{{range .Services}}    {{.Name}} ({{.Container}}): {{.State}}{{if .Reason}} ({{.Reason}}){{end}}{{if .HoldUntil}} until {{.HoldUntil}}{{end}} {{.Image}}{{if .TransactionID}} {{.TransactionID}}{{end}}
 {{end}}{{end}}{{end}}{{end}}`
 
 type Renderer struct {

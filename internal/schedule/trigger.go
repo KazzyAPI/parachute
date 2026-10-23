@@ -39,7 +39,7 @@ func NewCronTrigger(expression string, location *time.Location) (*CronTrigger, e
 	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	schedule, err := parser.Parse(expression)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --schedule %q: %w", expression, err)
+		return nil, fmt.Errorf("invalid cron expression %q: %w", expression, err)
 	}
 	return &CronTrigger{expression: expression, schedule: schedule, location: location}, nil
 }

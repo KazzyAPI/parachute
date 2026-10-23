@@ -6,7 +6,7 @@ type Config struct {
 	Command        Command
 	JSON           bool
 	Profile        string
-	Relaxed        []string
+	Relaxations    []Relaxation
 	Armed          bool
 	RunOnce        bool
 	Porcelain      string
@@ -22,6 +22,11 @@ type Config struct {
 	Hosts          []HostSpec
 	Log            Log
 	StartupMessage bool
+}
+
+type Relaxation struct {
+	Setting string
+	Value   string
 }
 
 type Selection struct {

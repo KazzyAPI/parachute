@@ -48,13 +48,14 @@ type Result struct {
 
 func NewResult(host string, container Container) Result {
 	return Result{
-		Host:      host,
-		Stack:     container.Stack(),
-		Compose:   container.IsCompose(),
-		Service:   container.Service(),
-		Container: container.Name,
-		Image:     container.ImageRef,
-		ImageID:   container.ImageID,
+		Host:        host,
+		Stack:       container.Stack(),
+		Compose:     container.IsCompose(),
+		Service:     container.Service(),
+		Container:   container.Name,
+		Image:       container.ImageRef,
+		ImageID:     container.ImageID,
+		ContainerID: container.ID,
 	}
 }
 

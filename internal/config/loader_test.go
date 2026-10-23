@@ -53,8 +53,8 @@ func TestConvenientProfileRelaxesOnlyImplicitDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Relaxed, []string{"protect-databases"}) || cfg.Armed {
-		t.Errorf("relaxed %v armed %t", cfg.Relaxed, cfg.Armed)
+	if !slices.Equal(cfg.Relaxations, []Relaxation{{Setting: "protect-databases", Value: "false"}}) || cfg.Armed {
+		t.Errorf("relaxed %v armed %t", cfg.Relaxations, cfg.Armed)
 	}
 }
 

@@ -50,6 +50,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return err
 	}
 	d.parts.Logger.Info("Parachute started", d.parts.Summary.Fields()...)
+	d.parts.Summary.WarnRelaxations(d.parts.Logger)
 	if d.parts.StartupMessage {
 		d.parts.Announcer.Announce(ctx, domain.LevelInfo, d.parts.Summary.Text())
 	}

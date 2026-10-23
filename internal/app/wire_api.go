@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 
 	"github.com/KazzyAPI/parachute/internal/api"
+	"github.com/KazzyAPI/parachute/internal/approval"
 	"github.com/KazzyAPI/parachute/internal/metrics"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/schedule"
@@ -40,10 +40,12 @@ func (requestsOnly) Run(ctx context.Context) error {
 	return nil
 }
 
-type pendingApprover struct{}
+type approver struct {
+	service *approval.Service
+}
 
-func (pendingApprover) Approve(context.Context, api.ApproveRequest) (int, any, error) {
-	return http.StatusNotFound, map[string]string{"error": "no held update or freeze for this container or stack"}, nil
+func (a approver) Approve(ctx context.Context, request api.ApproveRequest) (int, any, error) {
+	return a.service.Approve(ctx, approval.ApproveRequest(request))
 }
 
 func (c *Container) apiTriggered() bool {
@@ -86,6 +88,6 @@ func (c *Container) server(parts ServerParts) (Server, error) {
 			Token: settings.Token, StatusToken: settings.StatusToken, TrustedProxies: trusted, Hosts: hosts,
 		},
 		TokenKey: tokenKey, Gate: parts.Gate, Runner: parts.Runner, State: parts.Store, Status: parts.Status, HTML: status.NewHTML(),
-		Metrics: parts.Metrics, Approver: pendingApprover{}, Clock: c.deps.Clock, Redactor: c.redactor, Logger: c.logger,
+		Metrics: parts.Metrics, Approver: approver{service: c.Approver(parts.Store, parts.Hosts)}, Clock: c.deps.Clock, Redactor: c.redactor, Logger: c.logger,
 	}), nil
 }

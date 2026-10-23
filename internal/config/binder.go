@@ -29,14 +29,29 @@ func (b *binder) duration(label string) time.Duration { return b.values[label].D
 
 func (b *binder) list(label string) []string { return b.values[label].List }
 
-func (b *binder) relaxed() []string {
-	var relaxed []string
+func (b *binder) relaxations() []Relaxation {
+	var relaxations []Relaxation
 	for _, setting := range b.registry.Settings() {
-		if b.values[setting.Label()].Source == SourceProfile {
-			relaxed = append(relaxed, setting.Label())
+		label := setting.Label()
+		if b.values[label].Source == SourceProfile || b.explicit(label) && b.relaxes(label) {
+			relaxations = append(relaxations, Relaxation{Setting: label, Value: b.raw(label)})
 		}
 	}
-	return relaxed
+	return relaxations
+}
+
+func (b *binder) relaxes(label string) bool {
+	switch label {
+	case "backup":
+		return b.raw(label) == "none"
+	case "delay-days":
+		return b.decimal(label) == 0
+	case "protect-databases":
+		return !b.boolean(label)
+	case "tag-follow":
+		return b.raw(label) != "none"
+	}
+	return false
 }
 
 func (b *binder) unimplemented() error {

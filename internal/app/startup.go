@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/config"
@@ -30,10 +31,24 @@ func (s StartupSummary) hosts() string {
 	return strings.Join(entries, ", ")
 }
 
+func (s StartupSummary) relaxed() []string {
+	names := make([]string, 0, len(s.Settings.Relaxations))
+	for _, relaxation := range s.Settings.Relaxations {
+		names = append(names, relaxation.Setting)
+	}
+	return names
+}
+
+func (s StartupSummary) WarnRelaxations(logger *slog.Logger) {
+	for _, relaxation := range s.Settings.Relaxations {
+		logger.Warn("safety default relaxed", "setting", relaxation.Setting, "value", relaxation.Value)
+	}
+}
+
 func (s StartupSummary) Fields() []any {
 	return []any{
 		"version", s.Version, "hosts", s.hosts(), "schedule", s.Schedule, "scope", s.scope(),
-		"armed", s.Settings.Armed, "profile", s.Settings.Profile, "relaxed", strings.Join(s.Settings.Relaxed, ","),
+		"armed", s.Settings.Armed, "profile", s.Settings.Profile, "relaxed", strings.Join(s.relaxed(), ","),
 	}
 }
 
@@ -41,8 +56,8 @@ func (s StartupSummary) Text() string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "Parachute started\nversion: %s\nhosts: %s\nschedule: %s\nscope: %s\narmed: %t\nprofile: %s\n",
 		s.Version, s.hosts(), s.Schedule, s.scope(), s.Settings.Armed, s.Settings.Profile)
-	if len(s.Settings.Relaxed) > 0 {
-		fmt.Fprintf(&text, "relaxed safety defaults: %s\n", strings.Join(s.Settings.Relaxed, ", "))
+	if relaxed := s.relaxed(); len(relaxed) > 0 {
+		fmt.Fprintf(&text, "relaxed safety defaults: %s\n", strings.Join(relaxed, ", "))
 	}
 	return text.String()
 }
