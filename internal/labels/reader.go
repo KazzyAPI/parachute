@@ -2,6 +2,7 @@ package labels
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -10,9 +11,10 @@ import (
 const prefix = "parachute."
 
 type Reader struct {
-	known  map[string]bool
-	logger *slog.Logger
-	warned map[string]bool
+	known    map[string]bool
+	cautious map[string]string
+	logger   *slog.Logger
+	warned   map[string]bool
 }
 
 func NewReader(logger *slog.Logger) *Reader {
@@ -27,12 +29,37 @@ func NewReader(logger *slog.Logger) *Reader {
 	} {
 		known[prefix+name] = true
 	}
-	return &Reader{known: known, logger: logger, warned: map[string]bool{}}
+	cautious := map[string]string{prefix + "self": "true", prefix + "monitor-only": "true", prefix + "approval": "required"}
+	return &Reader{known: known, cautious: cautious, logger: logger, warned: map[string]bool{}}
 }
 
 func (r *Reader) Value(container domain.Container, name string) (string, bool) {
 	value, ok := container.Labels[prefix+name]
-	return value, ok
+	if !ok || r.inherited(container, prefix+name) {
+		return "", false
+	}
+	return value, true
+}
+
+func (r *Reader) inherited(container domain.Container, key string) bool {
+	value := container.Labels[key]
+	image, ok := container.ImageLabels[key]
+	return ok && image == value && r.cautious[key] != value
+}
+
+func (r *Reader) WarnInherited(containers []domain.Container) {
+	for _, container := range containers {
+		var ignored []string
+		for key := range container.Labels {
+			if strings.HasPrefix(key, prefix) && r.inherited(container, key) {
+				ignored = append(ignored, key)
+			}
+		}
+		if len(ignored) > 0 {
+			slices.Sort(ignored)
+			r.logger.Warn("ignoring parachute labels inherited from the image", "container", container.Name, "labels", strings.Join(ignored, ","))
+		}
+	}
 }
 
 func (r *Reader) Bool(container domain.Container, name string) (bool, bool) {

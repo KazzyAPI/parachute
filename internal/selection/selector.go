@@ -13,6 +13,7 @@ type LabelReader interface {
 	Value(container domain.Container, name string) (string, bool)
 	Bool(container domain.Container, name string) (bool, bool)
 	WarnUnknown(containers []domain.Container)
+	WarnInherited(containers []domain.Container)
 }
 
 type Selector struct {
@@ -30,8 +31,32 @@ func NewSelector(settings config.Selection, labels LabelReader, logger *slog.Log
 	return &Selector{settings: settings, labels: labels, logger: logger, names: names}
 }
 
-func (s *Selector) Select(containers []domain.Container) []domain.Container {
+func (s *Selector) Admit(containers []domain.Container) []domain.Container {
 	s.warnUnmatchedNames(containers)
+	var admitted []domain.Container
+	for _, container := range containers {
+		own := container
+		own.ImageLabels = nil
+		if s.stateAllowed(container.State) && s.nameAllowed(container) &&
+			!slices.Contains(s.settings.Disabled, container.Name) && s.ownLabelsAllow(own) {
+			admitted = append(admitted, container)
+		}
+	}
+	return admitted
+}
+
+func (s *Selector) ownLabelsAllow(container domain.Container) bool {
+	enabled, set := s.labels.Bool(container, "enable")
+	if s.settings.LabelEnable && (!set || !enabled) {
+		return false
+	}
+	if s.settings.ScopeSet && s.settings.Scope != "none" && !s.scopeAllowed(container) {
+		return false
+	}
+	return !s.foreignSelf(container)
+}
+
+func (s *Selector) Select(containers []domain.Container) []domain.Container {
 	var candidates []domain.Container
 	for _, container := range containers {
 		if s.isCandidate(container) {
@@ -39,22 +64,18 @@ func (s *Selector) Select(containers []domain.Container) []domain.Container {
 		}
 	}
 	s.labels.WarnUnknown(candidates)
+	s.labels.WarnInherited(candidates)
 	return candidates
 }
 
 func (s *Selector) isCandidate(container domain.Container) bool {
-	return !s.isOwn(container) &&
-		s.stateAllowed(container.State) &&
-		s.nameAllowed(container) &&
-		s.enableAllowed(container) &&
-		!slices.Contains(s.settings.Disabled, container.Name) &&
-		s.scopeAllowed(container)
+	helper, _ := s.labels.Bool(container, "helper")
+	return !helper && !s.foreignSelf(container) && s.enableAllowed(container) && s.scopeAllowed(container)
 }
 
-func (s *Selector) isOwn(container domain.Container) bool {
-	helper, _ := s.labels.Bool(container, "helper")
+func (s *Selector) foreignSelf(container domain.Container) bool {
 	self, _ := s.labels.Bool(container, "self")
-	return helper || self
+	return self && !container.Own
 }
 
 func (s *Selector) stateAllowed(state string) bool {

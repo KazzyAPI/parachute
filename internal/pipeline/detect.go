@@ -43,6 +43,9 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 	}
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
+			if candidate.Result.State != "" {
+				continue
+			}
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)
 			result, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
 			if ctx.Err() != nil {

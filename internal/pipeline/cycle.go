@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/registry"
 )
 
 type ContainerSource interface {
 	Containers(ctx context.Context) ([]domain.Container, error)
+	Image(ctx context.Context, reference string) (engine.Image, bool, error)
 }
 
 type ResultDetector interface {
