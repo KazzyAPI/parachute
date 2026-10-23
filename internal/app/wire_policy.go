@@ -8,10 +8,11 @@ import (
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
-func (c *Container) policyStage(store *state.Store) pipeline.Stage {
+func (c *Container) policyStage(store *state.Store) (pipeline.Stage, error) {
 	settings, location := c.cfg.Policy, c.cfg.Schedule.Location
-	for _, relaxation := range c.cfg.Relaxations {
-		c.logger.Warn("safety default relaxed", "setting", relaxation.Setting, "value", relaxation.Value)
+	window, err := policy.NewWindowRule(settings.Window, settings.WindowDuration, location)
+	if err != nil {
+		return nil, configurationError(err)
 	}
 	databases := policy.NewDatabases()
 	evaluator := policy.NewEvaluator(
@@ -22,9 +23,9 @@ func (c *Container) policyStage(store *state.Store) pipeline.Stage {
 		policy.NewSelfRule(),
 		policy.NewApprovalRule(databases, settings.ProtectDatabases),
 		policy.NewDelayRule(store, settings.DelayDays),
-		policy.NewWindowRule(settings.Window, settings.WindowDuration, location),
+		window,
 	)
-	return pipeline.NewPolicyStage(evaluator, c.deps.Clock)
+	return pipeline.NewPolicyStage(evaluator, policy.NewRecords(store, c.logger), c.deps.Clock), nil
 }
 
 func (c *Container) Approver(store *state.Store, hosts []pipeline.Host) *approval.Service {

@@ -17,30 +17,34 @@ type HoldEvaluator interface {
 
 type InvalidLabelError struct {
 	Label string
-	Value string
 	Err   error
 }
 
-func (e *InvalidLabelError) Error() string {
-	return fmt.Sprintf("invalid value %q for label %s: %v", e.Value, e.Label, e.Err)
-}
+func (e *InvalidLabelError) Error() string { return e.Err.Error() }
 
 func (e *InvalidLabelError) Unwrap() error { return e.Err }
 
+type RecordPruner interface {
+	Prune(host string, containers []domain.Container) error
+}
+
 type PolicyStage struct {
 	evaluator HoldEvaluator
+	pruner    RecordPruner
 	clock     Clock
 }
 
-func NewPolicyStage(evaluator HoldEvaluator, clock Clock) *PolicyStage {
-	return &PolicyStage{evaluator: evaluator, clock: clock}
+func NewPolicyStage(evaluator HoldEvaluator, pruner RecordPruner, clock Clock) *PolicyStage {
+	return &PolicyStage{evaluator: evaluator, pruner: pruner, clock: clock}
 }
 
 func (s *PolicyStage) Run(ctx context.Context, cycle *Cycle) error {
 	now := s.clock.Now()
 	for _, host := range cycle.ReachableHosts() {
+		if err := s.pruner.Prune(host.Host.Name, host.Containers); err != nil {
+			return fmt.Errorf("prune policy records of host %s: %w", host.Host.Name, err)
+		}
 		for _, candidate := range host.Candidates {
-			candidate.Result.ContainerID = candidate.Container.ID
 			hold, held, err := s.evaluator.Evaluate(ctx, host.Host.Name, candidate.Container, candidate.Result, now)
 			var invalid *InvalidLabelError
 			switch {

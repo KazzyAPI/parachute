@@ -1,7 +1,7 @@
 package policy
 
 import (
-	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -25,7 +25,7 @@ func NewLabels(syntax *config.Syntax, location *time.Location) *Labels {
 	enum := func(choices ...string) config.Setting {
 		return config.Setting{Kind: config.KindEnum, Default: choices[0], Choices: choices}
 	}
-	return &Labels{syntax: syntax, location: location, settings: map[string]config.Setting{
+	settings := map[string]config.Setting{
 		"delay-days":                  {Kind: config.KindDecimal},
 		"database":                    {Kind: config.KindBool},
 		"approval":                    enum("auto", "required"),
@@ -33,11 +33,16 @@ func NewLabels(syntax *config.Syntax, location *time.Location) *Labels {
 		"backup":                      enum("stop", "live", "none"),
 		"maintenance-window":          {Kind: config.KindString},
 		"maintenance-window-duration": {Kind: config.KindDuration},
-	}, cautious: map[string]string{"approval": "required"}}
+	}
+	for name, setting := range settings {
+		setting.Name = labelPrefix + name
+		settings[name] = setting
+	}
+	return &Labels{syntax: syntax, location: location, settings: settings, cautious: map[string]string{"approval": "required"}}
 }
 
 func (l *Labels) Overrides(c domain.Container) (Overrides, error) {
-	values := map[string]config.Value{}
+	overrides := Overrides{values: map[string]config.Value{}}
 	for _, name := range slices.Sorted(maps.Keys(l.settings)) {
 		raw, ok := l.value(c, name)
 		if !ok {
@@ -45,14 +50,16 @@ func (l *Labels) Overrides(c domain.Container) (Overrides, error) {
 		}
 		value, err := l.syntax.Parse(l.settings[name], raw)
 		if err == nil && name == "maintenance-window" {
-			_, err = schedule.NewCronTrigger(raw, l.location)
+			if overrides.window, err = schedule.NewCronTrigger(raw, l.location); err != nil {
+				err = fmt.Errorf("%s%s: %w", labelPrefix, name, err)
+			}
 		}
 		if err != nil {
-			return Overrides{}, &pipeline.InvalidLabelError{Label: labelPrefix + name, Value: raw, Err: errors.Unwrap(err)}
+			return Overrides{}, &pipeline.InvalidLabelError{Label: labelPrefix + name, Err: err}
 		}
-		values[name] = value
+		overrides.values[name] = value
 	}
-	return Overrides{values: values}, nil
+	return overrides, nil
 }
 
 func (l *Labels) value(c domain.Container, name string) (string, bool) {
@@ -66,6 +73,7 @@ func (l *Labels) value(c domain.Container, name string) (string, bool) {
 
 type Overrides struct {
 	values map[string]config.Value
+	window *schedule.CronTrigger
 }
 
 func (o Overrides) raw(name string) string { return o.values[name].Raw }
@@ -88,9 +96,9 @@ func (o Overrides) Database() (bool, bool) {
 
 func (o Overrides) Approval() string { return o.raw("approval") }
 
-func (o Overrides) Window(global string) string {
-	if o.has("maintenance-window") {
-		return o.raw("maintenance-window")
+func (o Overrides) Window(global *schedule.CronTrigger) *schedule.CronTrigger {
+	if o.window != nil {
+		return o.window
 	}
 	return global
 }

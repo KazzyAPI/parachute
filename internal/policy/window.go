@@ -9,23 +9,27 @@ import (
 )
 
 type WindowRule struct {
-	cron     string
+	trigger  *schedule.CronTrigger
 	duration time.Duration
-	location *time.Location
 }
 
-func NewWindowRule(cron string, duration time.Duration, location *time.Location) *WindowRule {
-	return &WindowRule{cron: cron, duration: duration, location: location}
+func NewWindowRule(cron string, duration time.Duration, location *time.Location) (*WindowRule, error) {
+	rule := &WindowRule{duration: duration}
+	if cron == "" {
+		return rule, nil
+	}
+	trigger, err := schedule.NewCronTrigger(cron, location)
+	if err != nil {
+		return nil, fmt.Errorf("--maintenance-window: %w", err)
+	}
+	rule.trigger = trigger
+	return rule, nil
 }
 
 func (r *WindowRule) Hold(s Subject) (domain.Hold, bool, error) {
-	expression := s.Overrides.Window(r.cron)
-	if expression == "" {
+	trigger := s.Overrides.Window(r.trigger)
+	if trigger == nil {
 		return domain.Hold{}, false, nil
-	}
-	trigger, err := schedule.NewCronTrigger(expression, r.location)
-	if err != nil {
-		return domain.Hold{}, false, fmt.Errorf("maintenance window: %w", err)
 	}
 	duration := s.Overrides.WindowDuration(r.duration)
 	if opened := trigger.First(s.Now.Add(-duration)); !opened.After(s.Now) && opened.Add(duration).After(s.Now) {
