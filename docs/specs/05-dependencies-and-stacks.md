@@ -15,7 +15,7 @@ A container without a `com.docker.compose.project` label MUST form a stack of on
 - **Given** a container `solo` started with `docker run` **When** a cycle runs **Then** the report lists stack `solo` with one service `solo`.
 
 ### DEP-003 One transaction per stack
-All updates detected in one stack in one cycle MUST be applied in a single transaction (UPD-001): one snapshot, one verification, and, on failure, one rollback of every container changed by that transaction. When a dependency (DEP-004) links containers in different stacks, those stacks MUST be joined into one transaction.
+All updates detected in one stack in one cycle MUST be applied in a single transaction (UPD-001): one snapshot, one verification, and, on failure, one rollback of every container changed by that transaction. When a dependency (DEP-004) links containers in different stacks, those stacks MUST be joined into one transaction. The one exception is Parachute's own container, which is always updated in a transaction of its own (UPD-018).
 
 - **Given** stack `shop` where both `web` and `worker` have newer images and `worker`'s new image fails verification **When** a cycle runs **Then** both `web` and `worker` are back on their previous images with their original container IDs, and the report shows one transaction ID for both with result `rolled_back`.
 - **Given** container `app` in stack `a` with label `parachute.depends-on=cache` where `cache` is a stack of one, and an update for `cache` **When** a cycle runs **Then** `app` and `cache` share one transaction ID.
@@ -52,7 +52,7 @@ A dependent whose network mode is `container:<A>` MUST be recreated (not only re
 ### DEP-008 Dependency cycles
 A dependency cycle MUST NOT hang or crash Parachute. Every container on the cycle MUST get result `failed` with reason `dependency_cycle`, the report MUST name the containers on the cycle, and other stacks MUST still be processed.
 
-- **Given** `a` labelled `parachute.depends-on=b`, `b` labelled `parachute.depends-on=a`, updates for both, and an unrelated `c` with an update **When** a cycle runs **Then** the cycle ends within the normal time, `a` and `b` are `failed` with reason `dependency_cycle` and unchanged, and `c` is `updated`.
+- **Given** `a` labelled `parachute.depends-on=b`, `b` labelled `parachute.depends-on=a`, updates for both, and an unrelated `c` with an update **When** a cycle runs **Then** the cycle ends within 60 seconds of its start, `a` and `b` are `failed` with reason `dependency_cycle` and unchanged, and `c` is `updated`.
 
 ### DEP-009 Replicas of a service
 All containers of a service (replicas, distinguished by `com.docker.compose.container-number`) MUST be updated in the same transaction and each MUST keep its container number and name.

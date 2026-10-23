@@ -4,3 +4,4 @@ protect-*.json
 /dist/
 *.test
 *.out
+/.claude/

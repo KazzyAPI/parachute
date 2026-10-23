@@ -1,6 +1,6 @@
 # ADR-0008: State storage layout
 
-- **Status:** Proposed
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-22
 
 ## Context
@@ -22,3 +22,12 @@ ADR-0002 rules out a database. Some facts must still survive a restart: first-se
 
 ## Specs affected
 CFG-010, UPD-016, UPD-018, POL-002, POL-006, NTF-011, STS-001, RST-006.
+
+## Amendment (2026-10-23)
+The state file and `handover.json` are untrusted input ([glossary: Trust boundaries](../specs/glossary.md#trust-boundaries)): they are parsed strictly, never arm Parachute (CFG-006), and the status view never treats an approval recorded in them as having released a hold (STS-006).
+
+Accepted limit for v1 (2026-10-23): write access to the state directory is trusted. Parachute cannot tell a state file it wrote from an older valid `state.json` that someone with write access restored, so such a replay can reset first-seen times (POL-002), remove a freeze or a failed-digest hold (POL-010), or bring back a recorded approval, which still applies only to the digest it names while that digest is the current candidate digest (POL-006, API-007). Detecting a replay (for example an HMAC keyed outside the state directory) is out of scope for v1. Operators protect the state directory like the Docker socket ([ADR-0010](0010-docker-socket-access-and-security.md)).
+
+Restore verification (2026-10-23): restore-verification runs are recorded only in `<state-dir>/restore-verify.json` (`parachute.restore-verify/v1`, replaced atomically), never in `state.json`, so `state.json` keeps one owner even when `parachute restore-verify` runs beside a daemon. `restore-verify.json` is written, by replacing, only by the process holding the restore-verification lock, an exclusive lock on the separate, never-replaced file `<state-dir>/restore-verify.lock` (one writer at a time: the command, a scheduled run, or the daemon's startup cleanup); the command runs standalone and exits 2 when another process holds the lock; the daemon reads the file for cleanup and the status view. Each run has its own ID `rv-<timestamp>-<rand>`, used as the `parachute.restore-verify` label value. Specs affected by this amendment: CFG-010, RST-001, RST-002, RST-005, RST-006, RST-007, BKP-010, UPD-017.
+
+Terminal transactions (2026-10-23): Decision 4 removes only the open-state recovery data of a transaction when it commits or finishes rolling back. Its terminal state, result, and reason stay recorded until the next transaction of the same stack supersedes them, so the status view can show `last_transaction` (STS-002). The old container ID of a self-update that ended `committed`, or `rollback_failed` with reason `interrupted`, is kept in its own state-file list, `superseded_instances`, separate from `last_transaction`, so a later transaction of the same stack never removes it; it is written in the same replacement of `state.json` that records the `committed` or `rollback_failed` state, is never removed while the engine still has that container, and should be removed once it does not. A superseded instance recognises itself from this list (UPD-018). Specs affected by this amendment: UPD-016, UPD-018, STS-002, CFG-010.

@@ -1,6 +1,6 @@
 # ADR-0004: An update is a transaction
 
-- **Status:** Proposed
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-22
 
 ## Context
@@ -30,3 +30,6 @@ Rules:
 
 ## Specs affected
 UPD-*, BKP-*, VER-*, POL-*, DEP-003.
+
+## Amendment (2026-10-23)
+The phases keep their names and order, but steps 1 and 2 run before the transaction exists: a transaction, and its ID, start at the snapshot phase, and only when at least one update of the stack passes the policy check. A cycle in which every update is held or no update is detected creates no transaction and no ID, and its log lines carry none; rule 4 applies from the snapshot phase on. Specs affected by this amendment: UPD-001, UPD-014, UPD-016, POL-001, HOK-003, STS-002, CFG-008.

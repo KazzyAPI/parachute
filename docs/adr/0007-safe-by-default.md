@@ -1,6 +1,6 @@
 # ADR-0007: Safe by default
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context

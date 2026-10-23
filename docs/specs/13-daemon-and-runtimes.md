@@ -19,24 +19,29 @@ Parachute MUST negotiate the Engine API version with each daemon and MUST NOT ha
 - **Given** `--api-version 1.12` **When** Parachute starts against such a daemon **Then** it exits with code 4 and the message contains the daemon's error.
 
 ### DMN-003 TLS
-With `--tlsverify` or `DOCKER_TLS_VERIFY` set, Parachute MUST connect to `tcp://` hosts over TLS, verifying the daemon certificate against `ca.pem` and presenting `cert.pem` and `key.pem` from `DOCKER_CERT_PATH` (default `/etc/ssl/docker`). It MUST NOT fall back to an unverified or plain connection. A `tcp://` host used without TLS verification MUST be logged at `warn` at startup, because anyone who can reach that port controls the host.
+With `--tlsverify` or `DOCKER_TLS_VERIFY` set, Parachute MUST connect to `tcp://` hosts over TLS, verifying the daemon certificate against `ca.pem` and presenting `cert.pem` and `key.pem` from `DOCKER_CERT_PATH` (default `/etc/ssl/docker`). It MUST NOT fall back to an unverified or plain connection.
+
+A `tcp://` host used without TLS verification is an [insecure TCP host](glossary.md#insecure-tcp-host), loopback addresses included, because anyone who can reach that port controls the host. Configuring one MUST be a startup error (exit code 2) whose message names the host's endpoint and `allow-insecure-tcp`, and Parachute MUST NOT open a connection to any host first. With `--allow-insecure-tcp` (or `PARACHUTE_ALLOW_INSECURE_TCP=true`) Parachute MUST instead log a `warn` line naming each insecure host's endpoint at startup and at the start of every cycle, and MUST list `allow-insecure-tcp` as a relaxation in the startup message (POL-009). `parachute status` (STS-001) applies the same rule.
 
 - **Given** TLS verify on and a daemon presenting a certificate not signed by `ca.pem` **When** Parachute starts **Then** it exits with code 4, and the daemon's log shows no completed plain-HTTP request.
-- **Given** a `tcp://` host without TLS **When** Parachute starts **Then** a `warn` line names the host.
+- **Given** `DOCKER_HOST=tcp://127.0.0.1:2375` (a reachable plain daemon) and no TLS settings **When** Parachute starts **Then** it exits with code 2, the message contains `tcp://127.0.0.1:2375` and `allow-insecure-tcp`, and the daemon received no request.
+- **Given** the same with `--allow-insecure-tcp --interval 30` **When** Parachute runs for 40 seconds **Then** at least three `warn` lines name `tcp://127.0.0.1:2375` (one at startup, one at the start of each of the two cycles) and the startup message lists `allow-insecure-tcp` as a relaxation.
+- **Given** `PARACHUTE_HOSTS="a=unix:///var/run/docker.sock,b=tcp://127.0.0.1:2375"` and no TLS settings **When** Parachute starts **Then** it exits with code 2 and the message names `b`'s endpoint.
 
 ### DMN-004 Unreachable at startup
 If no managed host is reachable at startup, Parachute MUST exit with code 4 and a message naming each endpoint. If at least one is reachable, the unreachable ones are reported (DMN-009) and Parachute keeps running.
 
-- **Given** `DOCKER_HOST=tcp://127.0.0.1:1` **When** Parachute starts **Then** it exits with code 4 and the message contains `tcp://127.0.0.1:1`.
+- **Given** `DOCKER_HOST=tcp://127.0.0.1:1` and `--allow-insecure-tcp` **When** Parachute starts **Then** it exits with code 4 and the message contains `tcp://127.0.0.1:1`.
 
 ### DMN-005 Connection loss while running
-If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker request with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable. An open transaction on that host is rolled back as in UPD-016 when the host is reachable again.
+If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker request with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable (`reachable: false`); an unreachable host contributes no result entries for that cycle ([reasons.md](reasons.md#not-reason-codes)). An open transaction on that host is rolled back as in UPD-016 when the host is reachable again. A Docker request for one candidate that fails while the host stays reachable (the engine answers, with an error) MUST end that candidate `failed` with reason `engine_error` and MUST NOT affect other candidates.
 
 - **Given** a running Parachute and the daemon stopped for 20 seconds during an idle period **When** the daemon returns and a cycle runs **Then** the Parachute process is still running and the cycle completes.
 - **Given** a daemon paused for 6 minutes during a cycle **When** the cycle ends **Then** the report lists that host as unreachable and Parachute is still running.
+- **Given** an engine proxy in front of a reachable daemon that answers `500` to every image inspect request for container `a`'s image, and containers `a` and `b` **When** a cycle runs **Then** `a` is `failed` with reason `engine_error`, `b` gets its normal result, and the host is reported reachable.
 
 ### DMN-006 Health check command
-`parachute healthcheck` (also `parachute --health-check`) MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.
+`parachute healthcheck` MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.
 
 - **Given** a started Parachute container **When** `docker exec <c> parachute healthcheck` runs **Then** it exits 0, and the container's health status becomes `healthy`.
 - **Given** a container from the Parachute image whose command is `sleep infinity` **When** `parachute healthcheck` runs inside it **Then** it exits 1.
@@ -46,7 +51,7 @@ If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It 
 ### DMN-007 Host list
 `--hosts` (or `PARACHUTE_HOSTS`, a list per CFG-003) MUST define the managed hosts as `name=endpoint` entries. Names MUST match `[a-z0-9][a-z0-9-]{0,31}` and be unique; violations are a startup error (exit code 2). When `--hosts` is set, `DOCKER_HOST` and `--host` are ignored and a `warn` line says so. Each host is reached directly over its Engine API (Parachute pulls state from it; no agent is installed on hosts).
 
-- **Given** `PARACHUTE_HOSTS="a=unix:///var/run/docker.sock,b=tcp://10.0.0.5:2376"` **When** Parachute starts **Then** the startup message lists hosts `a` and `b`.
+- **Given** `PARACHUTE_HOSTS="a=unix:///var/run/docker.sock,b=tcp://10.0.0.5:2376"` and `--allow-insecure-tcp` **When** Parachute starts **Then** the startup message lists hosts `a` and `b`.
 - **Given** two entries both named `a` **When** Parachute starts **Then** it exits with code 2.
 
 ### DMN-008 Per-host TLS

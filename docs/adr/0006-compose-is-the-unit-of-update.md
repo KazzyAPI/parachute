@@ -1,6 +1,6 @@
 # ADR-0006: The Compose stack is the unit of update
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
 
 ## Context

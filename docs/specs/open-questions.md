@@ -109,6 +109,105 @@ Affects BKP-001, BKP-005. Should Parachute estimate snapshot size and refuse ear
 **Recommendation:** yes, as a SHOULD in a later revision: refuse when free space is below the sum of mount sizes plus 10 %. The current spec already fails safe (BKP-009).
 
 ### Q13 List settings and URLs that contain commas
+**Status:** Open.
+
 Affects CFG-003, NTF-001. Lists are split on spaces and commas (CFG-003), so a `--notification-url` whose query string contains a comma (for example `...?to=a@example.com,b@example.com`) is split into two broken URLs. Should URL lists split only on whitespace, accept a repeated flag instead, or require commas inside URLs to be percent-encoded?
 
 **Recommendation:** document percent-encoding (`%2C`) for now and accept repeated `--notification-url` flags; do not change the shared list syntax.
+
+### Q14 How is Parachute's own container recognised?
+**Status:** Resolved 2026-10-23: B. The own container is identified only by the engine; `parachute.self` is never needed, and set or inherited it only excludes a container that is not the own one (SEL-012, SEL-013, UPD-018, CFG label reference).
+
+Affects SEL-012, SEL-013, UPD-018, CFG label reference. The official image bakes in `parachute.self=true`, while UPD-018 identifies the own container through the engine and SEL-013 honours the inherited label only because it is cautionary.
+- **A.** The image-baked `parachute.self=true` label marks Parachute containers (SEL-012 today).
+- **B.** The own container is identified only by the engine; the label is never needed and only ever makes Parachute more cautious.
+
+**Recommendation: B**, keeping the label only as a cautionary marker.
+
+### Q15 Superseding ADR for drift in ADR-0001 to ADR-0003
+**Status:** Resolved 2026-10-23: New [ADR-0015](../adr/0015-traceability-and-test-practice.md) records the current test names, tracing rule, and shoutrrr fork; ADR-0001 to ADR-0003 are marked partly superseded.
+
+Affects ADR-0001, ADR-0002, ADR-0003, `tools/trace`. The specs and tooling drifted from the accepted ADRs: test names (ADR-0001 says a test name starts with its ID; `make trace` matches `TestABC_001_`), the tracing rule (ADR-0001 and ADR-0003 fail only on a `MUST` in an `Accepted` file; `make trace` fails on a `MUST` or `SHOULD` listed for a milestone), and notification delivery (ADR-0002 names shoutrrr; a fork is used). Accepted ADRs are not edited, so the drift needs a new ADR.
+
+**Recommendation:** one superseding ADR that records the current practice for all three.
+
+### Q16 Rollback reason when the replacement's image ID differs from the checked one
+**Status:** Resolved 2026-10-23: B. New `rolled_back` reason `image_mismatch` (UPD-020, [reasons.md](reasons.md) conflict 10).
+
+Affects UPD-020, UPD-007, [reasons.md](reasons.md) conflict 10. UPD-020 calls a replacement whose image ID differs from the pulled, checked image a configuration mismatch (`rolled_back`/`config_unreproducible`).
+- **A.** Keep `config_unreproducible`.
+- **B.** A new `rolled_back` reason `image_mismatch`.
+
+**Recommendation: B.** It points at the image, not the container's configuration.
+
+### Q17 Lifting a freeze by editing the state file
+**Status:** Resolved 2026-10-23: The state-file route is removed from the glossary; a freeze ends only by approval (API-007). POL-010, STS-006, and the migration guide already agree.
+
+Affects glossary (Transaction state machine), POL-010, API-007, STS-006. The glossary says that until the HTTP API exists a freeze can be lifted only by editing the state file while Parachute is stopped, but the state file is untrusted (trust boundaries) and must not by itself lift a hold.
+
+**Recommendation:** remove the state-file route from the glossary; the freeze ends only by approval (API-007).
+
+### Q18 Replaying an old state file to undo a freeze or delay
+**Status:** Resolved 2026-10-23: Out of scope for v1. ADR-0008's Amendment records the limit: write access to the state directory is trusted and an old state file can be replayed.
+
+Affects CFG-010, POL-002, POL-010, ADR-0008. Someone who can write the state directory can restore an older valid `state.json` and so reset first-seen times or remove a freeze. An HMAC keyed outside the state directory would detect it.
+
+**Recommendation:** out of scope for v1; document the limit (write access to the state directory is trusted) in ADR-0008's consequences.
+
+### Q19 Accepting ADR-0007 and ADR-0009
+**Status:** Resolved 2026-10-23: Both accepted as written.
+
+Affects ADR-0007 (safe by default), ADR-0009 (snapshot format and storage). Both are still `Proposed` although the specs follow them (Q1, Q4).
+
+**Recommendation:** accept both as written.
+
+### Q20 Free space that cannot be measured
+**Status:** Resolved 2026-10-23: Fail with `failed`/`snapshot_failed` naming the measurement; BKP-011 already says so, no spec change.
+
+Affects BKP-011. When a mount size or the store's free space cannot be measured, should the transaction fail, or proceed without the check?
+
+**Recommendation:** fail, result `failed` with reason `snapshot_failed` naming the measurement (current spec).
+
+### Q21 Approvals stored in an untrusted state file
+**Status:** Resolved 2026-10-23: Persistence kept; a stored approval applies only while its digest equals the current candidate digest (POL-006 already said so; API-007 now says it explicitly). The replay limit is recorded with Q18 in ADR-0008.
+
+Affects API-007, POL-006, STS-006, CFG-010. API-007 persists approvals in the state file so they survive restarts, but the state file is untrusted, so an edited file could approve an update. Options: trust persisted approvals (current), bind them to the digest and a per-instance secret, or not persist them.
+
+**Recommendation:** keep persistence, apply an approval only when its digest equals the current candidate digest (DET-008), and document the limit with Q18.
+
+### Q22 Failed-authentication throttling behind a reverse proxy
+**Status:** Resolved 2026-10-23: Per-IP throttling by default; new setting `trusted-proxies` (`PARACHUTE_TRUSTED_PROXIES`, default empty) lists proxies whose `X-Forwarded-For` is honoured (API-010, CFG settings reference).
+
+Affects API-010. Behind a reverse proxy every request has the proxy's source IP, so one client's failures throttle everyone.
+
+**Recommendation:** per-IP throttling by default, plus a trusted-proxy setting that lists proxy addresses whose `X-Forwarded-For` is honoured.
+
+### Q23 Testing constant-time token comparison
+**Status:** Resolved 2026-10-23: A code-level unit test covers API-011 as a documented exception to black-box testing (ADR-0015); the black-box test keeps the observable 401 part.
+
+Affects API-011, ADR-0003. The black-box timing criterion (median difference under 1 ms) is noisy on shared CI and cannot prove constant time.
+
+**Recommendation:** allow a code-level unit test for API-011 as a documented exception to black-box testing.
+
+### Q24 HTTP limit values
+**Status:** Resolved 2026-10-23: Keep the values; API-009 and API-010 already state them, no spec change.
+
+Affects API-009, API-010. Are 8 KiB for request line and headers, 1 KiB for a body, 10 s to complete headers (60 s idle), and 10 failures per 60 s the right numbers?
+
+**Recommendation:** keep them (current spec); revisit if real clients hit them.
+
+### Q25 Self-update when the own container publishes ports or has a static IP
+**Status:** Resolved 2026-10-23: A. Refuse with `failed`/`config_unreproducible` naming the field; UPD-018 already says so, no spec change.
+
+Affects UPD-018, UPD-007. The replacement must run beside the old instance, so a published host port or static IP would collide.
+- **A.** Refuse with `failed`/`config_unreproducible` naming the field (current spec).
+- **B.** Stop the old instance first, giving up side-by-side verification.
+
+**Recommendation: A.**
+
+### Q26 Originals left over after a crash past commit
+**Status:** Resolved 2026-10-23: Warn at startup naming the leftover container and never delete it; UPD-009 and UPD-017 already say so, no spec change.
+
+Affects UPD-009, UPD-016, UPD-017. If Parachute crashes after recording `committed` but before removing a renamed original, the original remains; UPD-017 forbids removal without in-process proof.
+
+**Recommendation:** warn at startup naming the leftover container; never delete it.

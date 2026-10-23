@@ -2,7 +2,7 @@
 
 Parachute updates Docker containers safely: it snapshots before an update, verifies the result, and rolls back automatically when the update fails. It understands Compose stacks and can manage several hosts.
 
-These files describe Parachute's **observable behaviour**: what an operator sees in containers, labels, volumes, notifications, HTTP responses, logs, and exit codes. They do not describe code structure. Tests are written from these files ([ADR-0001](../adr/0001-spec-driven-development.md)); if a test and a spec disagree, the spec wins until the spec is changed. Ambiguity in a spec is a defect: report it, then fix the spec.
+These files describe Parachute's **observable behaviour**: what an operator sees in containers, labels, volumes, notifications, HTTP responses, logs, and exit codes. They do not describe code structure. Tests are written from these files ([ADR-0001](../adr/0001-spec-driven-development.md), [ADR-0015](../adr/0015-traceability-and-test-practice.md)); if a test and a spec disagree, the spec wins until the spec is changed. Ambiguity in a spec is a defect: report it, then fix the spec.
 
 ## Requirement format
 
@@ -14,9 +14,11 @@ Parachute MUST ...
 ```
 
 - Each requirement has an ID, a title, one normative statement, and one or more acceptance criteria in Given/When/Then form.
-- Each acceptance criterion is checkable from outside the program against a real engine and a local registry.
+- Each acceptance criterion is checkable from outside the program against a real engine and a local registry, except where an ADR names an exception (API-011, [ADR-0015](../adr/0015-traceability-and-test-practice.md)).
 - Each file carries one status at the top: `Draft` (not yet reviewed), `Accepted`, or `Deferred` (a section whose tests may fail until a later milestone).
 - Unresolved decisions do not go into requirements; they go into [open-questions.md](open-questions.md).
+- Result states and reason codes are listed only in [reasons.md](reasons.md). A requirement that produces a new code adds it there in the same commit.
+- Transaction states, trust boundaries, and redaction are defined once in the glossary: [Transaction state machine](glossary.md#transaction-state-machine), [Trust boundaries](glossary.md#trust-boundaries), [Redaction](glossary.md#redaction). Requirements reference these sections instead of restating them.
 
 ## IDs
 
@@ -47,9 +49,9 @@ MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are used as defined in RFC 2119. Nam
 
 ## Tests
 
-- Each acceptance criterion is one test. The test name starts with the requirement ID, then a short description: `SEL-001_default_selects_all_running`. Go test names cannot contain `-`, so a Go test writes the ID with `_` after the `Test` prefix (`TestSEL_001_default_selects_all_running`); the traceability check reads both forms.
-- Every `MUST` and `SHOULD` requirement has at least one test. In a file with status `Accepted`, a `MUST` requirement without a test fails CI.
-- Tests are black-box ([ADR-0003](../adr/0003-black-box-tests-from-specs.md)): they start Parachute (binary or image) against a real Docker engine and a local `registry:2`, and assert only on containers and labels, volume contents, the Docker event stream, registry access logs, payloads received by a fake webhook, HTTP responses, logs, stdout, and exit codes. Fixture images (for example `localhost:5000/fixture/app`) are built and pushed locally; tests never use Docker Hub.
+- Each acceptance criterion is one test, a Go test function in `e2e/*_test.go` named `Test`, the requirement ID with `_` for `-`, and a short description: `TestSEL_001_default_selects_all_running` ([ADR-0015](../adr/0015-traceability-and-test-practice.md)).
+- Every `MUST` and `SHOULD` requirement has at least one test. `make trace` fails when a milestone lists an ID that is in no spec, or a `MUST` or `SHOULD` requirement listed for a milestone, or in a file with status `Accepted`, has no test.
+- Tests are black-box ([ADR-0003](../adr/0003-black-box-tests-from-specs.md)): they start Parachute (binary or image) against a real Docker engine and a local `registry:2`, and assert only on containers and labels, volume contents, the Docker event stream, registry access logs, payloads received by a fake webhook, HTTP responses, logs, stdout, and exit codes. Fixture images (for example `localhost:5000/fixture/app`) are built and pushed locally; tests never use Docker Hub. The one exception is API-011's constant-time comparison, which a code-level unit test covers in addition to its black-box test (ADR-0015).
 - Unless a criterion says otherwise, it assumes Parachute is armed (CFG-006), lifecycle hooks are off, `--delay-days 0`, `--protect-databases` on, and one host named `local`.
 - Times stated in criteria have a tolerance of ±5 seconds unless stated.
 
@@ -70,6 +72,8 @@ M1 reports and never changes containers. Until update execution exists:
 - Settings that only tune updates or policies (`--stop-timeout`, `--cleanup`, `--backup*`, `--verify-*`, `--delay-days`, `--protect-databases`, `--tag-follow`, `--maintenance-window*`, `--approval-reminder-days`, ...) are validated but have no effect. Policies are not evaluated, so no update is `held` except by monitor-only (SEL-007), and `held` entries are reported every cycle (NTF-011 is not implemented).
 - Criteria written for an armed Parachute are tested unarmed where the observable is the same: CFG-007, SEL-008 and DET-004 expect `would_update` instead of `updated`; NTF-003 uses `failed` instead of `rolled_back`.
 - STS-002 is produced by `parachute status --json`; `GET /v1/status` arrives with the HTTP API.
+- `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
+- The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-004, DMN-003, STS-002.
 
 ## Index
 

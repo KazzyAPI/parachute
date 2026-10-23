@@ -16,13 +16,13 @@ Each hook MUST run inside the container as `sh -c "<label value>"`. `pre-check` 
 - **Given** a stopped candidate (with `--include-stopped`) and a `pre-check` hook **When** a cycle runs **Then** the hook does not run and the container is still checked.
 
 ### HOK-003 Order
-For a container that is updated, the hooks MUST run in the order `pre-check`, `pre-update`, `post-update`, `post-check`. For a container that is not updated, only `pre-check` and `post-check` run.
+For a container that is updated, the hooks MUST run in the order `pre-check`, `pre-update`, `post-update`, `post-check`. For a container that gets no transaction (no update, or held by a policy, UPD-001), only `pre-check` and `post-check` run. For a container whose transaction ends in the `snapshot` phase (deferred by HOK-006 or failed before the `update` phase), `pre-update` may have run and `post-update` MUST NOT run.
 
 - **Given** all four hooks appending their name to a file on a shared volume **When** the container is updated **Then** the file reads `pre-check pre-update post-update post-check`.
 - **Given** the same and no update available **When** a cycle runs **Then** the file reads `pre-check post-check`.
 
 ### HOK-004 Held and monitor-only containers
-For a container whose update is held (POL-001), including monitor-only and unarmed, `pre-check` and `post-check` MUST run and `pre-update` and `post-update` MUST NOT run.
+For a container whose update is held in the policy phase (POL-001, every reason except `hook_deferred`), including monitor-only and unarmed, `pre-check` and `post-check` MUST run and `pre-update` and `post-update` MUST NOT run.
 
 - **Given** a monitor-only container with all four hooks and an update available **When** a cycle runs **Then** the file reads `pre-check post-check`.
 
@@ -34,14 +34,20 @@ Every hook MUST time out after 60 seconds by default. The labels `parachute.life
 - **Given** `--transaction-timeout 2m` and a `pre-update` hook that never exits with `pre-update-timeout=0` **When** a cycle runs **Then** the transaction ends within 2.5 minutes with result `failed` and reason `transaction_timeout`.
 
 ### HOK-006 Exit codes
-Exit code `0` MUST count as success. Exit code `75` (`EX_TEMPFAIL`) from a `pre-update` hook MUST **defer** the update: the transaction ends before any container is stopped, with result `held` and reason `hook_deferred` (the last reason in the POL-001 order), and it is not an error (exit code and `failed` counts are unaffected). Exit code `75` from `pre-check`, `post-update`, or `post-check` MUST count as success. Any other exit code is a failure and MUST be logged at `warn` with the hook name and code. A failing `pre-check`, `post-update`, or `post-check` hook MUST NOT change the outcome of the update.
+Exit code `0` MUST count as success. Exit code `75` (`EX_TEMPFAIL`) from a `pre-update` hook MUST **defer** the transaction: no further `pre-update` hook or dump runs, no container is stopped, the transaction ends `aborted` ([glossary: Transaction state machine](glossary.md#transaction-state-machine)), and every affected container of the transaction gets result `held` with reason `hook_deferred` (the last reason in the POL-001 order). A deferral is not an error: the exit code and `failed` counts are unaffected, and `post-update` does not run while `post-check` does (HOK-003). Exit code `75` from `pre-check`, `post-update`, or `post-check` MUST count as success. Any other exit code is a failure and MUST be logged at `warn` with the hook name and code. A failing `pre-check`, `post-update`, or `post-check` hook MUST NOT change the outcome of the update. The `pre-update` hooks of a transaction run after the free-space check (BKP-011) and before any dump (BKP-004) or stop.
 
 - **Given** a `post-update` hook that exits 1 **When** the container is updated **Then** the update commits and a `warn` line names `post-update` and code `1`.
 - **Given** a `pre-update` hook that exits 75 **When** a cycle runs **Then** the container is still running with its original ID, its result is `held` with reason `hook_deferred`, and the run-once exit code is 0.
 - **Given** the same hook that exits 0 on the next cycle **When** that cycle runs **Then** the update proceeds.
 - **Given** a `post-check` hook that exits 75 **When** a cycle runs **Then** the outcome is unchanged and no `warn` line is logged.
+- **Given** a stack `app` + `db` both updated in one transaction, a `pre-update` hook on `app` that exits 75, and all four hooks on both appending their name to a file **When** a cycle runs **Then** both containers are `held` with reason `hook_deferred`, no `die` event was emitted for either, and neither file contains `post-update`.
 
 ### HOK-007 Failing pre-update aborts that container's transaction
-A `pre-update` hook that fails or times out MUST abort the transaction it belongs to before any container is stopped (UPD-014), with result `failed` and reason `pre_update_hook_failed`.
+A `pre-update` hook that fails (any exit code other than `0` and `75`) or times out MUST abort the transaction it belongs to before any container is stopped (UPD-014), with result `failed` and reason `pre_update_hook_failed`.
 
 - **Given** a `pre-update` hook that exits 1 **When** a cycle runs **Then** the container is still running with its original ID and the report shows reason `pre_update_hook_failed`.
+
+### HOK-008 Hook output and secrets
+Parachute MUST pass nothing to a hook beyond the container's own environment and the command `sh -c "<label value>"`. A hook's stdout and stderr MUST be logged only at `debug`, at most 4 KiB of each, redacted per [glossary: Redaction](glossary.md#redaction) (including the values of the container's environment variables). Notifications, the report, porcelain output, and the status view MUST name a hook failure only by hook name, exit code or timeout, and container, never with the hook's output.
+
+- **Given** a container with `API_KEY=hunter2-secret`, `--log-level debug`, a webhook notification URL, and a `post-update` hook `echo "$API_KEY"; exit 1` **When** the container is updated **Then** `hunter2-secret` appears neither in the log, the report, nor the webhook payload, and the log contains `[REDACTED]`.

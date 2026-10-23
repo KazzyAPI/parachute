@@ -1,6 +1,6 @@
 # ADR-0001: Spec-driven development
 
-- **Status:** Proposed
+- **Status:** Accepted (partly superseded by ADR-0015)
 - **Date:** 2026-10-22
 
 ## Context

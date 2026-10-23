@@ -7,8 +7,8 @@ The configuration surface, the arming switch, machine-readable output, logging, 
 ### CFG-001 Names
 Every setting MUST be available as a flag `--<name>` and as an environment variable `PARACHUTE_<NAME>` (upper case, `-` replaced by `_`), except the Docker client variables `DOCKER_HOST`, `DOCKER_API_VERSION`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and the variables `TZ` and `NO_COLOR`, which keep their standard names. Per-container settings are labels `parachute.<name>`. The full list is in [Settings reference](#settings-reference) and [Label reference](#label-reference).
 
-- **Given** `PARACHUTE_INTERVAL=60` **When** Parachute starts **Then** it behaves as with `--interval 60`.
-- **Given** `PARACHUTE_STOP_TIMEOUT=5s` **When** a container is updated **Then** it behaves as with `--stop-timeout 5s`.
+- **Given** `PARACHUTE_INTERVAL=60` **When** Parachute starts **Then** the startup message announces the next cycle 60 seconds after the first, as with `--interval 60`.
+- **Given** `PARACHUTE_STOP_TIMEOUT=5s` and a container that ignores `SIGTERM` **When** it is updated **Then** the Docker event stream shows its `kill` with `SIGKILL` 5 seconds after the stop signal, as with `--stop-timeout 5s`.
 
 ### CFG-002 Precedence
 For each global setting, a flag MUST win over its environment variable, which wins over the default. A per-container label wins over the global setting where the label reference says so; `parachute.monitor-only` and `parachute.no-pull` follow SEL-008 instead.
@@ -44,11 +44,11 @@ Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is
 
 - **Given** a fresh install, unarmed, and a container with a newer image **When** a cycle runs **Then** the webhook receives a report listing it as `would_update`, and the container's ID and image, the local image list, and the volume list are unchanged.
 - **Given** the same with `PARACHUTE_ARMED=true` **When** a cycle runs **Then** the container is updated.
-- **Given** a Parachute that was armed and then restarted without the setting **When** a cycle runs **Then** nothing is changed.
+- **Given** a Parachute that was armed and then restarted without the setting, and a container with a newer image **When** a cycle runs **Then** the container is reported `would_update` and its ID and image are unchanged.
 - **Given** an unarmed Parachute whose `state.json` was copied from an armed instance, and a container with a newer image **When** a cycle runs **Then** the container is reported `would_update` and its ID and image, the local image list, and the volume list are unchanged.
 
 ### CFG-007 Result states and porcelain output
-Every candidate MUST end each cycle in exactly one of these states:
+Every candidate on a reachable host MUST end each cycle in exactly one of these states. The reason code for each state and its notification level and exit code are listed only in [reasons.md](reasons.md).
 
 | State | Meaning |
 |---|---|
@@ -57,7 +57,7 @@ Every candidate MUST end each cycle in exactly one of these states:
 | `would_update` | Update would be applied, but Parachute is unarmed. |
 | `held` | Update available but not applied this cycle: held by a policy (POL-001) or deferred by a `pre-update` hook (HOK-006, reason `hook_deferred`). |
 | `skipped` | Not checkable for a non-error reason (`digest_pinned`, `local_image`, `managed_by_runtime`). |
-| `failed` | Not updated because of an error; nothing changed (UPD-014, BKP-011, UPD-019, DET-003, DEP-008, POL-008, host unreachable). |
+| `failed` | Not updated because of an error; nothing changed (UPD-014, BKP-011, UPD-019, DET-003, DEP-008, POL-008, DMN-005). An unreachable host is not a result: it is reported per host and contributes no entries (DMN-005). |
 | `rolled_back` | Update applied, verification failed, previous state restored (reason `verify_failed`, `verify_timeout`, `transaction_timeout`, or `interrupted`; VER-011). |
 | `rollback_failed` | Update applied, and the previous state could not be fully restored (VER-010). |
 
@@ -76,25 +76,26 @@ Porcelain mode does not change notification settings. Any value other than `v1` 
 ### CFG-008 Logging
 `--log-level` MUST accept `error`, `warn`, `info` (default), `debug`, `trace`; `--debug` and `--trace` are shorthands for the last two. `--log-format` MUST accept `auto` (default: `pretty` on a terminal, else `logfmt`), `logfmt`, `pretty`, `json`. With `json`, each line MUST have keys `time` (RFC 3339), `level`, `msg`, and, when they apply, `cycle`, `txn`, `host`, `stack`, `service`, `container`, `phase`. `--no-color` or a non-empty `NO_COLOR` MUST remove colour codes.
 
-- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON and the phase lines carry `txn` and `phase`.
+- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON, at least one line has `"phase": "verify"`, every line whose `phase` is `snapshot` or later also has a `txn` key, and the `detect` and `policy` lines have none (UPD-001).
 - **Given** `NO_COLOR=1 --log-format pretty` **When** Parachute logs **Then** the output contains no `ESC[` sequences.
 
 ### CFG-009 Exit codes
-The Parachute process MUST use these exit codes. In run-once mode, when several apply, the highest wins.
+The Parachute process (daemon and run-once mode) MUST use these exit codes; they match the per-state exit codes in [reasons.md](reasons.md). In run-once mode, when several apply, the highest wins. After startup a daemon exits only on a signal, with 0. `parachute status` (STS-001) uses 0, 2, and 4 with the same meanings; `parachute healthcheck` (DMN-006) uses only 0 and 1.
 
 | Code | Meaning |
 |---|---|
 | 0 | Success: every candidate is `fresh`, `updated`, `would_update`, `held`, or `skipped`. In daemon mode, a clean shutdown on `SIGTERM` or `SIGINT`. |
 | 1 | At least one candidate `failed` or `rolled_back`, or a host was unreachable (run-once). |
-| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token, unreadable or corrupt state file. |
+| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md#insecure-tcp-host) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
 | 3 | At least one `rollback_failed` (run-once). |
-| 4 | No managed host reachable at startup. |
+| 4 | No managed host reachable at startup (DMN-004), including a failed TLS handshake (DMN-003) or a rejected forced API version (DMN-002). |
 
 - **Given** `--run-once` with one `rolled_back` and one `rollback_failed` **When** Parachute exits **Then** the code is 3.
+- **Given** `--run-once` with one `failed` and one `fresh` candidate **When** Parachute exits **Then** the code is 1.
 - **Given** a running daemon **When** it receives `SIGTERM` while idle **Then** it exits with code 0 within 5 seconds.
 
 ### CFG-010 State file
-Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. The file MUST always be complete, valid JSON (written by replacing, never in place). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
+Parachute MUST keep its state in one JSON file, `<state-dir>/state.json` (`--state-dir`, default `/var/lib/parachute`), whose top-level `format` is `parachute.state/v1` ([ADR-0008](../adr/0008-state-storage.md)). A missing file MUST be created. Besides per-stack data such as each service's last transaction (STS-002), the file holds `superseded_instances`, its own list of the container IDs of superseded Parachute instances, kept apart from any transaction record and pruned only when the engine no longer has that container (UPD-018). The file MUST always be complete, valid JSON (written by replacing, never in place). The file is untrusted input ([glossary: Trust boundaries](glossary.md#trust-boundaries)): it is parsed strictly, and it never arms Parachute (CFG-006). A state directory that cannot be written, or a file that is not valid `parachute.state/v1` JSON, MUST be a startup error (exit code 2) naming the file; Parachute MUST NOT overwrite it. Besides `state.json`, the state directory holds only these files: during a self-update, the handover marker `<state-dir>/handover.json`, format `parachute.handover/v1` (UPD-018); `<state-dir>/restore-verify.json`, format `parachute.restore-verify/v1`, written only by the holder of the restore-verification lock and untrusted like `state.json` (RST-005); and `<state-dir>/restore-verify.lock`, the never-replaced lock file whose content is not read (RST-005). Shutting down on `SIGTERM` during a transaction MUST finish or roll back that transaction first, within the stop grace period, else UPD-016 applies at the next start.
 
 - **Given** an empty state directory **When** Parachute starts **Then** `state.json` exists and has `"format": "parachute.state/v1"`.
 - **Given** a `state.json` containing `{broken` **When** Parachute starts **Then** it exits with code 2, the message names the file, and the file still contains `{broken`.
@@ -109,13 +110,20 @@ Parachute MUST accept `--profile` with the values `safe` (default) and `convenie
 | `--delay-days` | `2` | `0` |
 | `--protect-databases` | `true` | `false` |
 
-The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`: snapshots and rollback stay on in both profiles, and are turned off only by their own settings. An unknown profile value MUST be a startup error (exit code 2).
+The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`: snapshots and rollback stay on in both profiles, and are turned off only by their own settings. No profile MUST remove the [self-update approval](glossary.md): an update of Parachute's own container is held with reason `approval_required` under `convenient` as under `safe` (UPD-018). An unknown profile value MUST be a startup error (exit code 2).
 
 - **Given** `--profile convenient` and a newer image for a database container **When** a cycle runs **Then** the update is applied, with no approval hold.
 - **Given** `--profile convenient --delay-days 3` **When** Parachute starts **Then** the delay is 3 days and the other two defaults are the `convenient` values.
 - **Given** `--profile convenient` **When** Parachute starts **Then** the startup message names `convenient` and lists `armed`, `delay-days`, and `protect-databases`.
 - **Given** `--profile convenient` and a failing update **When** the cycle runs **Then** the container is rolled back.
+- **Given** `--profile convenient` and a newer image for Parachute's own container (as identified by the engine) **When** a cycle runs **Then** the result for it is `held` with reason `approval_required` and its container ID is unchanged.
 - **Given** `--profile fast` **When** Parachute starts **Then** it exits with code 2 and the message contains `profile` and `fast`.
+
+### CFG-012 Logs, errors, and porcelain output are redacted
+Log lines at every level except `trace`, startup and error messages (including those of startup errors with exit code 2 or 4), and porcelain output MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). A setting whose value is a secret (CFG-004) MUST be named in messages but its value MUST NOT be shown, also when the value is invalid.
+
+- **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7`, `--log-level debug`, `--log-format json`, and `--porcelain v1 --run-once` **When** Parachute runs **Then** neither stdout nor stderr contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, its base64 form, or `pw-9z7`.
+- **Given** `--notification-url 'generic://bob:hunter2@exa mple'` (invalid) **When** Parachute starts **Then** it exits with code 2, the message names `notification-url`, and stderr does not contain `hunter2`.
 
 ## Settings reference
 
@@ -172,10 +180,12 @@ The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`
 | `--http-api-token` | unset | API-002 |
 | `--http-api-status-token` | unset | API-002 |
 | `--http-api-periodic-polls` | `false` | API-006 |
+| `--trusted-proxies` | empty (list of IP addresses and CIDR ranges) | API-010 |
 | `DOCKER_CONFIG` | `/` | REG-001 |
 | `--host` / `DOCKER_HOST` | `unix:///var/run/docker.sock` | DMN-001 |
 | `--api-version` / `DOCKER_API_VERSION` | negotiated | DMN-002 |
 | `--tlsverify` / `DOCKER_TLS_VERIFY` | `false` | DMN-003 |
+| `--allow-insecure-tcp` | `false` | DMN-003 |
 | `DOCKER_CERT_PATH` | `/etc/ssl/docker` | DMN-003 |
 | `--hosts` | unset | DMN-007 |
 | `--restore-verify-schedule` | unset (off) | RST-001 |
@@ -191,7 +201,7 @@ Commands: `parachute` (daemon), `parachute healthcheck` (DMN-006), `parachute st
 
 ## Label reference
 
-Labels are read from monitored containers unless noted. "Overrides" names the global setting the label overrides (CFG-002).
+Labels are read from monitored containers unless noted, and only when set at creation: a label inherited from the image is ignored unless it is cautionary (SEL-013). "Overrides" names the global setting the label overrides (CFG-002).
 
 | Label | Values | Overrides | Spec |
 |---|---|---|---|
@@ -199,9 +209,9 @@ Labels are read from monitored containers unless noted. "Overrides" names the gl
 | `parachute.monitor-only` | boolean | `--monitor-only` (SEL-008) | SEL-007 |
 | `parachute.no-pull` | boolean | `--no-pull` (SEL-008) | DET-004 |
 | `parachute.scope` | text | | SEL-011 |
-| `parachute.self` | `true` (set by the official image) | | SEL-012, UPD-018 |
+| `parachute.self` | `true`; only excludes a container that is not Parachute's own (the official image carries it for information) | | SEL-012, SEL-013 |
 | `parachute.armed` | boolean, on Parachute's own container | `--armed` | CFG-006 |
-| `parachute.helper` | set by Parachute | | BKP-010 |
+| `parachute.helper`, `parachute.transaction` | set by Parachute on helpers | | BKP-010 |
 | `parachute.stop-signal` | signal name | | UPD-006 |
 | `parachute.depends-on` | container names | | DEP-004 |
 | `parachute.lifecycle.pre-check`, `.pre-update`, `.post-update`, `.post-check` | shell command | | HOK-001 |
@@ -219,4 +229,4 @@ Labels are read from monitored containers unless noted. "Overrides" names the gl
 | `parachute.tag-follow` | `none`, `patch`, `minor` | `--tag-follow` | POL-005 |
 | `parachute.maintenance-window`, `parachute.maintenance-window-duration` | cron, duration | `--maintenance-window*` | POL-007 |
 | `parachute.transaction`, `parachute.updated-at`, `parachute.previous-image`, `parachute.snapshot` | set by Parachute on replacements | | UPD-005 |
-| `parachute.restore-verify` | set by Parachute | | RST-002 |
+| `parachute.helper`, `parachute.restore-verify` | set by Parachute on restore-verification resources | | RST-002, BKP-010 |
