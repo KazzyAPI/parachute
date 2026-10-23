@@ -324,8 +324,4 @@ Every requirement ID with its title. IDs marked **new** were added by the spec-h
 - [CFG-011](16-configuration.md) Profiles
 - [CFG-012](16-configuration.md) Logs, errors, and porcelain output are redacted (**new**)
 
-## Status
-
-Spec-hardening progress, owners and cross-group issues: [STATUS.md](STATUS.md).
-
 Also: [glossary](glossary.md), [open questions](open-questions.md), [ADRs](../adr/README.md).
