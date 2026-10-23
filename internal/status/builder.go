@@ -7,21 +7,31 @@ import (
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
+const cycleID = "status"
+
 type Builder struct {
-	hosts    []HostSource
-	selector Selector
+	hosts    []pipeline.Host
+	discover pipeline.Stage
 	redactor Redactor
 	armed    bool
 }
 
-func NewBuilder(hosts []HostSource, selector Selector, redactor Redactor, armed bool) *Builder {
-	return &Builder{hosts: hosts, selector: selector, redactor: redactor, armed: armed}
+func NewBuilder(hosts []pipeline.Host, discover pipeline.Stage, redactor Redactor, armed bool) *Builder {
+	return &Builder{hosts: hosts, discover: discover, redactor: redactor, armed: armed}
 }
 
 func (b *Builder) Build(ctx context.Context, saved state.Document, generated time.Time) (Document, error) {
+	cycle := pipeline.NewCycle(cycleID, generated, b.armed, b.hosts)
+	if err := b.discover.Run(ctx, cycle); err != nil {
+		return Document{}, fmt.Errorf("list containers: %w", err)
+	}
+	if len(cycle.Hosts) > 0 && len(cycle.ReachableHosts()) == 0 {
+		return Document{}, errors.New("no managed host is reachable")
+	}
 	document := Document{Format: Format, Generated: generated.UTC(), Armed: b.armed, Hosts: []Host{}}
 	if saved.LastCycle != nil {
 		document.LastCycle = &Cycle{ID: saved.LastCycle.ID, Started: saved.LastCycle.Started, Ended: saved.LastCycle.Ended}
@@ -30,21 +40,13 @@ func (b *Builder) Build(ctx context.Context, saved state.Document, generated tim
 	for _, result := range saved.Results {
 		previous[result.Host+"/"+result.Container] = result
 	}
-	var failures []error
-	for _, source := range b.hosts {
-		host := Host{Name: source.Name, Reachable: true, Stacks: []Stack{}}
-		containers, err := source.Containers.Containers(ctx)
-		if err != nil {
-			host.Reachable = false
-			failures = append(failures, fmt.Errorf("host %s: %w", source.Name, err))
-		}
-		for _, container := range b.selector.Select(containers) {
-			host.Stacks = b.place(host.Stacks, container, b.service(container, previous[source.Name+"/"+container.Name]))
+	for _, run := range cycle.Hosts {
+		host := Host{Name: run.Host.Name, Reachable: run.Reachable, Stacks: []Stack{}}
+		for _, candidate := range run.Candidates {
+			container := candidate.Container
+			host.Stacks = b.place(host.Stacks, container, b.service(container, previous[run.Host.Name+"/"+container.Name]))
 		}
 		document.Hosts = append(document.Hosts, host)
-	}
-	if len(failures) > 0 && len(failures) == len(b.hosts) {
-		return Document{}, fmt.Errorf("no managed host is reachable: %w", errors.Join(failures...))
 	}
 	return document, nil
 }

@@ -41,18 +41,24 @@ func (c *Command) WriteJSON(document Document) error {
 
 func (c *Command) WriteTable(document Document) error {
 	var rows strings.Builder
-	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\n", document.Armed)
+	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\tDRIFT\n", document.Armed)
 	for _, host := range document.Hosts {
 		for _, stack := range host.Stacks {
 			for _, service := range stack.Services {
-				update, hold := "no", "-"
+				update, hold, drift := "no", "-", "-"
 				if service.UpdateAvailable && service.CandidateDigest != nil {
 					update = *service.CandidateDigest
 				}
 				if service.Hold != nil {
 					hold = service.Hold.Reason
+					if service.Hold.Until != nil {
+						hold += " until " + service.Hold.Until.UTC().Format(time.RFC3339)
+					}
 				}
-				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, stack.Name, service.Name, service.Container, service.Image, update, hold)
+				if service.Drift != nil {
+					drift = *service.Drift
+				}
+				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, stack.Name, service.Name, service.Container, service.Image, update, hold, drift)
 			}
 		}
 	}
