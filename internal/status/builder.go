@@ -12,26 +12,31 @@ type ContainerSource interface {
 	Containers(ctx context.Context) ([]domain.Container, error)
 }
 
+type HostSource struct {
+	Name       string
+	Endpoint   string
+	Containers ContainerSource
+}
+
 type Selector interface {
 	Select(containers []domain.Container) []domain.Container
 }
 
+type Source interface {
+	Build(ctx context.Context, saved state.Document, generated time.Time) (Document, error)
+}
+
 type Builder struct {
-	hostName string
-	engine   ContainerSource
+	hosts    []HostSource
 	selector Selector
 	armed    bool
 }
 
-func NewBuilder(hostName string, engine ContainerSource, selector Selector, armed bool) *Builder {
-	return &Builder{hostName: hostName, engine: engine, selector: selector, armed: armed}
+func NewBuilder(hosts []HostSource, selector Selector, armed bool) *Builder {
+	return &Builder{hosts: hosts, selector: selector, armed: armed}
 }
 
 func (b *Builder) Build(ctx context.Context, saved state.Document, generated time.Time) (Document, error) {
-	containers, err := b.engine.Containers(ctx)
-	if err != nil {
-		return Document{}, err
-	}
 	document := Document{Format: Format, Generated: generated.UTC(), Armed: b.armed, Hosts: []Host{}}
 	if saved.LastCycle != nil {
 		document.LastCycle = &Cycle{ID: saved.LastCycle.ID, Started: saved.LastCycle.Started, Ended: saved.LastCycle.Ended}
@@ -40,11 +45,17 @@ func (b *Builder) Build(ctx context.Context, saved state.Document, generated tim
 	for _, result := range saved.Results {
 		previous[result.Host+"/"+result.Container] = result
 	}
-	host := Host{Name: b.hostName, Reachable: true, Stacks: []Stack{}}
-	for _, container := range b.selector.Select(containers) {
-		host.Stacks = b.place(host.Stacks, container, b.service(container, previous[b.hostName+"/"+container.Name]))
+	for _, source := range b.hosts {
+		containers, err := source.Containers.Containers(ctx)
+		if err != nil {
+			return Document{}, err
+		}
+		host := Host{Name: source.Name, Reachable: true, Stacks: []Stack{}}
+		for _, container := range b.selector.Select(containers) {
+			host.Stacks = b.place(host.Stacks, container, b.service(container, previous[source.Name+"/"+container.Name]))
+		}
+		document.Hosts = append(document.Hosts, host)
 	}
-	document.Hosts = append(document.Hosts, host)
 	return document, nil
 }
 

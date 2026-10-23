@@ -31,6 +31,7 @@ type DaemonParts struct {
 	Announcer      Announcer
 	Marker         ReadyMarker
 	Loop           CycleLoop
+	Server         Server
 	Summary        StartupSummary
 	StartupMessage bool
 	Logger         *slog.Logger
@@ -57,11 +58,30 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	defer d.clearMarker()
 	defer d.parts.Announcer.Wait()
-	if err := d.parts.Loop.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	if err := d.serve(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 	d.parts.Logger.Info("Parachute stopped")
 	return nil
+}
+
+func (d *Daemon) serve(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	served := make(chan error, 1)
+	go func() {
+		err := d.parts.Server.Serve(ctx)
+		if err != nil {
+			cancel()
+		}
+		served <- err
+	}()
+	loopErr := d.parts.Loop.Run(ctx)
+	cancel()
+	if serveErr := <-served; serveErr != nil {
+		return serveErr
+	}
+	return loopErr
 }
 
 func (d *Daemon) clearMarker() {
