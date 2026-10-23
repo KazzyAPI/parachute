@@ -32,3 +32,14 @@ func (w *Writer) Write(data []byte) (int, error) {
 	}
 	return len(data), nil
 }
+
+func (w *Writer) Flush() error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if len(w.pending) == 0 {
+		return nil
+	}
+	_, err := io.WriteString(w.out, w.redactor.Redact(string(w.pending)))
+	w.pending = nil
+	return err
+}

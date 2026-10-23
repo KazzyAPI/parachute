@@ -45,16 +45,19 @@ func (g *growing) Secrets() []string { return g.values }
 
 func TestURLSecretsCoverNotificationURLParts(t *testing.T) {
 	redactor := New(URLSecrets([]string{
-		"generic://bob:hunt%40er2@127.0.0.1:1/secret-path?token=q5%2Bcret&disabletls=true&port=8080&template=json&pin=1234567",
+		"generic://bob:hunt%40er2@127.0.0.1:1/secret-path/Ab12cd34ef?token=q5%2Bcret&disabletls=true&port=8080&template=json&pin=1234567&scheme=https&proto=https",
 		"ifttt://KeyOfIfttt/?events=doorbell",
+		"telegram://telegram/webhook",
 	}))
 	for input, want := range map[string]string{
-		"password hunt@er2 hunt%40er2":             "password [REDACTED] [REDACTED]",
-		"value q5+cret q5%2Bcret":                  "value [REDACTED] [REDACTED]",
-		"Post http://127.0.0.1:1/secret-path: EOF": "Post http://[REDACTED]: EOF",
-		"segment secret-path, key KeyOfIfttt":      "segment [REDACTED], key [REDACTED]",
-		"pin 1234567 event doorbell":               "pin [REDACTED] event [REDACTED]",
-		"host 127.0.0.1:1 true 8080 json":          "host 127.0.0.1:1 true 8080 json",
+		"password hunt@er2 hunt%40er2":                        "password [REDACTED] [REDACTED]",
+		"value q5+cret q5%2Bcret":                             "value [REDACTED] [REDACTED]",
+		"Post http://127.0.0.1:1/secret-path/Ab12cd34ef: EOF": "Post http://[REDACTED]: EOF",
+		"segment secret-path Ab12cd34ef, key KeyOfIfttt":      "segment secret-path [REDACTED], key [REDACTED]",
+		"pull https://bob:regpass99@registry.example/v2":      "pull [REDACTED]://[REDACTED]@registry.example/v2",
+		"telegram webhook services":                           "telegram webhook services",
+		"pin 1234567 event doorbell":                          "pin [REDACTED] event [REDACTED]",
+		"host 127.0.0.1:1 true 8080 json":                     "host 127.0.0.1:1 true 8080 json",
 	} {
 		if got := redactor.Redact(input); got != want {
 			t.Errorf("Redact(%q) = %q, want %q", input, got, want)
@@ -70,7 +73,10 @@ func TestWriterRedactsWholeLines(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if want := "a [REDACTED] b\nc [REDACTED]\n"; out.String() != want {
+	if _, err := writer.Write([]byte("tail hunter22")); err != nil || writer.Flush() != nil {
+		t.Fatal("tail not written")
+	}
+	if want := "a [REDACTED] b\nc [REDACTED]\ntail [REDACTED]"; out.String() != want {
 		t.Errorf("wrote %q, want %q", out.String(), want)
 	}
 }
