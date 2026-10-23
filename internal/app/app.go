@@ -54,11 +54,12 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 	redactor = redact.New(a.secretSources(cfg)...)
 	deps := a.deps
 	deps.Stdout = redact.NewWriter(a.deps.Stdout, redactor)
-	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr, redactor)
 	entries := logging.NewCollector(domain.ParseLevel(cfg.Notify.Level))
+	var collectors []slog.Handler
 	if !cfg.Notify.Report {
-		logger = slog.New(logging.NewTee(logger.Handler(), entries))
+		collectors = append(collectors, entries)
 	}
+	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr, redactor, collectors...)
 	if cfg.Log.Level == "trace" {
 		logger.Warn("trace logging is on: trace lines are not redacted and can contain credentials and other secrets")
 	}

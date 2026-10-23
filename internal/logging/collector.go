@@ -61,13 +61,22 @@ func (c *Collector) WithGroup(_ string) slog.Handler { return c }
 func (c *Collector) Take(cycleID string) []Entry {
 	c.shared.lock.Lock()
 	defer c.shared.lock.Unlock()
-	items := c.shared.items
-	c.shared.items = nil
-	start := slices.IndexFunc(items, func(entry Entry) bool { return entry.Fields["cycle"] == cycleID })
+	start := slices.IndexFunc(c.shared.items, func(entry Entry) bool { return entry.Fields["cycle"] == cycleID })
 	if start < 0 {
 		return nil
 	}
-	return items[start:]
+	var taken, kept []Entry
+	for index, entry := range c.shared.items {
+		switch cycle := entry.Fields["cycle"]; {
+		case index < start:
+		case cycle != "" && cycle != cycleID:
+			kept = append(kept, entry)
+		default:
+			taken = append(taken, entry)
+		}
+	}
+	c.shared.items = kept
+	return taken
 }
 
 type Tee struct {

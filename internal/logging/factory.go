@@ -19,8 +19,9 @@ func NewFactory(location *time.Location, terminal bool) *Factory {
 	return &Factory{location: location, terminal: terminal}
 }
 
-func (f *Factory) New(settings config.Log, out io.Writer, redactor *redact.Redactor) *slog.Logger {
-	return slog.New(NewRedactingHandler(f.handler(settings, out), redactor, domain.LevelDebug.Slog()))
+func (f *Factory) New(settings config.Log, out io.Writer, redactor *redact.Redactor, collectors ...slog.Handler) *slog.Logger {
+	handlers := append([]slog.Handler{f.handler(settings, out)}, collectors...)
+	return slog.New(NewRedactingHandler(NewTee(handlers...), redactor, domain.LevelDebug.Slog()))
 }
 
 func (f *Factory) handler(settings config.Log, out io.Writer) slog.Handler {
