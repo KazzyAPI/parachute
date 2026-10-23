@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/KazzyAPI/parachute/e2e/harness"
@@ -61,13 +62,20 @@ func TestSEL_002_unmatched_name_is_warned(t *testing.T) {
 
 func TestSEL_003_opt_out_label(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
-	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{"parachute.enable": "false"}})
-	b := env.RunContainer("b", image, harness.ContainerOptions{})
+	registry := env.Registry()
+	a := env.RunContainer("a", registry.Push("opted-out", "1", "1"), harness.ContainerOptions{Labels: map[string]string{"parachute.enable": "false"}})
+	b := env.RunContainer("b", registry.Push("app", "1", "1"), harness.ContainerOptions{})
+	id, _ := env.ContainerState(a)
 	result := runOnce(env)
-	assertCandidates(t, result, []string{b}, []string{a})
-	if logs := findLogs(result.Logs(), func(entry harness.Log) bool { return entry.Get("container") == a }); len(logs) > 0 {
-		t.Errorf("container %s was checked: %v", a, logs[0].Raw)
+	assertEntry(t, result, b)
+	assertNoEntry(t, result, a)
+	for _, request := range registry.ParachuteRequests() {
+		if strings.Contains(request.URI, "/opted-out/manifests/") {
+			t.Errorf("manifest request for %s's repository: %s %s", a, request.Method, request.URI)
+		}
+	}
+	if gotID, _ := env.ContainerState(a); gotID != id {
+		t.Errorf("%s changed: id %s -> %s", a, id, gotID)
 	}
 }
 

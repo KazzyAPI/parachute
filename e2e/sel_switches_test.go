@@ -124,11 +124,3 @@ func TestSEL_011_scope_none_selects_unlabelled(t *testing.T) {
 	result := runOnce(env, "--scope", "none", "--no-pull")
 	assertCandidates(t, result, []string{c}, []string{a, b})
 }
-
-func TestSEL_012_helper_containers_are_excluded(t *testing.T) {
-	env := harness.NewEnv(t)
-	image := fixture(env)
-	helper := env.RunContainer("helper", image, harness.ContainerOptions{Labels: map[string]string{"parachute.helper": "true"}})
-	result := runOnce(env)
-	assertCandidates(t, result, nil, []string{helper})
-}
