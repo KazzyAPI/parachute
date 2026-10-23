@@ -1,6 +1,6 @@
 # 13 Docker daemons, multiple hosts, and runtimes
 
-**Status:** Draft (Milestone 2 section: Deferred)
+**Status:** Draft (Milestone 5 section: Deferred)
 
 How Parachute connects to container engines. A **host** is one engine endpoint. The security model is proposed in [ADR-0010](../adr/0010-docker-socket-access-and-security.md).
 
@@ -71,9 +71,9 @@ Every report entry, porcelain line, status entry, and metric MUST name its host.
 
 - **Given** hosts `a` and `b` on two distinct engines, and stack `shop` on each, both with updates **When** a cycle runs **Then** the report has two `shop` entries, one under each host, with different transaction IDs.
 
-## Milestone 2: Podman
+## Milestone 5: Podman
 
-The requirements in this section are deferred. Tests for them are written but not required to pass until Milestone 2.
+The requirements in this section are deferred. Tests for them are written but not required to pass until Milestone 5.
 
 ### DMN-011 Podman's Docker-compatible API
 Parachute MUST work against Podman's Docker-compatible API socket (rootful `unix:///run/podman/podman.sock`, rootless `unix://$XDG_RUNTIME_DIR/podman/podman.sock`) with the same observable behaviour as against Docker for every requirement in these specs, except where DMN-012 to DMN-014 say otherwise.

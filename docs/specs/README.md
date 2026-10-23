@@ -75,13 +75,20 @@ M1 reports and never changes containers. Until update execution exists:
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-004, DMN-003, STS-002.
 
+### Later milestones
+
+The later milestones are M2 policies, HTTP API, and hosts; M3 armed transactions; M4 hooks and self-update; M5 restore verification and Podman. Each gets its row in the coverage table when its tests exist, because `make trace` fails for a listed requirement without a test.
+
 ### M2 deviations
 
-- Criteria written for an armed Parachute are tested unarmed: where a criterion expects `updated`, the test asserts `would_update`.
-- API-005 is tested with a registry that delays its responses instead of a pre-check hook.
-- POL-001's hooks criterion is tested in the hooks milestone.
-- DET-008's pull-by-digest criterion is tested in the armed milestone.
-- The freeze-release half of API-007 and POL-011 is tested in the armed milestone.
+M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
+
+- Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
+- API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
+- API-007, POL-011: the approval half in M2; the freeze-release half in M3.
+- DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
+- POL-001: its hooks criterion in M4; the others in M2.
+- Criteria meaningless unarmed are tested in M3: CFG-006's `PARACHUTE_ARMED=true` criterion (expects `updated`), DMN-005's stop-request criterion, UPD-019's paused-helper criterion, and BKP-010's armed startup criterion.
 
 ## Index
 
