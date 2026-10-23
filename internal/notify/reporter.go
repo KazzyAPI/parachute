@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ type ReporterParts struct {
 	Sleeper  Sleeper
 	Held     HeldFilter
 	Entries  LogEntries
+	Logger   *slog.Logger
 }
 
 type Reporter struct {
@@ -60,11 +62,7 @@ func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 		return nil
 	}
 	if r.settings.Report {
-		hidden, err := r.parts.Held.Hidden(report)
-		if err != nil {
-			return err
-		}
-		data = r.parts.Views.Build(report, r.title, hidden)
+		data = r.parts.Views.Build(report, r.title, r.hidden(report))
 	}
 	body, err := r.parts.Renderer.Render(data)
 	if err != nil {
@@ -79,6 +77,15 @@ func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 		}
 	})
 	return nil
+}
+
+func (r *Reporter) hidden(report domain.Report) func(domain.Result) bool {
+	hidden, err := r.parts.Held.Hidden(report)
+	if err != nil {
+		r.parts.Logger.Error("cannot record notified held entries, reporting all of them", "cycle", report.CycleID, "error", err.Error())
+		return func(domain.Result) bool { return false }
+	}
+	return hidden
 }
 
 func (r *Reporter) Announce(ctx context.Context, level domain.Level, body string) {

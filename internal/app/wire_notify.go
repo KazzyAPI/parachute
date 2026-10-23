@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"io"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -13,9 +12,6 @@ import (
 
 func (c *Container) reporter(store *state.Store) (*notify.Reporter, error) {
 	settings := c.cfg.Notify
-	if c.cfg.Policy.ReminderDays <= 0 {
-		return nil, configurationError(errors.New("--approval-reminder-days must be a positive number of days"))
-	}
 	for _, rawURL := range settings.URLs {
 		if err := notify.ValidateURL(rawURL); err != nil {
 			return nil, configurationError(err)
@@ -36,6 +32,7 @@ func (c *Container) reporter(store *state.Store) (*notify.Reporter, error) {
 		Sleeper:  c.deps.Clock,
 		Held:     notify.NewLedger(store, c.cfg.Policy.ReminderDays),
 		Entries:  c.entries,
+		Logger:   c.logger,
 	}), nil
 }
 

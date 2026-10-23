@@ -36,3 +36,17 @@ func TestLedgerRemindsApprovalsAndShowsOtherHoldsOnce(t *testing.T) {
 		}
 	}
 }
+
+func TestLedgerForgetsEntriesOfHostsMissingFromTheReport(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ledger := NewLedger(&memoryStore{}, 7)
+	for cycle, report := range []domain.Report{heldReport(start, "delay"), {Started: start.Add(time.Minute)}, heldReport(start.Add(2*time.Minute), "delay")} {
+		hidden, err := ledger.Hidden(report)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if results := report.Results(); len(results) > 0 && hidden(results[0]) {
+			t.Errorf("cycle %d hid the hold", cycle)
+		}
+	}
+}

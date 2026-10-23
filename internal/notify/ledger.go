@@ -61,7 +61,7 @@ func (l *Ledger) keep(entry state.Notified, report domain.Report) bool {
 			return result.Container == entry.Container && (result.CandidateDigest == "" || keyOf(result) == withoutTime(entry))
 		})
 	}
-	return true
+	return false
 }
 
 func keyOf(result domain.Result) state.Notified {

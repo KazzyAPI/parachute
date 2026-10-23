@@ -37,8 +37,11 @@ func (s *Syntax) Parse(setting Setting, raw string) (Value, error) {
 		if err == nil && setting.Kind == KindPositiveInt && value.Int <= 0 {
 			err = errSyntax
 		}
-	case KindDecimal:
+	case KindDecimal, KindPositiveDecimal:
 		value.Decimal, err = s.parseDecimal(raw)
+		if err == nil && setting.Kind == KindPositiveDecimal && value.Decimal <= 0 {
+			err = errSyntax
+		}
 	case KindDuration:
 		value.Duration, err = time.ParseDuration(raw)
 	case KindEnum:
