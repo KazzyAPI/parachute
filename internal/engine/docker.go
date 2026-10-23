@@ -14,6 +14,7 @@ import (
 type Image struct {
 	ID      string
 	Digests []string
+	Labels  map[string]string
 }
 
 type Docker struct {
@@ -65,6 +66,7 @@ func (d *Docker) Containers(ctx context.Context) ([]domain.Container, error) {
 		if details.Config != nil {
 			container.Labels = details.Config.Labels
 			container.ImageRef = details.Config.Image
+			container.Env = details.Config.Env
 		}
 		containers = append(containers, container)
 	}
@@ -80,6 +82,9 @@ func (d *Docker) Image(ctx context.Context, reference string) (Image, bool, erro
 		return Image{}, false, fmt.Errorf("inspect image %s: %w", reference, err)
 	}
 	image := Image{ID: inspected.ID}
+	if inspected.Config != nil {
+		image.Labels = inspected.Config.Labels
+	}
 	for _, repoDigest := range inspected.RepoDigests {
 		if _, digest, found := strings.Cut(repoDigest, "@"); found {
 			image.Digests = append(image.Digests, digest)
