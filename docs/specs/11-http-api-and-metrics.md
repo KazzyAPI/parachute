@@ -40,7 +40,7 @@ If the HTTP server would start (API-001) and no token is configured, Parachute M
 - **Given** an armed Parachute in API mode and a pending update **When** `POST /v1/update?stack=shop` is called with the token **Then** the response is 400, the body names `stack`, no cycle starts, and the container is unchanged.
 
 ### API-005 Overlapping requests
-A trigger request that arrives while a cycle or restore verification is running MUST NOT start another one and MUST return 409 with body `{"running": "<cycle-id>"}` immediately. It is counted in `parachute_scans_skipped`.
+A trigger request that arrives while a cycle or restore verification is running MUST NOT start another one and MUST return 409 with body `{"running": "<id>"}` immediately, naming the running cycle ID or restore-verification run ID (RST-002). It is counted in `parachute_scans_skipped`.
 
 - **Given** a cycle in progress (a pre-check hook sleeping 10 s) **When** a second `POST /v1/update` arrives **Then** it returns 409 within 1 second with the running cycle's ID.
 

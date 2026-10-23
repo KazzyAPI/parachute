@@ -63,7 +63,7 @@ A terminal state is never left. A new attempt is a new transaction with a new ID
 
 - Image metadata from registries or pulled images: labels, configuration, `created` time, health check, entrypoint. Image labels never set Parachute behaviour (`parachute.*` labels are read only from the container, not inherited from the image config), except the cautionary ones of SEL-013, which can only make Parachute more cautious.
 - Registry responses: status codes, headers, bearer challenges and token realms, manifests (size-limited), token bodies.
-- The state file and `handover.json`: parsed strictly; an invalid file is a startup error (CFG-010), never overwritten; the status view never takes the armed state or an approval from it (STS-006).
+- The state file, `handover.json`, and `restore-verify.json`: parsed strictly; an invalid file is a startup error (CFG-010), never overwritten; the status view never takes the armed state or an approval from it (STS-006).
 - Snapshot manifests and archives: validated (BKP-007) before rollback or restore verification; paths in them never escape the snapshot or target mount.
 - HTTP API requests: authenticated by token, parameters validated; container and host names are matched against known ones, never used as paths or commands.
 - `config.json` content (REG-001) beyond the expected `auths` fields.

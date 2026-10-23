@@ -127,7 +127,7 @@ Parachute MUST remove an object only when it can prove that it created the objec
 | Replacement container | its transaction rolls back (VER-008, UPD-016) | it carries `parachute.transaction` equal to that transaction's ID (UPD-002) |
 | Original container | its transaction commits (UPD-009) | its container ID is the one Parachute renamed in that transaction, in the same process; for a self-update, the checks of UPD-018 step 3 |
 | Helper container or network (BKP-010) | its task ends | it carries `parachute.helper=true` and `parachute.transaction` equal to the ID of the transaction it was created for (BKP-010) |
-| Restore-verification resource | its run ends (RST-002) | it carries `parachute.helper=true` and `parachute.restore-verify` naming a run this instance started (BKP-010, RST-005) |
+| Restore-verification resource | its run ends (RST-002) | it carries `parachute.helper=true` and `parachute.restore-verify` naming a run of the removing process, or a run recorded open in `restore-verify.json` (BKP-010, RST-005) |
 | Snapshot | retention (BKP-008) | the rule of BKP-008, its single source: the state file records its snapshot ID for that host and stack, written in a transaction whose ID equals the manifest's `transaction`, and the directory is valid per BKP-007 item 1 |
 | Previous image | commit with `--cleanup` (UPD-010) | it is the image of an original removed in the same commit |
 | Anonymous volume | commit with `--remove-volumes` (UPD-011) | it was mounted by an original removed in the same commit |
