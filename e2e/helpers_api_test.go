@@ -81,13 +81,17 @@ func waitCycleFinished(process *harness.Process, count int) {
 	process.WaitForLogs(2*time.Minute, "finished cycle", count, func(entry harness.Log) bool { return entry.Msg() == "cycle finished" })
 }
 
-func porcelainEntry(process *harness.Process, container string) map[string]any {
+func porcelainEntry(env *harness.Env, process *harness.Process, container string) map[string]any {
+	env.T.Helper()
 	var found map[string]any
-	for _, line := range process.Stdout() {
-		if line.Get("type") == "entry" && line.Get("container") == container {
-			found = line.Fields
+	env.Eventually(30*time.Second, "porcelain entry for "+container, func() bool {
+		for _, line := range process.Stdout() {
+			if line.Get("type") == "entry" && line.Get("container") == container {
+				found = line.Fields
+			}
 		}
-	}
+		return found != nil
+	})
 	return found
 }
 

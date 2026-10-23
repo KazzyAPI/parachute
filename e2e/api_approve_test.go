@@ -33,7 +33,7 @@ func TestAPI_007_approved_update_survives_a_restart(t *testing.T) {
 	db, _ := heldDatabase(t, env)
 	process, api := startAPI(env, "--http-api-update", "--porcelain", "v1")
 	assertResponse(t, trigger(api, harness.Bearer(apiToken)), http.StatusOK)
-	held := porcelainEntry(process, db)
+	held := porcelainEntry(env, process, db)
 	response := approve(api, url.Values{"container": {db}})
 	assertResponse(t, response, http.StatusAccepted)
 	if response.JSON()["digest"] != held["candidate_digest"] {
@@ -42,7 +42,7 @@ func TestAPI_007_approved_update_survives_a_restart(t *testing.T) {
 	stopDaemon(process)
 	process, api = startAPI(env, "--http-api-update", "--porcelain", "v1")
 	assertResponse(t, trigger(api, harness.Bearer(apiToken)), http.StatusOK)
-	if entry := porcelainEntry(process, db); entry["state"] != "would_update" {
+	if entry := porcelainEntry(env, process, db); entry["state"] != "would_update" {
 		t.Errorf("after approval and restart %s is %v", db, entry)
 	}
 }
@@ -53,13 +53,13 @@ func TestAPI_007_approval_lapses_when_the_digest_changes(t *testing.T) {
 	id, image := env.ContainerState(db)
 	process, api := startAPI(env, "--http-api-update", "--porcelain", "v1")
 	assertResponse(t, trigger(api, harness.Bearer(apiToken)), http.StatusOK)
-	approved := porcelainEntry(process, db)["candidate_digest"]
+	approved := porcelainEntry(env, process, db)["candidate_digest"]
 	assertResponse(t, approve(api, url.Values{"container": {db}}), http.StatusAccepted)
 	stopDaemon(process)
 	database.registry.Push("postgres", "1", "3")
 	process, api = startAPI(env, "--http-api-update", "--porcelain", "v1")
 	assertResponse(t, trigger(api, harness.Bearer(apiToken)), http.StatusOK)
-	entry := porcelainEntry(process, db)
+	entry := porcelainEntry(env, process, db)
 	if entry["state"] != "held" || entry["reason"] != "approval_required" || entry["candidate_digest"] == approved {
 		t.Errorf("after a new digest %s is %v, approved digest was %v", db, entry, approved)
 	}

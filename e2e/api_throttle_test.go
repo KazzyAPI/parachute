@@ -97,10 +97,11 @@ func TestAPI_010_trusted_proxy_forwards_the_client_address(t *testing.T) {
 	failAuthentication(t, api, 10, func(int) string { return "192.0.2.10" })
 	assertResponse(t, forwardedTrigger(api, "192.0.2.11"), http.StatusOK)
 	assertThrottled(t, forwardedTrigger(api, "192.0.2.10"))
-	warnings := findLogs(process.Logs(), func(entry harness.Log) bool {
+	naming := func(entry harness.Log) bool {
 		return entry.Level() == "warn" && strings.Contains(entry.Raw, "192.0.2.10")
-	})
-	if len(warnings) != 1 {
+	}
+	process.WaitForLogs(30*time.Second, "throttle warning", 1, naming)
+	if warnings := findLogs(process.Logs(), naming); len(warnings) != 1 {
 		t.Errorf("expected one warn line naming 192.0.2.10, got %d", len(warnings))
 	}
 }
