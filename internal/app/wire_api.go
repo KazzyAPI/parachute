@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/KazzyAPI/parachute/internal/api"
@@ -69,6 +72,10 @@ func (c *Container) server(parts ServerParts) (Server, error) {
 	if settings.Token == "" {
 		return nil, configurationError(errors.New("--http-api-token is required when an HTTP API endpoint is enabled"))
 	}
+	tokenKey := make([]byte, sha256.Size)
+	if _, err := io.ReadFull(c.deps.Random, tokenKey); err != nil {
+		return nil, fmt.Errorf("generate the HTTP API token key: %w", err)
+	}
 	hosts := make([]string, 0, len(parts.Hosts))
 	for _, host := range parts.Hosts {
 		hosts = append(hosts, host.Name)
@@ -78,7 +85,7 @@ func (c *Container) server(parts ServerParts) (Server, error) {
 			Port: settings.Port, Update: settings.Update, Metrics: settings.Metrics, Status: settings.Status,
 			Token: settings.Token, StatusToken: settings.StatusToken, TrustedProxies: trusted, Hosts: hosts,
 		},
-		Gate: parts.Gate, Runner: parts.Runner, State: parts.Store, Status: parts.Status, HTML: status.NewHTML(),
+		TokenKey: tokenKey, Gate: parts.Gate, Runner: parts.Runner, State: parts.Store, Status: parts.Status, HTML: status.NewHTML(),
 		Metrics: parts.Metrics, Approver: pendingApprover{}, Clock: c.deps.Clock, Redactor: c.redactor, Logger: c.logger,
 	}), nil
 }

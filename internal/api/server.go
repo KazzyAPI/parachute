@@ -71,6 +71,7 @@ type Settings struct {
 
 type Parts struct {
 	Settings Settings
+	TokenKey []byte
 	Gate     Gate
 	Runner   CycleRunner
 	State    StateReader
@@ -95,7 +96,7 @@ func NewServer(parts Parts) *Server {
 	return &Server{
 		parts:    parts,
 		respond:  responder{redactor: parts.Redactor},
-		tokens:   NewTokens(parts.Settings.Token, parts.Settings.StatusToken),
+		tokens:   NewTokens(parts.TokenKey, parts.Settings.Token, parts.Settings.StatusToken),
 		throttle: NewThrottle(parts.Clock, parts.Logger),
 		sources:  Sources{trusted: parts.Settings.TrustedProxies},
 	}

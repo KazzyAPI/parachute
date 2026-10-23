@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"reflect"
@@ -16,7 +17,8 @@ type recordedComparison struct {
 func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 	admin := strings.Repeat("a", 63) + "Z"
 	statusToken := "read-only-token"
-	tokens := NewTokens(admin, statusToken)
+	key := []byte("per-process-key")
+	tokens := NewTokens(key, admin, statusToken)
 	if reflect.ValueOf(tokens.compare).Pointer() != reflect.ValueOf(subtle.ConstantTimeCompare).Pointer() {
 		t.Fatal("tokens are not compared with subtle.ConstantTimeCompare")
 	}
@@ -25,7 +27,12 @@ func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 		calls = append(calls, recordedComparison{presented: bytes.Clone(x), configured: bytes.Clone(y)})
 		return subtle.ConstantTimeCompare(x, y)
 	}
-	adminDigest, statusDigest := sha256.Sum256([]byte(admin)), sha256.Sum256([]byte(statusToken))
+	digest := func(token string) []byte {
+		mac := hmac.New(sha256.New, key)
+		mac.Write([]byte(token))
+		return mac.Sum(nil)
+	}
+	adminDigest, statusDigest := digest(admin), digest(statusToken)
 	for _, tc := range []struct {
 		presented string
 		want      Match
@@ -44,20 +51,20 @@ func TestTokenComparisonUsesDigestsAndConstantTime(t *testing.T) {
 		if got := tokens.Match(tc.presented); got != tc.want {
 			t.Errorf("Match(%q) = %+v, want %+v", tc.presented, got, tc.want)
 		}
-		presentedDigest := sha256.Sum256([]byte(tc.presented))
+		presentedDigest := digest(tc.presented)
 		if len(calls) != 2 {
 			t.Fatalf("Match(%q) made %d comparisons, want 2", tc.presented, len(calls))
 		}
-		for index, configured := range [][sha256.Size]byte{adminDigest, statusDigest} {
-			if !bytes.Equal(calls[index].presented, presentedDigest[:]) || !bytes.Equal(calls[index].configured, configured[:]) {
-				t.Errorf("Match(%q) comparison %d did not compare SHA-256 digests", tc.presented, index)
+		for index, configured := range [][]byte{adminDigest, statusDigest} {
+			if !bytes.Equal(calls[index].presented, presentedDigest) || !bytes.Equal(calls[index].configured, configured) {
+				t.Errorf("Match(%q) comparison %d did not compare HMAC-SHA256 digests", tc.presented, index)
 			}
 		}
 	}
 }
 
 func TestEmptyStatusTokenMatchesNothing(t *testing.T) {
-	if got := NewTokens("admin-token", "").Match(""); got != (Match{}) {
+	if got := NewTokens([]byte("key"), "admin-token", "").Match(""); got != (Match{}) {
 		t.Errorf("empty presented token matched %+v", got)
 	}
 }
