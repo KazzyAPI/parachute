@@ -1,6 +1,10 @@
 package notify
 
-import "github.com/KazzyAPI/parachute/internal/domain"
+import (
+	"time"
+
+	"github.com/KazzyAPI/parachute/internal/domain"
+)
 
 type ServiceView struct {
 	Name            string
@@ -78,7 +82,15 @@ func (b *ViewBuilder) stacks(results []domain.Result) []StackView {
 		last.Services = append(last.Services, ServiceView{
 			Name: result.Service, Container: result.Container, Image: result.Image, CandidateDigest: result.CandidateDigest,
 			State: string(result.State), Reason: result.Reason, TransactionID: result.Transaction, SnapshotID: result.Snapshot,
+			HoldUntil: holdUntil(result),
 		})
 	}
 	return stacks
+}
+
+func holdUntil(result domain.Result) string {
+	if result.HoldUntil == nil {
+		return ""
+	}
+	return result.HoldUntil.UTC().Format(time.RFC3339)
 }

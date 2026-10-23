@@ -1,6 +1,13 @@
 package config
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/KazzyAPI/parachute/internal/schedule"
+)
 
 func (l *Loader) engine(b *binder) Engine {
 	return Engine{
@@ -18,6 +25,16 @@ func (l *Loader) policy(b *binder) Policy {
 		WindowDuration:   b.duration("maintenance-window-duration"),
 		ReminderDays:     b.decimal("approval-reminder-days"),
 	}
+}
+
+func (l *Loader) window(expression string, location *time.Location) error {
+	if expression == "" {
+		return nil
+	}
+	if _, err := schedule.NewCronTrigger(expression, location); err != nil {
+		return fmt.Errorf("invalid --maintenance-window %q: %w", expression, errors.Unwrap(err))
+	}
+	return nil
 }
 
 func (l *Loader) api(b *binder) API {
