@@ -7,7 +7,7 @@
 - **Drift**: a difference between a service's `image:` in its Compose file and the image its container runs (DEP-011).
 - **Helper container**: a short-lived container Parachute creates for copying data or probing URLs, labelled `parachute.helper=true` (BKP-010).
 - **Host**: one container-engine endpoint that Parachute manages (DMN-001, DMN-007).
-- **Insecure TCP host**: a `tcp://` host used without `--tlsverify` / `DOCKER_TLS_VERIFY` (DMN-003), including loopback addresses. Configuring one is a startup error (exit code 2) naming the host, unless `--allow-insecure-tcp` / `PARACHUTE_ALLOW_INSECURE_TCP=true` is set. With it set, Parachute logs a `warn` line naming each insecure host at startup and at the start of every cycle, and lists it as a relaxation (POL-009).
+- **Insecure TCP host**: a `tcp://` host used without `--tlsverify` / `DOCKER_TLS_VERIFY`, including loopback addresses; see DMN-003.
 - **Policy hold**: a detected update that a policy stops for now, with one reason code such as `delay` or `approval_required` (POL-001).
 - **Reason code**: the one code that explains a `held`, `skipped`, `failed`, `rolled_back`, or `rollback_failed` result. The full list is [reasons.md](reasons.md).
 - **Relaxation**: a setting or label that weakens a safe default, such as `parachute.backup=none`; always logged (POL-009).
