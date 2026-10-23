@@ -116,7 +116,7 @@ The profile MUST NOT change `--backup`, `--verify-timeout`, or `--verify-stable`
 - **Given** `--profile convenient --delay-days 3` **When** Parachute starts **Then** the delay is 3 days and the other two defaults are the `convenient` values.
 - **Given** `--profile convenient` **When** Parachute starts **Then** the startup message names `convenient` and lists `armed`, `delay-days`, and `protect-databases`.
 - **Given** `--profile convenient` and a failing update **When** the cycle runs **Then** the container is rolled back.
-- **Given** `--profile convenient` and a newer image for Parachute's own container (`parachute.self=true`) **When** a cycle runs **Then** the result for it is `held` with reason `approval_required` and its container ID is unchanged.
+- **Given** `--profile convenient` and a newer image for Parachute's own container (as identified by the engine) **When** a cycle runs **Then** the result for it is `held` with reason `approval_required` and its container ID is unchanged.
 - **Given** `--profile fast` **When** Parachute starts **Then** it exits with code 2 and the message contains `profile` and `fast`.
 
 ### CFG-012 Logs, errors, and porcelain output are redacted
