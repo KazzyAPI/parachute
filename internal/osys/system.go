@@ -3,6 +3,7 @@ package osys
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +17,28 @@ func New() *System { return &System{} }
 func (System) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
 func (System) Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
+
+func (System) ReadRegularFile(path string, limit int64) ([]byte, error) {
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a readable regular file: %w", path, errors.Join(err, fs.ErrInvalid))
+	}
+	handle, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = handle.Close() }()
+	if info, err := handle.Stat(); err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file: %w", path, errors.Join(err, fs.ErrInvalid))
+	}
+	contents, err := io.ReadAll(io.LimitReader(handle, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	if int64(len(contents)) > limit {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, limit)
+	}
+	return contents, nil
+}
 
 func (System) Hostname() (string, error) { return os.Hostname() }
 

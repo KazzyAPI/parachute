@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/distribution/reference"
 	"go.yaml.in/yaml/v3"
 )
 
-const Unknown = "unknown"
+const (
+	Unknown         = "unknown"
+	maxComposeBytes = 1 << 20
+)
 
 type FileReader interface {
-	ReadFile(path string) ([]byte, error)
+	ReadRegularFile(path string, limit int64) ([]byte, error)
 }
 
 type composeFile struct {
@@ -51,6 +55,9 @@ func (d *Detector) declaredImage(configFiles, service string) (string, bool) {
 		if path = strings.TrimSpace(path); path == "" {
 			continue
 		}
+		if !filepath.IsAbs(path) {
+			return "", false
+		}
 		images, err := d.images(path)
 		if err != nil {
 			return "", false
@@ -66,7 +73,7 @@ func (d *Detector) declaredImage(configFiles, service string) (string, bool) {
 }
 
 func (d *Detector) images(path string) (map[string]*string, error) {
-	contents, err := d.files.ReadFile(path)
+	contents, err := d.files.ReadRegularFile(path, maxComposeBytes)
 	if err != nil {
 		return nil, fmt.Errorf("read compose file %s: %w", path, err)
 	}

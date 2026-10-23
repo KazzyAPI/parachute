@@ -30,6 +30,20 @@ func TestDEP_011_compose_image_differing_from_container_is_drift(t *testing.T) {
 	assertContains(t, text, declared, ref)
 }
 
+func TestDEP_011_compose_file_label_baked_into_image_is_ignored(t *testing.T) {
+	env := harness.NewEnv(t)
+	labels := composeLabels(env.Name("shop"), "web")
+	labels[composeConfigFilesLabel] = "/dev/zero"
+	ref := env.Registry().PushSpec("baked", "1", harness.ImageSpec{Version: "1", Labels: labels})
+	name := env.RunContainer("web", ref, harness.ContainerOptions{})
+	result := runOnce(env)
+	assertExit(t, result, 0)
+	assertState(t, result, name, "fresh", "")
+	if drift := statusServices(statusDocument(t, env))[name]["drift"]; drift != nil {
+		t.Errorf("drift %v, want null", drift)
+	}
+}
+
 func TestDEP_011_variable_image_is_drift_unknown(t *testing.T) {
 	env := harness.NewEnv(t)
 	_, drift := driftOf(t, env, env.Registry().Ref("app", "${TAG}"))

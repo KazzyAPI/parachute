@@ -20,7 +20,8 @@ func (s *Stage) Run(_ context.Context, cycle *pipeline.Cycle) error {
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
 			container := candidate.Container
-			if configFiles := container.Labels[configFilesLabel]; container.IsCompose() && configFiles != "" {
+			configFiles := container.Labels[configFilesLabel]
+			if container.IsCompose() && configFiles != "" && configFiles != container.ImageLabels[configFilesLabel] {
 				candidate.Result.Drift = s.detector.Drift(configFiles, container.Service(), container.ImageRef)
 			}
 		}

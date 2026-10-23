@@ -7,7 +7,7 @@ import (
 
 type files map[string]string
 
-func (f files) ReadFile(path string) ([]byte, error) {
+func (f files) ReadRegularFile(path string, _ int64) ([]byte, error) {
 	contents, ok := f[path]
 	if !ok {
 		return nil, errors.New("missing")
@@ -32,6 +32,7 @@ func TestDetectorDrift(t *testing.T) {
 		{"/a.yml, /b.yml", "db", "postgres:16", "compose postgres:17, running postgres:16"},
 		{"/a.yml", "cache", "redis", ""},
 		{"/missing.yml,/a.yml", "web", "reg.test/app:1", ""},
+		{"a.yml", "web", "reg.test/app:1", ""},
 	} {
 		got := detector.Drift(test.files, test.service, test.running)
 		if (got == nil) != (test.want == "") || got != nil && *got != test.want {
