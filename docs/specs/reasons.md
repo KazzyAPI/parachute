@@ -77,7 +77,7 @@ The previous state was restored and passed its base check (VER-010). The candida
 | `transaction_timeout` | The transaction ceiling was reached in or after the `update` phase. | UPD-019 | held for digest |
 | `config_unreproducible` | A created replacement's configuration differs from the original (beyond UPD-004 and UPD-005). | UPD-007 | held for digest |
 | `image_mismatch` | A created replacement's image ID differs from the pulled, checked image's ID. | UPD-020 | held for digest |
-| `interrupted` | Parachute stopped during `update`, `verify`, or `rollback`; rolled back at the next start. | UPD-016 | held for digest |
+| `interrupted` | Parachute stopped during `update`, `verify`, or `rolling_back` of an ordinary stack, or during `handover` or `rolling_back` of a self-update whose old instance then restarted (UPD-018 step 6); rolled back at the next start. | UPD-016, UPD-018 | held for digest |
 
 ### rollback_failed
 
@@ -87,7 +87,7 @@ The previous state could not be fully restored. Always an immediate `error` noti
 |---|---|---|---|
 | `restore_failed` | An original could not be restored or did not pass its base check, data could not be restored, or (self-update) the replacement could not be removed or two Parachute containers for the scope are left running. | VER-010, UPD-018 | frozen |
 | `snapshot_invalid` | The snapshot failed validation when rollback needed it; containers were restored without data. | BKP-007 | frozen |
-| `interrupted` | During a self-update the old instance stopped while the handover marker existed; the new instance took over the state file and changed no container. | UPD-018 | frozen |
+| `interrupted` | During a self-update the old instance stopped while the handover marker existed; the new instance took over the state file and changed no container, and the transaction was still open. | UPD-018 | frozen |
 
 ### Restore verification
 
