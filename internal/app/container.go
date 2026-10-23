@@ -9,6 +9,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/config"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/labels"
+	"github.com/KazzyAPI/parachute/internal/logging"
 	"github.com/KazzyAPI/parachute/internal/metrics"
 	"github.com/KazzyAPI/parachute/internal/notify"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
@@ -23,11 +24,12 @@ type Container struct {
 	deps     Dependencies
 	logger   *slog.Logger
 	redactor *redact.Redactor
+	entries  *logging.Collector
 	labels   *labels.Reader
 }
 
-func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, redactor *redact.Redactor) *Container {
-	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, labels: labels.NewReader(logger)}
+func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, redactor *redact.Redactor, entries *logging.Collector) *Container {
+	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, entries: entries, labels: labels.NewReader(logger)}
 }
 
 func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage pipeline.Stage) *pipeline.Pipeline {
@@ -51,7 +53,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	reporter, err := c.reporter()
+	reporter, err := c.reporter(store)
 	if err != nil {
 		return nil, nil, err
 	}

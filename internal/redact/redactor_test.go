@@ -41,3 +41,17 @@ func TestRedactorReadsSourcesOnEveryCall(t *testing.T) {
 type growing struct{ values []string }
 
 func (g *growing) Secrets() []string { return g.values }
+
+func TestURLSecretsCoverNotificationURLParts(t *testing.T) {
+	redactor := New(URLSecrets([]string{"generic://bob:hunter2@127.0.0.1:1/secret-path?token=q5ecret&disabletls=true&port=8080"}))
+	for input, want := range map[string]string{
+		"password hunter2": "password [REDACTED]",
+		"value q5ecret":    "value [REDACTED]",
+		"Post http://127.0.0.1:1/secret-path: EOF": "Post http://[REDACTED]: EOF",
+		"host 127.0.0.1:1 true 8080":               "host 127.0.0.1:1 true 8080",
+	} {
+		if got := redactor.Redact(input); got != want {
+			t.Errorf("Redact(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

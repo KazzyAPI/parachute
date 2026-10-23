@@ -51,14 +51,27 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 		slog.New(handler).Error(err.Error())
 		return domain.ExitConfiguration
 	}
-	redactor = redact.New(redact.Static(cfg.API.Token, cfg.API.StatusToken), registrySecrets(cfg, a.deps.System))
+	redactor = redact.New(a.secretSources(cfg)...)
+	deps := a.deps
+	deps.Stdout = redact.NewWriter(a.deps.Stdout, redactor)
 	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr, redactor)
-	container := NewContainer(cfg, a.deps, logger, redactor)
+	entries := logging.NewCollector(domain.ParseLevel(cfg.Notify.Level))
+	if !cfg.Notify.Report {
+		logger = slog.New(logging.NewTee(logger.Handler(), entries))
+	}
+	if cfg.Log.Level == "trace" {
+		logger.Warn("trace logging is on: trace lines are not redacted and can contain credentials and other secrets")
+	}
+	container := NewContainer(cfg, deps, logger, redactor, entries)
 	if err := a.dispatch(ctx, container); err != nil {
 		logger.Error(err.Error())
 		return exitCodeOf(err)
 	}
 	return domain.ExitSuccess
+}
+
+func (a *App) secretSources(cfg config.Config) []redact.Source {
+	return []redact.Source{redact.Static(cfg.API.Token, cfg.API.StatusToken), redact.URLSecrets(cfg.Notify.URLs), registrySecrets(cfg, a.deps.System)}
 }
 
 func (a *App) dispatch(ctx context.Context, container *Container) error {
