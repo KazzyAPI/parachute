@@ -4,6 +4,7 @@ func (l *Loader) engine(b *binder) Engine {
 	return Engine{
 		Host: b.raw("host"), APIVersion: b.raw("api-version"), TLSVerify: b.boolean("tlsverify"),
 		CertPath: b.raw("DOCKER_CERT_PATH"), AllowInsecureTCP: b.boolean("allow-insecure-tcp"),
+		HostSet: b.explicit("host"),
 	}
 }
 

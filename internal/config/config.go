@@ -72,6 +72,7 @@ type Engine struct {
 	TLSVerify        bool
 	CertPath         string
 	AllowInsecureTCP bool
+	HostSet          bool
 }
 
 type Policy struct {

@@ -47,7 +47,7 @@ func (c *Container) endpoint(spec config.HostSpec) engine.Endpoint {
 }
 
 func (c *Container) hosts(ctx context.Context) ([]pipeline.Host, func() error, error) {
-	if len(c.cfg.Hosts) > 0 {
+	if len(c.cfg.Hosts) > 0 && c.cfg.Engine.HostSet {
 		c.logger.Warn("--hosts is set: DOCKER_HOST and --host are ignored")
 	}
 	specs := c.hostSpecs()
@@ -119,12 +119,15 @@ func checkReachable(connected []connectedHost) error {
 			failures = append(failures, fmt.Sprintf("%s: %v", host.spec.Endpoint, host.err))
 			continue
 		}
+		if host.engineID == "" {
+			continue
+		}
 		if other, seen := names[host.engineID]; seen {
 			return configurationError(fmt.Errorf("hosts %s and %s report the same engine ID %s: one engine must be managed under one name", other, host.spec.Name, host.engineID))
 		}
 		names[host.engineID] = host.spec.Name
 	}
-	if len(names) == 0 {
+	if len(failures) == len(connected) {
 		return unreachableError(fmt.Errorf("no managed host is reachable: %s", strings.Join(failures, "; ")))
 	}
 	return nil
