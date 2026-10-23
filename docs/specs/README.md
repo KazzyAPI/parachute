@@ -73,7 +73,7 @@ M1 reports and never changes containers. Until update execution exists:
 - Criteria written for an armed Parachute are tested unarmed where the observable is the same: CFG-007, SEL-008 and DET-004 expect `would_update` instead of `updated`; NTF-003 uses `failed` instead of `rolled_back`.
 - STS-002 is produced by `parachute status --json`; `GET /v1/status` arrives with the HTTP API.
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
-- The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-001, DET-003, DET-004, SCH-002, SCH-004, SCH-006, REG-001, REG-002, REG-006, DMN-003, DMN-004, DMN-007, STS-001, STS-002, CFG-007, CFG-009, CFG-011.
+- The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-004, DMN-003, STS-002.
 
 ## Index
 
