@@ -5,7 +5,7 @@
 How an update is applied. Every update is a **transaction** ([ADR-0004](../adr/0004-update-is-a-transaction.md)). One transaction covers one stack ([05-dependencies-and-stacks.md](05-dependencies-and-stacks.md), DEP-003). Nothing in this file happens while Parachute is unarmed (CFG-006).
 
 ### UPD-001 Phases and their order
-A transaction MUST run these phases in this order, and MUST log the start of each phase at `info` level with the phase name and transaction ID:
+A stack's update MUST run these phases in this order, and MUST log the start of each phase at `info` level with the phase name and, from `policy` on, the transaction ID. The `detect` phase runs before any transaction exists. A transaction, with its ID (UPD-002), MUST start only when the `policy` phase is reached with at least one detected update in the stack; a stack whose candidates are all `fresh`, or whose every result is decided before the `policy` phase, gets no transaction and no transaction ID, and its `last_transaction` keeps its previous value (STS-002).
 
 | Phase | Steps |
 |---|---|
@@ -16,12 +16,13 @@ A transaction MUST run these phases in this order, and MUST log the start of eac
 | `verify` | Health verification of every started replacement (VER-001); its deadline starts after the replacement's `post-update` hook (VER-006). |
 | `commit` or `rollback` | On success, commit (UPD-009). On failure, roll back (VER-008). |
 
-A self-update replaces the `update` and `verify` phases with one `handover` phase (UPD-018). The transaction's state follows the [transaction state machine](glossary.md#transaction-state-machine): each phase above is the open state of the same name, except that the `rollback` phase is state `rolling_back` and the `commit` phase line is logged when the transaction reaches the terminal state `committed`. A transaction that ends in the `detect`, `policy`, or `snapshot` phase (every update held, or a failure as in UPD-014) ends in state `aborted`.
+A self-update replaces the `update` and `verify` phases with one `handover` phase (UPD-018). The transaction's state follows the [transaction state machine](glossary.md#transaction-state-machine): each phase above is the open state of the same name, except that the `rollback` phase is state `rolling_back` and the `commit` phase line is logged when the transaction reaches the terminal state `committed`. The `detect` phase is not a transaction state. A transaction that ends in the `policy` or `snapshot` phase (every update held, or a failure as in UPD-014) ends in state `aborted`.
 
 The **affected containers** of a transaction are the containers whose image is updated plus their dependents (DEP-006).
 
-- **Given** an armed Parachute and one container with a newer image **When** the update succeeds **Then** the log contains, in order, phase lines `detect`, `policy`, `snapshot`, `update`, `verify`, `commit`, all with the same transaction ID.
+- **Given** an armed Parachute and one container with a newer image **When** the update succeeds **Then** the log contains, in order, phase lines `detect`, `policy`, `snapshot`, `update`, `verify`, `commit`, the `detect` line without a transaction ID and the others all with the same transaction ID.
 - **Given** an update whose verification fails **When** the cycle runs **Then** the phase lines end with `verify`, `rollback`.
+- **Given** a committed update of one container and then a cycle in which its image is unchanged **When** that cycle ends **Then** the cycle logged a `detect` line and no `policy` line for it, no log line of that cycle carries a new `txn` value, and `parachute status --json` still shows the committed transaction's ID in `last_transaction`.
 - **Given** an approved self-update that succeeds **When** the cycle runs **Then** the phase lines for its transaction are, in order, `detect`, `policy`, `snapshot`, `handover`, `commit`.
 
 ### UPD-002 Transaction ID
@@ -95,7 +96,7 @@ With `--rolling-restart` on, Parachute MUST update the affected containers of a 
 - **Given** `--rolling-restart`, armed, and three replicas of one Compose service with a newer image **When** the cycle runs **Then** in the Docker event stream, after each replica's `die` event the `start` event of its replacement comes before the next replica's `die` event.
 
 ### UPD-014 Failure before the update phase changes nothing
-A failure in the `detect`, `policy`, or `snapshot` phase MUST leave the stack's containers running (or in their original state) with their original IDs and images. Containers stopped for the snapshot MUST be started again. The transaction ends in state `aborted` and the result is `failed` with the failing step's code from the [`failed` table](reasons.md#failed), for example `pull_failed` (including a pulled image that does not carry the approved digest, UPD-020), `config_unreproducible`, `insufficient_space`, `pre_update_hook_failed`, `dump_failed`, `snapshot_failed`, `transaction_timeout`, or, after a restart, `interrupted`.
+A failure in the `detect`, `policy`, or `snapshot` phase MUST leave the stack's containers running (or in their original state) with their original IDs and images. Containers stopped for the snapshot MUST be started again. A failure in `detect` creates no transaction (UPD-001); otherwise the transaction ends in state `aborted`. The result is `failed` with the failing step's code from the [`failed` table](reasons.md#failed), for example `pull_failed` (including a pulled image that does not carry the approved digest, UPD-020), `config_unreproducible`, `insufficient_space`, `pre_update_hook_failed`, `dump_failed`, `snapshot_failed`, `transaction_timeout`, or, after a restart, `interrupted`.
 
 - **Given** a newer tag whose blobs are deleted from the registry so the pull fails **When** a cycle runs **Then** the container keeps its ID and image and the result is `failed` with reason `pull_failed`.
 - **Given** a snapshot that fails (the backup volume is read-only) **When** a cycle runs **Then** the container is running with its original ID and the result is `failed` with reason `snapshot_failed`.
@@ -109,7 +110,7 @@ A failed transaction MUST NOT prevent transactions of unrelated stacks in the sa
 ### UPD-016 Interrupted transactions are resolved at startup
 If Parachute stops (crash, kill, host reboot) while a transaction is in an open state, then at its next start, before running any cycle, it MUST end that transaction as the [transaction state machine](glossary.md#transaction-state-machine) prescribes, keep its transaction ID, and report the result:
 
-- `detect`, `policy`, `snapshot`: start again every container stopped for the snapshot; state `aborted`, result `failed`, reason `interrupted`.
+- `policy`, `snapshot`: start again every container stopped for the snapshot; state `aborted`, result `failed`, reason `interrupted`.
 - `update`, `verify`, `rolling_back`: roll back (VER-008); result `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason.
 - `handover`: UPD-018 step 6.
 

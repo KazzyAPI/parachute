@@ -19,16 +19,15 @@
 - **Service**: the containers of one Compose service in a stack; the unit of update (DEP-001).
 - **Snapshot**: the stored copy of a stack's container configuration and data taken before an update. ID `snap-...` (BKP-006).
 - **Stack**: the containers of one Compose project on one host, or a single non-Compose container; the unit of snapshot, verification, and rollback (DEP-001, DEP-002).
-- **Transaction**: one update of one stack, through the phases detect, policy, snapshot, update, verify, and commit or rollback. ID `txn-...` (UPD-001).
+- **Transaction**: one update of one stack, through the phases policy, snapshot, update, verify, and commit or rollback. It starts, and gets its ID `txn-...`, only when the `policy` phase is reached with at least one update detected in the stack; detection alone creates none (UPD-001).
 - **Verify**: the check that replacements become healthy before commit (VER-001).
 
 ## Transaction state machine
 
-A transaction's state is recorded in the state file (CFG-010) and shown by `parachute status` (STS-002, field `last_transaction.state`). Open states are the phase names of UPD-001; a transaction ends in exactly one terminal state.
+A transaction's state is recorded in the state file (CFG-010) and shown by `parachute status` (STS-002, field `last_transaction.state`). Open states are the phase names of UPD-001 from `policy` on (`detect` runs before a transaction exists); a transaction ends in exactly one terminal state.
 
 | State | Kind | Meaning |
 |---|---|---|
-| `detect` | open | DET checks for the stack. |
 | `policy` | open | Holds are evaluated (POL-001). |
 | `snapshot` | open | Pull, configuration check, free-space check, `pre-update` hooks, dumps, data copy. No replacement exists. |
 | `update` | open | Originals stopped and renamed, replacements created and started. |
@@ -43,8 +42,8 @@ A transaction's state is recorded in the state file (CFG-010) and shown by `para
 Allowed transitions (any other is a defect):
 
 ```
-detect -> policy -> snapshot -> update -> verify -> committed
-detect | policy | snapshot -> aborted
+policy -> snapshot -> update -> verify -> committed
+policy | snapshot -> aborted
 update | verify -> rolling_back -> rolled_back | rollback_failed
 snapshot -> handover                      (self-update; replaces update and verify)
 handover -> committed                     (replacement verified; old instance records commit, removes marker)
@@ -52,7 +51,7 @@ handover -> rolling_back                  (replacement failed verification, UPD-
 handover -> rollback_failed               (old instance stopped while the marker exists and the state is still handover, step 6; new instance records it)
 ```
 
-Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `detect`, `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, `rolling_back` go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover` follows UPD-018 step 6.
+Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, `rolling_back` go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover` follows UPD-018 step 6.
 
 A terminal state is never left. A new attempt is a new transaction with a new ID.
 

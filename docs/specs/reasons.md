@@ -64,7 +64,7 @@ Nothing was changed (UPD-014). The detail text names the failing step, field, la
 | `dump_failed` | The database dump failed. | BKP-004 | re-evaluated |
 | `snapshot_failed` | Copying data or writing the snapshot failed. | BKP-001, DMN-014 | re-evaluated |
 | `transaction_timeout` | The transaction ceiling was reached before the `update` phase. | UPD-019, HOK-005 | re-evaluated |
-| `interrupted` | Parachute stopped during `detect`, `policy`, or `snapshot`; containers stopped for the snapshot were started again at the next start. | UPD-016 | re-evaluated |
+| `interrupted` | Parachute stopped during `policy` or `snapshot`; containers stopped for the snapshot were started again at the next start. | UPD-016 | re-evaluated |
 
 ### rolled_back
 
