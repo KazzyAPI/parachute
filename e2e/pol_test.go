@@ -99,9 +99,10 @@ func TestPOL_003_database_label_false_overrides_recognition(t *testing.T) {
 
 func TestPOL_003_database_label_true_protects_any_image(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "fixture/app")
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.database": "true"}})
-	app.publishNewer()
+	registry := env.Registry()
+	ref := registry.Push("fixture/app", "1", "1")
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.database": "true"}})
+	registry.Push("fixture/app", "1", "2")
 	assertState(t, runOnce(env), a, "held", "approval_required")
 }
 
