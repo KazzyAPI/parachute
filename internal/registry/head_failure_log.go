@@ -22,5 +22,5 @@ func (h *HeadFailureLog) HeadFailed(ctx context.Context, ref Reference, err erro
 	if h.mode == "always" || h.mode == "auto" && h.loud[ref.Domain] {
 		level = slog.LevelWarn
 	}
-	h.logger.Log(ctx, level, "manifest HEAD request failed, falling back to GET", "registry", ref.Domain, "error", err.Error())
+	h.logger.Log(ctx, level, "manifest HEAD request failed", "registry", ref.Domain, "error", err.Error())
 }

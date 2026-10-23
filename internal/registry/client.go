@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ const (
 	ReasonUnauthorized = "registry_unauthorized"
 	ReasonNotFound     = "not_found"
 	maxManifestBytes   = 4 << 20
+	maxBodyBytes       = 1 << 20
 )
 
 type Error struct {
@@ -36,6 +38,7 @@ type Client struct {
 	userAgent string
 	accept    string
 	head      HeadFailureLogger
+	digest    *regexp.Regexp
 }
 
 func NewClient(httpClient *http.Client, auth *Authenticator, userAgent string, head HeadFailureLogger) *Client {
@@ -44,6 +47,7 @@ func NewClient(httpClient *http.Client, auth *Authenticator, userAgent string, h
 		auth:      auth,
 		userAgent: userAgent,
 		head:      head,
+		digest:    regexp.MustCompile(`^sha256:[0-9a-f]{64}$`),
 		accept: strings.Join([]string{
 			"application/vnd.oci.image.index.v1+json",
 			"application/vnd.oci.image.manifest.v1+json",
@@ -54,12 +58,24 @@ func NewClient(httpClient *http.Client, auth *Authenticator, userAgent string, h
 }
 
 func (c *Client) Digest(ctx context.Context, ref Reference, credential *Credential) (string, error) {
-	digest, err := c.request(ctx, http.MethodHead, ref, credential)
+	head, err := c.request(ctx, http.MethodHead, ref, credential)
+	if err == nil && c.digest.MatchString(head.digest) {
+		return head.digest, nil
+	}
 	if err == nil {
-		return digest, nil
+		err = &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("HEAD %s: missing or invalid Docker-Content-Digest header", ref.APIHost())}
+		c.head.HeadFailed(ctx, ref, err)
+		return "", err
 	}
 	c.head.HeadFailed(ctx, ref, err)
-	return c.request(ctx, http.MethodGet, ref, credential)
+	get, err := c.request(ctx, http.MethodGet, ref, credential)
+	if err != nil {
+		return "", err
+	}
+	if get.digest != "" && get.digest != get.body {
+		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("GET %s: Docker-Content-Digest header does not match the manifest", ref.APIHost())}
+	}
+	return get.body, nil
 }
 
 type reply struct {
@@ -67,26 +83,27 @@ type reply struct {
 	text      string
 	challenge string
 	digest    string
+	body      string
 }
 
-func (c *Client) request(ctx context.Context, method string, ref Reference, credential *Credential) (string, error) {
+func (c *Client) request(ctx context.Context, method string, ref Reference, credential *Credential) (reply, error) {
 	answer, err := c.exchange(ctx, method, ref, "")
 	if err != nil {
-		return "", err
+		return reply{}, err
 	}
 	if answer.status == http.StatusUnauthorized {
 		authorization, err := c.auth.Authorization(ctx, c.auth.Parse(answer.challenge), credential)
 		if err != nil {
-			return "", err
+			return reply{}, err
 		}
 		if authorization == "" {
-			return "", &Error{Reason: ReasonUnauthorized, Err: fmt.Errorf("%s %s: authentication required", method, ref.APIHost())}
+			return reply{}, &Error{Reason: ReasonUnauthorized, Err: fmt.Errorf("%s %s: authentication required", method, ref.APIHost())}
 		}
 		if answer, err = c.exchange(ctx, method, ref, authorization); err != nil {
-			return "", err
+			return reply{}, err
 		}
 	}
-	return c.interpret(method, ref, answer)
+	return answer, c.interpret(method, ref, answer)
 }
 
 func (c *Client) exchange(ctx context.Context, method string, ref Reference, authorization string) (answer reply, err error) {
@@ -109,6 +126,9 @@ func (c *Client) exchange(ctx context.Context, method string, ref Reference, aut
 		}
 	}()
 	answer = reply{status: response.StatusCode, text: response.Status, challenge: response.Header.Get("WWW-Authenticate"), digest: response.Header.Get("Docker-Content-Digest")}
+	if method != http.MethodGet || answer.status != http.StatusOK {
+		return answer, nil
+	}
 	hash := sha256.New()
 	size, err := io.Copy(hash, io.LimitReader(response.Body, maxManifestBytes+1))
 	if err != nil {
@@ -117,23 +137,19 @@ func (c *Client) exchange(ctx context.Context, method string, ref Reference, aut
 	if size > maxManifestBytes {
 		return reply{}, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: manifest larger than %d bytes", method, ref.APIHost(), maxManifestBytes)}
 	}
-	if answer.digest == "" && method == http.MethodGet && answer.status == http.StatusOK {
-		answer.digest = "sha256:" + hex.EncodeToString(hash.Sum(nil))
-	}
+	answer.body = "sha256:" + hex.EncodeToString(hash.Sum(nil))
 	return answer, nil
 }
 
-func (c *Client) interpret(method string, ref Reference, answer reply) (string, error) {
+func (c *Client) interpret(method string, ref Reference, answer reply) error {
 	status := fmt.Errorf("%s %s: %s", method, ref.APIHost(), answer.text)
 	switch {
 	case answer.status == http.StatusUnauthorized || answer.status == http.StatusForbidden:
-		return "", &Error{Reason: ReasonUnauthorized, Err: status}
+		return &Error{Reason: ReasonUnauthorized, Err: status}
 	case answer.status == http.StatusNotFound:
-		return "", &Error{Reason: ReasonNotFound, Err: status}
+		return &Error{Reason: ReasonNotFound, Err: status}
 	case answer.status != http.StatusOK:
-		return "", &Error{Reason: ReasonUnreachable, Err: status}
-	case answer.digest == "":
-		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: no digest header", method, ref.APIHost())}
+		return &Error{Reason: ReasonUnreachable, Err: status}
 	}
-	return answer.digest, nil
+	return nil
 }
