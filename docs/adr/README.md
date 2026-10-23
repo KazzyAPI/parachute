@@ -12,7 +12,7 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0001](0001-spec-driven-development.md) | Spec-driven development | Accepted (partly superseded by ADR-0015) |
 | [0002](0002-language-and-docker-client.md) | Go, using the official Docker client | Accepted (partly superseded by ADR-0015) |
 | [0003](0003-black-box-tests-from-specs.md) | Black-box tests derived from specs | Accepted (partly superseded by ADR-0015) |
-| [0004](0004-update-is-a-transaction.md) | An update is a transaction | Accepted |
+| [0004](0004-update-is-a-transaction.md) | An update is a transaction | Accepted (amended 2026-10-23, see Amendment) |
 | [0005](0005-label-and-configuration-namespace.md) | Label and configuration namespace | Accepted |
 | [0006](0006-compose-is-the-unit-of-update.md) | The Compose stack is the unit of update | Accepted |
 | [0007](0007-safe-by-default.md) | Safe by default | Accepted |
