@@ -8,7 +8,7 @@ Every candidate ends every cycle in exactly one result state (CFG-007), so every
 
 - **re-evaluated**: the next cycle checks the candidate again from scratch.
 - **held for digest**: the next cycle holds the same candidate digest (POL-010); a new digest or an approval (API-007) clears it.
-- **frozen**: no new transaction starts for the stack until an operator acknowledges it ([glossary: Transaction state machine](glossary.md#transaction-state-machine), `rollback_failed`).
+- **frozen**: no new transaction starts for the stack (for a self-update, the own container) until an operator releases it with `POST /v1/approve` (API-007; [glossary: Transaction state machine](glossary.md#transaction-state-machine), `rollback_failed`).
 
 ## Result states
 
@@ -114,7 +114,7 @@ Restore verification (RST) has its own results, `pass` (reason `null`) and `fail
 4. **Host unreachable in CFG-007.** CFG-007 lists "host unreachable" under `failed`. M1 reports it per host with no per-candidate entries; that is the chosen behaviour. CFG-007 now says so.
 5. **`rollback_failed` reasons.** VER-010 and UPD-018 step 5 name no reason code; `restore_failed` is added for both. UPD-018 step 6 keeps `interrupted`.
 6. **`interrupted` before the `update` phase.** UPD-016 only covers rollback. An interruption before any replacement exists is reported `failed`/`interrupted`, since nothing changed.
-7. **Retry after `rollback_failed`.** POL-010 lifts the hold when a new candidate digest appears; VER-010 forbids automatic retry. Chosen: after `rollback_failed` the stack is frozen until operator acknowledgement (glossary). POL-010 now says so. Closed.
+7. **Retry after `rollback_failed`.** POL-010 lifts the hold when a new candidate digest appears; VER-010 forbids automatic retry. Chosen: after `rollback_failed` the stack is frozen until an operator releases it with `POST /v1/approve` (glossary, API-007). POL-010 now says so. Closed.
 8. **Self-update and `convenient`.** CFG-011's `convenient` profile removes approval holds; it does not remove the self-update hold (`approval_required`, UPD-018). CFG-011 and UPD-018 now say so.
 9. **Restore-verification reasons.** RST names only `snapshot_invalid`; `verify_failed`, `verify_timeout`, and `restore_failed` are reused for the other failures.
 10. **Replacement image ID differs from the checked one.** UPD-020 required the replacement's image ID to equal the pulled image's ID and called a difference a configuration mismatch (UPD-007, `rolled_back`/`config_unreproducible`). Chosen ([Q16](open-questions.md#q16-rollback-reason-when-the-replacements-image-id-differs-from-the-checked-one)): a separate `rolled_back` reason `image_mismatch`, because it points at the image, not the container's configuration. UPD-020 now says so. Closed.
