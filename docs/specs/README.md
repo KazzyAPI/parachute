@@ -75,6 +75,14 @@ M1 reports and never changes containers. Until update execution exists:
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-004, DMN-003, STS-002.
 
+### M2 deviations
+
+- Criteria written for an armed Parachute are tested unarmed: where a criterion expects `updated`, the test asserts `would_update`.
+- API-005 is tested with a registry that delays its responses instead of a pre-check hook.
+- POL-001's hooks criterion is tested in the hooks milestone.
+- DET-008's pull-by-digest criterion is tested in the armed milestone.
+- The freeze-release half of API-007 and POL-011 is tested in the armed milestone.
+
 ## Index
 
 1. [Container selection](01-selection.md)
