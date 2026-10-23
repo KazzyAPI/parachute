@@ -29,6 +29,7 @@ type RetryPolicy struct {
 	MaxDelay       time.Duration
 	Window         time.Duration
 	AttemptTimeout time.Duration
+	ProbeTimeout   time.Duration
 }
 
 type Retrying struct {
@@ -69,13 +70,13 @@ func (r *Retrying) MarkUnreachable() { r.down.Store(true) }
 func (r *Retrying) Reachable() bool { return !r.down.Load() }
 
 func (r *Retrying) do(ctx context.Context, operation string, call func(context.Context) error) error {
-	deadline := r.clock.Now()
-	if !r.down.Load() {
-		deadline = deadline.Add(r.policy.Window)
+	deadline, timeout := r.clock.Now().Add(r.policy.Window), r.policy.AttemptTimeout
+	if r.down.Load() {
+		deadline, timeout = r.clock.Now(), r.policy.ProbeTimeout
 	}
 	delay := r.policy.FirstDelay
 	for {
-		attempt, cancel := context.WithTimeout(ctx, r.policy.AttemptTimeout)
+		attempt, cancel := context.WithTimeout(ctx, timeout)
 		err := call(attempt)
 		cancel()
 		if err == nil || !r.retryable(ctx, err) {

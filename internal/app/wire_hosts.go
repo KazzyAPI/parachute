@@ -134,7 +134,7 @@ func (c *Container) pipelineHosts(connected []connectedHost) []pipeline.Host {
 	hosts := make([]pipeline.Host, 0, len(connected))
 	for _, host := range connected {
 		source := engine.NewRetrying(host.docker, c.deps.Clock, engine.RetryPolicy{
-			FirstDelay: time.Second, MaxDelay: 30 * time.Second, Window: 5 * time.Minute, AttemptTimeout: time.Minute,
+			FirstDelay: time.Second, MaxDelay: 30 * time.Second, Window: 5 * time.Minute, AttemptTimeout: time.Minute, ProbeTimeout: startupTimeout,
 		}, c.logger.With("host", host.spec.Name))
 		if host.err != nil {
 			source.MarkUnreachable()

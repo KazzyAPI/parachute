@@ -36,7 +36,7 @@ func (c *fakeClock) Sleep(_ context.Context, duration time.Duration) error {
 }
 
 func newTestRetrying(source Source) *Retrying {
-	policy := RetryPolicy{FirstDelay: time.Second, MaxDelay: 30 * time.Second, Window: 5 * time.Minute, AttemptTimeout: time.Second}
+	policy := RetryPolicy{FirstDelay: time.Second, MaxDelay: 30 * time.Second, Window: 5 * time.Minute, AttemptTimeout: time.Second, ProbeTimeout: time.Second}
 	return NewRetrying(source, &fakeClock{now: time.Unix(0, 0)}, policy, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
