@@ -27,7 +27,7 @@ A read-only view of every managed stack, built only from the engines and the sta
       "last_backup": {"snapshot": "snap-...", "time": "...", "valid": true},
       "last_restore_verification": {"time": "...", "result": "pass", "snapshot": "snap-..."},
       "last_good_restore_age_seconds": 86400,
-      "frozen": null,
+      "frozen": [],
       "services": [{
         "name": "web", "container": "shop-web-1",
         "image": "localhost:5000/fixture/app:1", "image_id": "sha256:...",
@@ -45,13 +45,13 @@ Fields with no value MUST be `null`, never omitted. `update_available`, `candida
 
 - `armed` is the armed state that the process producing the document computes from its own sources at its start, by the rules of CFG-006 (flags, environment, the `parachute.armed` label on its own container, the profile). For `GET /v1/status` that is the running daemon; for `parachute status` it is the `status` process itself, so `docker exec <parachute> parachute status` shows the daemon's setting. It is never read from the state file (STS-006).
 - `last_transaction.state` is the transaction's state from the [transaction state machine](glossary.md#transaction-state-machine). While the transaction is open it is an open state (for example `verify`) and `result` and `reason` are `null`; once it is terminal, `result` is its result state and `reason` its reason code from [reasons.md](reasons.md). A cycle in which the service's stack gets no transaction (UPD-001: no update detected, or every update held or failed in the `policy` phase or earlier) leaves `last_transaction` unchanged, as in the example above, where a `delay` hold follows a committed transaction; it is `null` until the first transaction.
-- `frozen` is `null`, or, for a stack frozen after `rollback_failed` ([glossary](glossary.md#transaction-state-machine)), `{"transaction": "txn-...", "snapshot": "snap-...", "containers": ["..."]}` naming the frozen transaction ID, its snapshot, and the frozen containers: every container of the stack, or, for a self-update, only Parachute's own container (UPD-018).
+- `frozen` is a list with one entry per freeze of the stack after `rollback_failed` ([glossary](glossary.md#transaction-state-machine)), and `[]` when the stack is not frozen. Each entry is `{"transaction": "txn-...", "snapshot": "snap-...", "containers": ["..."]}`, naming the `rollback_failed` transaction ID, its snapshot, and the containers it froze: every container of the stack, or, for a self-update, only Parachute's own container (UPD-018). A second `rollback_failed` in the same stack adds an entry; a release (API-007) ends every entry whose `containers` contains the released container.
 
 - **Given** a stack with one held service and one fresh service **When** `GET /v1/status` is called with the token **Then** the body validates against the shape above, the held service has a non-null `hold`, and the fresh one has `"hold": null` and `"update_available": false`.
 - **Given** an unarmed daemon with `--http-api-status` **When** `GET /v1/status` is called **Then** `"armed": false`; and with `PARACHUTE_ARMED=true` set only for the `parachute status --json` process, that process prints `"armed": true`.
 - **Given** a stack whose last update rolled back with reason `verify_failed` **When** `parachute status --json` runs **Then** that service's `last_transaction` has `"state": "rolled_back"`, `"result": "rolled_back"`, and `"reason": "verify_failed"`.
 - **Given** an update in its `verify` phase (a replacement whose health check takes 60 s) **When** `GET /v1/status` is called during it **Then** `last_transaction.state` is `verify` and `result` is `null`.
-- **Given** a stack whose last update ended `rollback_failed` **When** `parachute status --json` runs **Then** the stack's `frozen` names that transaction, its snapshot, and every container of the stack.
+- **Given** a stack whose last update ended `rollback_failed` **When** `parachute status --json` runs **Then** the stack's `frozen` has one entry naming that transaction, its snapshot, and every container of the stack.
 
 ### STS-003 HTML page
 `GET /status` MUST return an HTML page showing the same information as STS-002, one row per service grouped by host and stack, with no external resources (scripts, styles, fonts), and readable without JavaScript.
