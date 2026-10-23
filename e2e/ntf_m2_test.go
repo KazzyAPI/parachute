@@ -133,8 +133,9 @@ func TestNTF_011_new_reason_is_reported_again(t *testing.T) {
 	app.publishNewer()
 	startDaemon(env, env.Parachute("--interval", "5", "--delay-days", "2", "--no-startup-message", "--notification-url", webhook.URL()))
 	env.Eventually(time.Minute, "delay hold report", func() bool { return len(webhook.Matching(a)) == 1 })
+	_, oldImage := env.ContainerState(a)
 	env.Docker("rm", "-f", a)
-	env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.monitor-only": "true"}})
+	env.RunContainer("a", env.Tag(oldImage, app.ref), harness.ContainerOptions{Labels: map[string]string{"parachute.monitor-only": "true"}})
 	env.Eventually(time.Minute, "monitor-only hold report", func() bool { return len(webhook.Matching("held (monitor_only)")) == 1 })
 }
 
