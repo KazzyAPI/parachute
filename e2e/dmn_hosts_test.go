@@ -17,12 +17,15 @@ func TestDMN_005_engine_error_fails_only_that_candidate(t *testing.T) {
 	inspectA := "/images/" + imageA + "/json"
 	proxy := env.HTTPEngineProxy()
 	proxy.Fail(inspectA)
-	result := env.Parachute("--run-once", "--porcelain", "v1", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
+	webhook := env.Webhook()
+	result := env.Parachute("--run-once", "--porcelain", "v1", "--allow-insecure-tcp", "--notifications-level", "debug",
+		"--notification-url", webhook.URL()).Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
 	assertExit(t, result, 1)
 	assertState(t, result, a, "failed", "engine_error")
 	assertState(t, result, b, "fresh", "")
-	if unreachable := findLogs(result.Logs(), func(entry harness.Log) bool { return entry.Msg() == "host unreachable" }); len(unreachable) > 0 {
-		t.Errorf("host reported unreachable: %v", unreachable[0].Raw)
+	env.Eventually(30*time.Second, "cycle report", func() bool { return len(webhook.Reports()) > 0 })
+	if report := webhook.Reports()[0].Message; !strings.HasPrefix(strings.TrimSpace(report), "local\n") {
+		t.Errorf("report does not list host local as reachable:\n%s", report)
 	}
 	inspections := 0
 	for _, request := range proxy.Requests() {
@@ -92,5 +95,26 @@ func TestDMN_009_unreachable_host_does_not_stop_others(t *testing.T) {
 			}
 		}
 		return false
+	})
+}
+
+func TestDMN_005_host_down_at_startup_is_used_again(t *testing.T) {
+	env := harness.NewEnv(t)
+	proxy := env.EngineProxy()
+	proxy.Pause()
+	c := env.RunContainer("c", fixture(env), harness.ContainerOptions{})
+	process := startDaemon(env, env.Parachute("--allow-insecure-tcp", "--porcelain", "v1", "--interval", "15").
+		Setenv("PARACHUTE_HOSTS", "a="+env.DockerHost()+",b="+proxy.Endpoint()))
+	process.WaitForLog(60*time.Second, "first cycle", func(entry harness.Log) bool { return entry.Msg() == "cycle finished" })
+	if entries := hostEntries(process, "b", c); len(entries) > 0 {
+		t.Fatalf("host b reported while down: %v", entries[0].Raw)
+	}
+	proxy.Resume()
+	env.Eventually(60*time.Second, "an entry for "+c+" on host b", func() bool { return len(hostEntries(process, "b", c)) > 0 })
+}
+
+func hostEntries(process *harness.Process, host, container string) []harness.Log {
+	return findLogs(process.Stdout(), func(entry harness.Log) bool {
+		return entry.Get("type") == "entry" && entry.Get("host") == host && entry.Get("container") == container
 	})
 }

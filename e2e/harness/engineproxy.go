@@ -19,10 +19,11 @@ import (
 )
 
 type EngineProxy struct {
-	listener net.Listener
-	paused   atomic.Bool
+	env      *Env
+	address  string
 	accepted atomic.Int64
 	lock     sync.Mutex
+	listener net.Listener
 	conns    map[net.Conn]bool
 }
 
@@ -32,42 +33,48 @@ func (e *Env) EngineProxy() *EngineProxy {
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	proxy := &EngineProxy{listener: listener, conns: map[net.Conn]bool{}}
-	go proxy.accept()
-	e.T.Cleanup(func() {
-		_ = listener.Close()
-		proxy.Pause()
-	})
+	proxy := &EngineProxy{env: e, address: listener.Addr().String(), listener: listener, conns: map[net.Conn]bool{}}
+	go proxy.accept(listener)
+	e.T.Cleanup(proxy.Pause)
 	return proxy
 }
 
-func (p *EngineProxy) Endpoint() string { return "tcp://" + p.listener.Addr().String() }
+func (p *EngineProxy) Endpoint() string { return "tcp://" + p.address }
 
 func (p *EngineProxy) Connections() int64 { return p.accepted.Load() }
 
-func (p *EngineProxy) Resume() { p.paused.Store(false) }
+func (p *EngineProxy) Resume() {
+	p.env.T.Helper()
+	listener, err := net.Listen("tcp", p.address)
+	if err != nil {
+		p.env.T.Fatal(err)
+	}
+	p.lock.Lock()
+	p.listener = listener
+	p.lock.Unlock()
+	go p.accept(listener)
+}
 
 func (p *EngineProxy) Pause() {
-	p.paused.Store(true)
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	if p.listener != nil {
+		_ = p.listener.Close()
+		p.listener = nil
+	}
 	for conn := range p.conns {
 		_ = conn.Close()
 	}
 	p.conns = map[net.Conn]bool{}
 }
 
-func (p *EngineProxy) accept() {
+func (p *EngineProxy) accept(listener net.Listener) {
 	for {
-		inbound, err := p.listener.Accept()
+		inbound, err := listener.Accept()
 		if err != nil {
 			return
 		}
 		p.accepted.Add(1)
-		if p.paused.Load() {
-			_ = inbound.Close()
-			continue
-		}
 		outbound, err := net.Dial("unix", strings.TrimPrefix(suite.dockerHost, "unix://"))
 		if err != nil {
 			_ = inbound.Close()
