@@ -34,11 +34,12 @@ If no managed host is reachable at startup, Parachute MUST exit with code 4 and 
 - **Given** `DOCKER_HOST=tcp://127.0.0.1:1` and `--allow-insecure-tcp` **When** Parachute starts **Then** it exits with code 4 and the message contains `tcp://127.0.0.1:1`.
 
 ### DMN-005 Connection loss while running
-If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker request with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable (`reachable: false`); an unreachable host contributes no result entries for that cycle ([reasons.md](reasons.md#not-reason-codes)). An open transaction on that host is rolled back as in UPD-016 when the host is reachable again. A Docker request for one candidate that fails while the host stays reachable (the engine answers, with an error) MUST end that candidate `failed` with reason `engine_error` and MUST NOT affect other candidates.
+If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It MUST retry each failed Docker read request (inspect, list, system information, events, image lookup) with exponential backoff (1 s, 2 s, 4 s, ... capped at 30 s) for up to 5 minutes, then give up on that host for the rest of the cycle and report it as unreachable (`reachable: false`); an unreachable host contributes no result entries for that cycle ([reasons.md](reasons.md#not-reason-codes)). Write requests (create, rename, remove, start, stop) MUST NOT be retried, whether the host became unreachable or answered with an error: a failed write fails its step, and the transaction ends as for any failed step, aborted before the `update` phase (UPD-014) or rolled back from it on (VER-008). An open transaction on a host that became unreachable is rolled back as in UPD-016 when the host is reachable again. A Docker request for one candidate that fails while the host stays reachable (the engine answers, with an error) MUST end that candidate `failed` with reason `engine_error` and MUST NOT affect other candidates.
 
 - **Given** a running Parachute and the daemon stopped for 20 seconds during an idle period **When** the daemon returns and a cycle runs **Then** the Parachute process is still running and the cycle completes.
 - **Given** a daemon paused for 6 minutes during a cycle **When** the cycle ends **Then** the report lists that host as unreachable and Parachute is still running.
 - **Given** an engine proxy in front of a reachable daemon that answers `500` to every image inspect request for container `a`'s image, and containers `a` and `b` **When** a cycle runs **Then** `a` is `failed` with reason `engine_error`, `b` gets its normal result, and the host is reported reachable.
+- **Given** backup mode `stop`, container `a` with a newer image, and an engine proxy that closes the connection without forwarding the first stop request for `a` **When** a cycle runs **Then** the proxy log shows exactly one stop request for `a` in that cycle, `a` is running with its original ID, and the result is `failed` with reason `engine_error`.
 
 ### DMN-006 Health check command
 `parachute healthcheck` MUST exit 0 when a Parachute daemon process is running in the same container and has completed its startup checks, and 1 otherwise. The official image MUST declare it as its Docker `HEALTHCHECK`.
@@ -49,10 +50,11 @@ If a host becomes unreachable while Parachute runs, Parachute MUST NOT exit. It 
 ## Multiple hosts
 
 ### DMN-007 Host list
-`--hosts` (or `PARACHUTE_HOSTS`, a list per CFG-003) MUST define the managed hosts as `name=endpoint` entries. Names MUST match `[a-z0-9][a-z0-9-]{0,31}` and be unique; violations are a startup error (exit code 2). When `--hosts` is set, `DOCKER_HOST` and `--host` are ignored and a `warn` line says so. Each host is reached directly over its Engine API (Parachute pulls state from it; no agent is installed on hosts).
+`--hosts` (or `PARACHUTE_HOSTS`, a list per CFG-003) MUST define the managed hosts as `name=endpoint` entries. Names MUST match `[a-z0-9][a-z0-9-]{0,31}` and be unique; violations are a startup error (exit code 2). Two reachable hosts whose engines report the same engine ID (`ID` in the engine's system information) are one engine under two names, and MUST be a startup error (exit code 2) whose message names both hosts. When `--hosts` is set, `DOCKER_HOST` and `--host` are ignored and a `warn` line says so. Each host is reached directly over its Engine API (Parachute pulls state from it; no agent is installed on hosts).
 
 - **Given** `PARACHUTE_HOSTS="a=unix:///var/run/docker.sock,b=tcp://10.0.0.5:2376"` and `--allow-insecure-tcp` **When** Parachute starts **Then** the startup message lists hosts `a` and `b`.
 - **Given** two entries both named `a` **When** Parachute starts **Then** it exits with code 2.
+- **Given** `PARACHUTE_HOSTS="a=unix:///var/run/docker.sock,b=unix:///var/run/docker.sock"` **When** Parachute starts **Then** it exits with code 2 and the message names `a` and `b`.
 
 ### DMN-008 Per-host TLS
 For a `tcp://` host named `<name>`, when the directory `DOCKER_CERT_PATH/<name>/` exists, Parachute MUST use the certificates in it instead of those in `DOCKER_CERT_PATH`. TLS verification (DMN-003) applies to every `tcp://` host when enabled.
@@ -67,7 +69,7 @@ A host that is unreachable, or whose transactions fail, MUST NOT stop or delay p
 ### DMN-010 Per-host results
 Every report entry, porcelain line, status entry, and metric MUST name its host. Stacks, scopes, snapshots (BKP-005), and dependencies are per host; containers on different hosts are never in one stack or one transaction.
 
-- **Given** stack `shop` on hosts `a` and `b`, both with updates **When** a cycle runs **Then** the report has two `shop` entries, one under each host, with different transaction IDs.
+- **Given** hosts `a` and `b` on two distinct engines, and stack `shop` on each, both with updates **When** a cycle runs **Then** the report has two `shop` entries, one under each host, with different transaction IDs.
 
 ## Milestone 2: Podman
 
