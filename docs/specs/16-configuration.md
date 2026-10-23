@@ -40,7 +40,7 @@ An unknown flag, an unknown `PARACHUTE_*` environment variable, or a removed set
 - **Given** a container labelled `parachute.enabel=false` **When** a cycle runs **Then** one `warn` line names the container and `parachute.enabel`, and the container is still a candidate.
 
 ### CFG-006 Armed mode
-Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is set, its own container carries the label `parachute.armed=true`, or the `convenient` profile is active (CFG-011). Arming is read at every start from these sources only; it is never remembered and never read from the state file, so a copied or restored `state.json` cannot arm an instance. While unarmed, Parachute MUST run cycles, detection, and policies, report every update it would apply as `would_update` (NTF-010), and MUST NOT pull images, stop, create, rename, or remove containers, create helpers or snapshots, run `pre-update` or `post-update` hooks, or run restore verification. The startup message and status view MUST show the armed state.
+Parachute MUST start **unarmed** unless `--armed` (or `PARACHUTE_ARMED=true`) is set, its own container carries the label `parachute.armed=true`, or the `convenient` profile is active (CFG-011). Arming is read at every start from these sources only; it is never remembered and never read from the state file, so a copied or restored `state.json` cannot arm an instance. While unarmed, Parachute MUST run cycles, detection, and policies, report every update it would apply as `would_update` (NTF-010), and MUST NOT pull images, stop, create, rename, or remove containers, create helpers or snapshots, run `pre-update` or `post-update` hooks, or run scheduled restore verification (RST-001). The `parachute restore-verify` command changes no managed container, so it needs no arming: run by hand (including with `docker exec` inside an unarmed Parachute container), it creates its throwaway resources and pulls their images (RST-002) whether or not Parachute is armed. The startup message and status view MUST show the armed state.
 
 - **Given** a fresh install, unarmed, and a container with a newer image **When** a cycle runs **Then** the webhook receives a report listing it as `would_update`, and the container's ID and image, the local image list, and the volume list are unchanged.
 - **Given** the same with `PARACHUTE_ARMED=true` **When** a cycle runs **Then** the container is updated.
@@ -188,7 +188,7 @@ Log lines at every level except `trace`, startup and error messages (including t
 | `--allow-insecure-tcp` | `false` | DMN-003 |
 | `DOCKER_CERT_PATH` | `/etc/ssl/docker` | DMN-003 |
 | `--hosts` | unset | DMN-007 |
-| `--restore-verify-schedule` | unset (off) | RST-001 |
+| `--restore-verify-schedule` | unset (off); runs only when armed | RST-001 |
 | `--armed` | `false` (`true` under `convenient`) | CFG-006 |
 | `--profile` | `safe` | CFG-011 |
 | `--porcelain` | unset | CFG-007 |
