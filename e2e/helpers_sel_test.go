@@ -52,7 +52,7 @@ func assertNoEntry(t *testing.T, result *harness.Result, container string) {
 	}
 }
 
-func assertEntry(t *testing.T, result *harness.Result, container string) {
+func assertHasEntry(t *testing.T, result *harness.Result, container string) {
 	t.Helper()
 	if result.Entry(container) == nil {
 		t.Errorf("no report entry for %s:\n%s", container, result.Stdout)

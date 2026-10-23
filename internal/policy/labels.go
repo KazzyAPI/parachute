@@ -14,14 +14,18 @@ import (
 
 const labelPrefix = "parachute."
 
+type LabelValuer interface {
+	Value(c domain.Container, name string) (string, bool)
+}
+
 type Labels struct {
+	labels   LabelValuer
 	syntax   *config.Syntax
 	location *time.Location
 	settings map[string]config.Setting
-	cautious map[string]string
 }
 
-func NewLabels(syntax *config.Syntax, location *time.Location) *Labels {
+func NewLabels(labels LabelValuer, syntax *config.Syntax, location *time.Location) *Labels {
 	enum := func(choices ...string) config.Setting {
 		return config.Setting{Kind: config.KindEnum, Default: choices[0], Choices: choices}
 	}
@@ -38,13 +42,13 @@ func NewLabels(syntax *config.Syntax, location *time.Location) *Labels {
 		setting.Name = labelPrefix + name
 		settings[name] = setting
 	}
-	return &Labels{syntax: syntax, location: location, settings: settings, cautious: map[string]string{"approval": "required"}}
+	return &Labels{labels: labels, syntax: syntax, location: location, settings: settings}
 }
 
 func (l *Labels) Overrides(c domain.Container) (Overrides, error) {
 	overrides := Overrides{values: map[string]config.Value{}}
 	for _, name := range slices.Sorted(maps.Keys(l.settings)) {
-		raw, ok := l.value(c, name)
+		raw, ok := l.labels.Value(c, name)
 		if !ok {
 			continue
 		}
@@ -60,15 +64,6 @@ func (l *Labels) Overrides(c domain.Container) (Overrides, error) {
 		overrides.values[name] = value
 	}
 	return overrides, nil
-}
-
-func (l *Labels) value(c domain.Container, name string) (string, bool) {
-	key := labelPrefix + name
-	value, ok := c.Labels[key]
-	if image, baked := c.ImageLabels[key]; ok && baked && image == value && l.cautious[name] != value {
-		return "", false
-	}
-	return value, ok
 }
 
 type Overrides struct {

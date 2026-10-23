@@ -24,7 +24,7 @@ func TestSEL_012_image_helper_label_does_not_exclude(t *testing.T) {
 	app, publishNewer := labelledUpdatable(env, map[string]string{"parachute.helper": "true"})
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	publishNewer()
-	assertEntry(t, runOnce(env), a)
+	assertHasEntry(t, runOnce(env), a)
 }
 
 func TestSEL_012_other_instance_with_same_scope_is_excluded(t *testing.T) {
@@ -33,7 +33,7 @@ func TestSEL_012_other_instance_with_same_scope_is_excluded(t *testing.T) {
 	other := env.Name("other")
 	env.Docker("run", "-d", "--name", other, "--label", "parachute-e2e="+env.ID, "--label", "parachute.scope="+env.Scope(), "--entrypoint", "sleep", ref, "infinity")
 	result, own := runOwnContainer(env, ref, nil, scoped(env), newerOfficial(env, ref))
-	assertEntry(t, result, own)
+	assertHasEntry(t, result, own)
 	assertNoEntry(t, result, other)
 }
 

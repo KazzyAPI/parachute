@@ -67,7 +67,7 @@ func TestSEL_003_opt_out_label(t *testing.T) {
 	b := env.RunContainer("b", registry.Push("app", "1", "1"), harness.ContainerOptions{})
 	id, _ := env.ContainerState(a)
 	result := runOnce(env)
-	assertEntry(t, result, b)
+	assertHasEntry(t, result, b)
 	assertNoEntry(t, result, a)
 	for _, request := range registry.ParachuteRequests() {
 		if strings.Contains(request.URI, "/opted-out/manifests/") {

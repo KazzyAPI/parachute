@@ -16,7 +16,7 @@ func (c *Container) policyStage(store *state.Store) (pipeline.Stage, error) {
 	}
 	databases := policy.NewDatabases()
 	evaluator := policy.NewEvaluator(
-		policy.NewLabels(config.NewSyntax(), location),
+		policy.NewLabels(c.labels, config.NewSyntax(), location),
 		policy.NewApprovals(store, c.logger),
 		policy.NewRelaxations(databases, c.logger),
 		policy.NewMonitorRule(c.labels, c.cfg.Selection.MonitorOnly, c.cfg.Selection.LabelTakePrecedence),
