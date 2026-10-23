@@ -50,6 +50,7 @@ func NewWriter(out io.Writer) *Writer {
 
 func (w *Writer) Publish(_ context.Context, report domain.Report) error {
 	encoder := json.NewEncoder(w.out)
+	encoder.SetEscapeHTML(false)
 	for _, result := range report.Results() {
 		line := entry{
 			V: 1, Type: "entry", Cycle: report.CycleID, Host: result.Host, State: string(result.State),

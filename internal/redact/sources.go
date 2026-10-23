@@ -1,7 +1,6 @@
 package redact
 
 import (
-	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -20,48 +19,48 @@ func URLSecrets(addresses []string) Source {
 		rawQuery, _, _ = strings.Cut(rawQuery, "#")
 		authority, path, _ := strings.Cut(location, "/")
 		if at := strings.LastIndex(authority, "@"); at >= 0 {
-			userinfo := authority[:at]
-			_, password, _ := strings.Cut(userinfo, ":")
-			secrets = append(secrets, userinfo, password)
-			location = location[at+1:]
+			secrets = append(secrets, withDecoded(authority[:at])...)
+			_, password, _ := strings.Cut(authority[:at], ":")
+			secrets = append(secrets, withDecoded(password)...)
+			authority, location = authority[at+1:], location[at+1:]
+		}
+		if !strings.ContainsAny(authority, ".:") {
+			secrets = append(secrets, authority)
 		}
 		if path != "" {
 			secrets = append(secrets, location)
+			secrets = append(secrets, strings.Split(path, "/")...)
 		}
-		query, _ := url.ParseQuery(rawQuery)
-		for _, values := range query {
-			secrets = append(secrets, secretValues(values)...)
-		}
+		secrets = append(secrets, querySecrets(rawQuery)...)
 	}
 	return static(secrets)
 }
 
-func secretValues(values []string) []string {
+func querySecrets(rawQuery string) []string {
 	var secrets []string
-	for _, value := range values {
-		if _, err := strconv.ParseBool(value); err == nil {
-			continue
+	for pair := range strings.SplitSeq(rawQuery, "&") {
+		key, value, _ := strings.Cut(pair, "=")
+		if !publicQueryValue(key, value) {
+			secrets = append(secrets, withDecoded(value)...)
 		}
-		if _, err := strconv.ParseFloat(value, 64); err == nil {
-			continue
-		}
-		secrets = append(secrets, value)
 	}
 	return secrets
 }
 
-type Writer struct {
-	out      io.Writer
-	redactor *Redactor
-}
-
-func NewWriter(out io.Writer, redactor *Redactor) *Writer {
-	return &Writer{out: out, redactor: redactor}
-}
-
-func (w *Writer) Write(data []byte) (int, error) {
-	if _, err := io.WriteString(w.out, w.redactor.Redact(string(data))); err != nil {
-		return 0, err
+func publicQueryValue(key, value string) bool {
+	switch strings.ToLower(key) {
+	case "title", "username", "color", "priority", "avatar", "contenttype", "template", "disabletls", "port":
+		return true
 	}
-	return len(data), nil
+	if _, err := strconv.ParseBool(value); err == nil {
+		return true
+	}
+	return len(value) <= 6 && strings.Trim(value, "0123456789") == ""
+}
+
+func withDecoded(raw string) []string {
+	if decoded, err := url.QueryUnescape(raw); err == nil && decoded != raw {
+		return []string{raw, decoded}
+	}
+	return []string{raw}
 }
