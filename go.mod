@@ -8,6 +8,7 @@ require (
 	github.com/moby/moby/client v0.6.2
 	github.com/nicholas-fedor/shoutrrr v0.22.1
 	github.com/robfig/cron/v3 v3.0.1
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
 require (

@@ -30,7 +30,14 @@ type Stack struct {
 	LastBackup                *struct{} `json:"last_backup"`
 	LastRestoreVerification   *struct{} `json:"last_restore_verification"`
 	LastGoodRestoreAgeSeconds *int      `json:"last_good_restore_age_seconds"`
+	Frozen                    []Freeze  `json:"frozen"`
 	Services                  []Service `json:"services"`
+}
+
+type Freeze struct {
+	Transaction string   `json:"transaction"`
+	Snapshot    string   `json:"snapshot"`
+	Containers  []string `json:"containers"`
 }
 
 type Hold struct {
@@ -39,13 +46,21 @@ type Hold struct {
 }
 
 type Service struct {
-	Name            string    `json:"name"`
-	Container       string    `json:"container"`
-	Image           string    `json:"image"`
-	ImageID         string    `json:"image_id"`
-	UpdateAvailable bool      `json:"update_available"`
-	CandidateDigest *string   `json:"candidate_digest"`
-	Hold            *Hold     `json:"hold"`
-	Drift           *string   `json:"drift"`
-	LastTransaction *struct{} `json:"last_transaction"`
+	Name            string       `json:"name"`
+	Container       string       `json:"container"`
+	Image           string       `json:"image"`
+	ImageID         string       `json:"image_id"`
+	UpdateAvailable bool         `json:"update_available"`
+	CandidateDigest *string      `json:"candidate_digest"`
+	Hold            *Hold        `json:"hold"`
+	Drift           *string      `json:"drift"`
+	LastTransaction *Transaction `json:"last_transaction"`
+}
+
+type Transaction struct {
+	ID     string    `json:"id"`
+	State  string    `json:"state"`
+	Result *string   `json:"result"`
+	Reason *string   `json:"reason"`
+	Time   time.Time `json:"time"`
 }
