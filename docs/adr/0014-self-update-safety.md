@@ -25,4 +25,4 @@ Parachute can update its own container. That container holds the Docker socket, 
 - The handover marker format is now part of the interface (`parachute.handover/v1`).
 
 ## Specs affected
-UPD-001, UPD-008, UPD-009, UPD-016, UPD-017, UPD-018, UPD-019, UPD-020, DEP-003, VER-001, VER-010, SEL-012, POL-010, POL-011, API-007, CFG-010, CFG-011.
+UPD-001, UPD-008, UPD-009, UPD-016, UPD-017, UPD-018, UPD-019, UPD-020, DEP-003, VER-001, VER-010, SEL-012, POL-010, POL-011, API-007, STS-002, CFG-010, CFG-011.
