@@ -59,9 +59,10 @@ While unarmed (CFG-006), updates that would be applied MUST be reported as `woul
 - **Given** an unarmed Parachute and an update available **When** a cycle ends **Then** the webhook receives a report listing the container as `would_update`.
 
 ### NTF-011 Approval reminders
-A `held` entry with reason `approval_required` MUST be included in the report the first time it is seen for a given container and candidate digest, and then only again every `--approval-reminder-days` days (default `7`) while it is still pending. Other `held` entries MUST be included only the first time they are seen for that container, digest, and reason. Every `held` entry is still shown in the status view (STS-004).
+A `held` entry with reason `approval_required` MUST be included in the report the first time it is seen for a given container and candidate digest, and then, while it is still pending, again in the report of the first cycle that starts at least `--approval-reminder-days` days after the report that last included it (a positive decimal number, like `--delay-days`; default `7`; `0` or a negative value is a startup error, exit code 2). Other `held` entries MUST be included only the first time they are seen for that container, digest, and reason. Every `held` entry is still shown in the status view (STS-004).
 
-- **Given** a held database update and daily cycles **When** cycles run on days 0 to 8 **Then** the reports on days 0 and 7 include it and the others do not.
+- **Given** a held database update, `--approval-reminder-days 0.001` (86.4 seconds), and `--interval 60` **When** cycles start at 0, 60, 120, 180, and 240 seconds **Then** the reports of the cycles at 0, 120, and 240 seconds include it and the others do not.
+- **Given** `--approval-reminder-days 0` **When** Parachute starts **Then** it exits with code 2 and the message contains `approval-reminder-days`.
 - **Given** an update held by `delay` **When** a second cycle runs with nothing new **Then** that cycle sends no notification.
 
 ### NTF-012 Rollback failures are always sent

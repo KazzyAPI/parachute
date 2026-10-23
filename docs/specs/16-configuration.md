@@ -172,7 +172,7 @@ Log lines at every level except `trace`, startup and error messages (including t
 | `--notifications-delay` | `0` | NTF-005 |
 | `--notification-template` | built-in | NTF-006 |
 | `--notification-log-stdout` | `false` | NTF-009 |
-| `--approval-reminder-days` | `7` | NTF-011 |
+| `--approval-reminder-days` | `7` (positive decimal) | NTF-011 |
 | `--http-api-port` | `8080` | API-001 |
 | `--http-api-update` | `false` | API-001 |
 | `--http-api-metrics` | `false` | API-001 |
