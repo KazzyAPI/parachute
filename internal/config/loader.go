@@ -65,7 +65,6 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Engine:         l.engine(b),
 		Policy:         l.policy(b),
 		API:            l.api(b),
-		Hosts:          l.hosts(b),
 		Log:            l.log(b),
 	}
 	cfg.Relaxations = b.relaxations()
@@ -75,6 +74,11 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 	if b.boolean("revive-stopped") && !cfg.Selection.IncludeStopped {
 		return Config{}, errors.New("--revive-stopped requires --include-stopped")
 	}
+	hosts, err := l.hosts(b)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Hosts = hosts
 	schedule, err := l.schedule(b)
 	if err != nil {
 		return Config{}, err

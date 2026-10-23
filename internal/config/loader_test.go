@@ -84,7 +84,9 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		{args: []string{"--revive-stopped"}, want: []string{"revive-stopped", "include-stopped"}},
 		{args: []string{"--interval", "5", "--schedule", "* * * * * *"}, want: []string{"interval", "schedule"}},
 		{args: []string{"--armed"}, want: []string{"updates are not implemented in this milestone"}},
-		{args: []string{"--allow-insecure-tcp"}, want: []string{"--allow-insecure-tcp", "not implemented"}},
+		{args: []string{"--hosts", "a=unix:///x,a=unix:///y"}, want: []string{"duplicate host name", "a"}},
+		{args: []string{"--hosts", "Bad=unix:///x"}, want: []string{"Bad", "[a-z0-9]"}},
+		{args: []string{"--hosts", "a"}, want: []string{"name=endpoint"}},
 	} {
 		_, err := newTestLoader().Load(tc.args, tc.environ)
 		if err == nil {
