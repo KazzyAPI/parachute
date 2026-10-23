@@ -10,7 +10,7 @@ Parachute is spec-driven ([ADR-0001](docs/adr/0001-spec-driven-development.md)).
 
 ## Commit standard
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, with the subject in lower case and the imperative mood, no trailing period. Identifiers keep their case, so requirement, ADR, and question IDs may appear in subjects (`docs(spec): add SEL-013`, `docs(adr): accept ADR-0012 (Q19)`).
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, where the scope is optional for repo-wide changes (`docs: fix links`), with the subject in lower case and the imperative mood, no trailing period. Identifiers keep their case, so requirement, ADR, and question IDs may appear in subjects (`docs(spec): add SEL-013`, `docs(adr): accept ADR-0012 (Q19)`).
 
 - **Types:** `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, `build`, `perf`.
 - **Scopes:** `spec`, `adr`, `config`, `selection`, `schedule`, `detect`, `registry`, `engine`, `update`, `backup`, `verify`, `policy`, `hook`, `notify`, `api`, `daemon`, `status`, `restore`, `e2e`, `ci`, `deps`. Spec and ADR edits use `docs(spec): ...` and `docs(adr): ...`; a correction of a wrong requirement uses `fix(spec): ...`.
