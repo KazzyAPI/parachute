@@ -10,17 +10,20 @@ import (
 	"testing"
 )
 
+const busyboxDigest = "sha256:3875c8efb5b0bb608bbe85a4bbabc4657c3d1e72ccbb629601fcac68e3356c83"
+
 type Suite struct {
-	repoRoot     string
-	workDir      string
-	binary       string
-	dockerHost   string
-	desktop      bool
-	fixtureImage string
-	runID        string
-	imageOnce    sync.Once
-	image        string
-	imageErr     error
+	repoRoot       string
+	workDir        string
+	binary         string
+	dockerHost     string
+	desktop        bool
+	fixtureImage   string
+	fixtureV2Image string
+	runID          string
+	imageOnce      sync.Once
+	image          string
+	imageErr       error
 }
 
 var suite *Suite
@@ -75,8 +78,13 @@ func (s *Suite) prepare() error {
 		return fmt.Errorf("docker info: %w: %s", err, osName)
 	}
 	s.desktop = strings.Contains(osName, "Docker Desktop")
-	return s.buildFixture()
+	if err := s.buildFixture(); err != nil {
+		return err
+	}
+	return s.buildFixtureV2()
 }
+
+func (s *Suite) FixtureV2Image() string { return s.fixtureV2Image }
 
 func (s *Suite) buildFixture() error {
 	arch, err := s.command("", nil, "docker", "version", "--format", "{{.Server.Arch}}")
@@ -98,6 +106,33 @@ func (s *Suite) buildFixture() error {
 	s.fixtureImage = "parachute-e2e-fixture:" + s.runID
 	if out, err := s.command(context, nil, "docker", "build", "-q", "--label", "parachute-e2e.run="+s.runID, "-t", s.fixtureImage, "."); err != nil {
 		return fmt.Errorf("build fixture image: %w: %s", err, out)
+	}
+	return nil
+}
+
+func (s *Suite) buildFixtureV2() error {
+	if out, err := s.command("", nil, "docker", "pull", "busybox@"+busyboxDigest); err != nil {
+		return fmt.Errorf("pull busybox: %w: %s", err, out)
+	}
+	arch, err := s.command("", nil, "docker", "version", "--format", "{{.Server.Arch}}")
+	if err != nil {
+		return fmt.Errorf("docker version: %w: %s", err, arch)
+	}
+	context := filepath.Join(s.workDir, "fixturev2")
+	if err := os.MkdirAll(context, 0o755); err != nil {
+		return err
+	}
+	env := []string{"GOOS=linux", "GOARCH=" + strings.TrimSpace(arch), "CGO_ENABLED=0"}
+	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixturev2"), "./fixturev2"); err != nil {
+		return fmt.Errorf("build fixturev2: %w: %s", err, out)
+	}
+	dockerfile := "FROM busybox@" + busyboxDigest + "\nCOPY fixturev2 /fixturev2\nARG VERSION=base\nLABEL parachute-e2e.version=$VERSION\nENTRYPOINT [\"/fixturev2\"]\n"
+	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
+		return err
+	}
+	s.fixtureV2Image = "parachute-e2e-fixturev2:" + s.runID
+	if out, err := s.command(context, nil, "docker", "build", "-q", "--label", "parachute-e2e.run="+s.runID, "-t", s.fixtureV2Image, "."); err != nil {
+		return fmt.Errorf("build fixturev2 image: %w: %s", err, out)
 	}
 	return nil
 }
