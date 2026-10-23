@@ -46,7 +46,7 @@ snapshot -> aborted
 update | verify -> rolling_back -> rolled_back | rollback_failed
 snapshot -> handover                      (self-update; replaces update and verify)
 handover -> committed                     (replacement verified; old instance records commit, removes marker)
-handover -> rolling_back                  (replacement failed verification, UPD-018 step 4)
+handover -> rolling_back                  (step 4: verification failed or ceiling; step 6: restarted old instance)
 handover -> rollback_failed               (old instance stopped while the marker exists and the state is still handover, step 6; new instance records it)
 rolling_back -> rollback_failed           (self-update, step 6: old instance stopped during its rollback while the marker exists)
 ```
