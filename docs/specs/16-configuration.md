@@ -86,7 +86,7 @@ The Parachute process (daemon and run-once mode) MUST use these exit codes; they
 |---|---|
 | 0 | Success: every candidate is `fresh`, `updated`, `would_update`, `held`, or `skipped`. In daemon mode, a clean shutdown on `SIGTERM` or `SIGINT`. |
 | 1 | At least one candidate `failed` or `rolled_back`, or a host was unreachable (run-once). |
-| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
+| 2 | Invalid configuration or startup error: bad or unknown setting, removed setting, missing token (API-003), [insecure TCP host](glossary.md#insecure-tcp-host) without `--allow-insecure-tcp` (DMN-003), unreadable or invalid state file (CFG-010). |
 | 3 | At least one `rollback_failed` (run-once). |
 | 4 | No managed host reachable at startup (DMN-004), including a failed TLS handshake (DMN-003) or a rejected forced API version (DMN-002). |
 

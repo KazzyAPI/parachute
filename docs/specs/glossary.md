@@ -7,7 +7,7 @@
 - **Drift**: a difference between a service's `image:` in its Compose file and the image its container runs (DEP-011).
 - **Helper container**: a short-lived container Parachute creates for copying data or probing URLs, labelled `parachute.helper=true` (BKP-010).
 - **Host**: one container-engine endpoint that Parachute manages (DMN-001, DMN-007).
-- **Insecure TCP host**: a `tcp://` host used without `--tlsverify` / `DOCKER_TLS_VERIFY`, including loopback addresses; see DMN-003.
+- <a id="insecure-tcp-host"></a>**Insecure TCP host**: a `tcp://` host used without `--tlsverify` / `DOCKER_TLS_VERIFY`, including loopback addresses; see DMN-003.
 - **Policy hold**: a detected update that a policy stops for now, with one reason code such as `delay` or `approval_required` (POL-001).
 - **Reason code**: the one code that explains a `held`, `skipped`, `failed`, `rolled_back`, or `rollback_failed` result. The full list is [reasons.md](reasons.md).
 - **Relaxation**: a setting or label that weakens a safe default, such as `parachute.backup=none`; always logged (POL-009).
@@ -72,7 +72,7 @@ A terminal state is never left. A new attempt is a new transaction with a new ID
 
 - Container labels set by the operator when the container is created, including `parachute.lifecycle.*` hook commands and `parachute.backup.dump`. Anyone who can create containers on the engine already controls the host.
 - Flags, environment variables, and files named by them (CFG-001 to CFG-004).
-- The Docker or Podman daemon on a managed host, reached over `unix://` or verified TLS (see Insecure TCP host).
+- The Docker or Podman daemon on a managed host, reached over `unix://` or verified TLS (see [Insecure TCP host](#insecure-tcp-host)).
 
 ## Redaction
 
