@@ -123,7 +123,7 @@ Also: the endpoint is still `/v1/metrics`, but a token is now required and sent 
 - `/v1/update` is unchanged in purpose. A token is now **mandatory** (Parachute will not start the API without one) and must be sent as `Authorization: Bearer <token>`.
 - A request that arrives while a cycle runs returns **409** instead of queuing a second cycle.
 - `/v1/update` accepts **no query parameters**: any parameter (for example `?image=`) returns **400** naming it and nothing runs. Remove parameters from scripts that sent them.
-- New: `POST /v1/approve?container=<name>` approves an update that is held for approval (databases, `parachute.approval=required`, Parachute's own container) or held after a failed attempt.
+- New: `POST /v1/approve?container=<name>` approves an update that is held for approval (databases, `parachute.approval=required`, Parachute's own container) or held after a failed attempt (response 202). For a container frozen after `rollback_failed`, the same call releases the freeze instead (response 200; no held update is needed); if an update is also held for approval, call it a second time to approve that update.
 - HTTP Basic authentication (any user name, token as password) works only on the status page (`/status`) and `/v1/status`. For dashboards and browsers, set `PARACHUTE_HTTP_API_STATUS_TOKEN` to a separate **read-only** token that works only there; the main token can trigger updates and is equivalent to root on the host.
 
 ## 6. Behavior differences you will notice
@@ -138,7 +138,7 @@ Also: the endpoint is still `/v1/metrics`, but a token is now required and sent 
 | Parachute's own container | Updates itself | **Always held for approval** (`approval_required`); no setting or profile removes this | n/a (approve with `POST /v1/approve`) |
 | New releases | Updated at once | Waits `--delay-days` (default 2) after Parachute first sees the digest (`held` / `delay`) | `PARACHUTE_DELAY_DAYS=0` |
 | Version tags (`app:1.2.0`) | Re-pulled on the same tag only | Same: a rebuilt image on the same tag is an ordinary update. Optionally moves to the highest `MAJOR.MINOR.PATCH` tag in the same minor (`patch`) or major (`minor`) line; tags of any other form, such as `1.2` or `latest`, are never moved | `--tag-follow patch\|minor` or `parachute.tag-follow` |
-| A failed update | Retried at the next check | That image digest is **not retried** (`held` / `previous_attempt_failed`) until a newer image appears or it is approved; after `rollback_failed` the stack is frozen until approved | `POST /v1/approve` |
+| A failed update | Retried at the next check | That image digest is **not retried** (`held` / `previous_attempt_failed`) until a newer image appears or it is approved; after `rollback_failed` the stack is frozen until you release it | `POST /v1/approve` (releases a freeze with 200, no held update needed; a second call approves a held update) |
 | Image cleanup | Removes old image during update | Only **after** the update is committed | n/a |
 | `pre-update` hook fails | Update continues | **Update of the stack is aborted**, nothing stopped (`failed` / `pre_update_hook_failed`) | n/a (exit 0 to proceed; exit 75 to defer to the next cycle: `held` / `hook_deferred`, not an error) |
 | Hook timeout `0` | Hook may run forever | Still ended after `--transaction-timeout` (default 30 min), with reason `transaction_timeout` | `--transaction-timeout` |
