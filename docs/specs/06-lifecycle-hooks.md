@@ -16,7 +16,7 @@ Each hook MUST run inside the container as `sh -c "<label value>"`. `pre-check` 
 - **Given** a stopped candidate (with `--include-stopped`) and a `pre-check` hook **When** a cycle runs **Then** the hook does not run and the container is still checked.
 
 ### HOK-003 Order
-For a container that is updated, the hooks MUST run in the order `pre-check`, `pre-update`, `post-update`, `post-check`. For a container whose transaction does not reach the `snapshot` phase (no update, or held by a policy), only `pre-check` and `post-check` run. For a container whose transaction ends in the `snapshot` phase (deferred by HOK-006 or failed before the `update` phase), `pre-update` may have run and `post-update` MUST NOT run.
+For a container that is updated, the hooks MUST run in the order `pre-check`, `pre-update`, `post-update`, `post-check`. For a container that gets no transaction (no update, or held by a policy, UPD-001), only `pre-check` and `post-check` run. For a container whose transaction ends in the `snapshot` phase (deferred by HOK-006 or failed before the `update` phase), `pre-update` may have run and `post-update` MUST NOT run.
 
 - **Given** all four hooks appending their name to a file on a shared volume **When** the container is updated **Then** the file reads `pre-check pre-update post-update post-check`.
 - **Given** the same and no update available **When** a cycle runs **Then** the file reads `pre-check post-check`.

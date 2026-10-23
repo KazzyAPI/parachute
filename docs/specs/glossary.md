@@ -19,22 +19,21 @@
 - **Service**: the containers of one Compose service in a stack; the unit of update (DEP-001).
 - **Snapshot**: the stored copy of a stack's container configuration and data taken before an update. ID `snap-...` (BKP-006).
 - **Stack**: the containers of one Compose project on one host, or a single non-Compose container; the unit of snapshot, verification, and rollback (DEP-001, DEP-002).
-- **Transaction**: one update of one stack, through the phases policy, snapshot, update, verify, and commit or rollback. It starts, and gets its ID `txn-...`, only when the `policy` phase is reached with at least one update detected in the stack; detection alone creates none (UPD-001).
+- **Transaction**: one update of one stack, through the phases snapshot, update, verify, and commit or rollback. It starts, and gets its ID `txn-...`, at the `snapshot` phase, and only when at least one update in the stack passes the `policy` phase; detection and holds alone create none (UPD-001).
 - **Verify**: the check that replacements become healthy before commit (VER-001).
 
 ## Transaction state machine
 
-A transaction's state is recorded in the state file (CFG-010) and shown by `parachute status` (STS-002, field `last_transaction.state`). Open states are the phase names of UPD-001 from `policy` on (`detect` runs before a transaction exists); a transaction ends in exactly one terminal state.
+A transaction's state is recorded in the state file (CFG-010) and shown by `parachute status` (STS-002, field `last_transaction.state`). Open states are the phase names of UPD-001 from `snapshot` on (`detect` and `policy` run before a transaction exists); a transaction ends in exactly one terminal state.
 
 | State | Kind | Meaning |
 |---|---|---|
-| `policy` | open | Holds are evaluated (POL-001). |
 | `snapshot` | open | Pull, configuration check, free-space check, `pre-update` hooks, dumps, data copy. No replacement exists. |
 | `update` | open | Originals stopped and renamed, replacements created and started. |
 | `verify` | open | Replacements are verified (VER-001). |
 | `handover` | open | Self-update only: the old instance has written `handover.json` and started the replacement, and is verifying it (UPD-018 steps 1 to 3). The new instance waits in handover mode. |
 | `rolling_back` | open | Rollback in progress (VER-008). Never interrupted by the transaction ceiling (UPD-019). |
-| `aborted` | terminal | Ended before the `update` phase; nothing changed. Result `held` or `failed` (UPD-014). |
+| `aborted` | terminal | Ended in the `snapshot` phase; nothing changed. Result `held` with reason `hook_deferred` (HOK-006), or `failed` (UPD-014). |
 | `committed` | terminal | Replacements verified and committed (UPD-009). Result `updated`. |
 | `rolled_back` | terminal | Previous state restored and passed its base check. Result `rolled_back`. |
 | `rollback_failed` | terminal | Previous state could not be fully restored. Result `rollback_failed`. |
@@ -42,8 +41,8 @@ A transaction's state is recorded in the state file (CFG-010) and shown by `para
 Allowed transitions (any other is a defect):
 
 ```
-policy -> snapshot -> update -> verify -> committed
-policy | snapshot -> aborted
+snapshot -> update -> verify -> committed
+snapshot -> aborted
 update | verify -> rolling_back -> rolled_back | rollback_failed
 snapshot -> handover                      (self-update; replaces update and verify)
 handover -> committed                     (replacement verified; old instance records commit, removes marker)
@@ -52,11 +51,11 @@ handover -> rollback_failed               (old instance stopped while the marker
 rolling_back -> rollback_failed           (self-update, step 6: old instance stopped during its rollback while the marker exists)
 ```
 
-Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, and the `rolling_back` of an ordinary stack go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover`, or `rolling_back` of a self-update, follows UPD-018 step 6.
+Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `snapshot` goes to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, and the `rolling_back` of an ordinary stack go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover`, or `rolling_back` of a self-update, follows UPD-018 step 6.
 
 A terminal state is never left. A new attempt is a new transaction with a new ID.
 
-**`rollback_failed` is never retried automatically.** After it, the stack is **frozen**: Parachute starts no transaction for any container in that stack, whatever the candidate digest, and holds each such update with reason `previous_attempt_failed` unless an earlier reason in the POL-001 order (`monitor_only`, `approval_required`) applies. A self-update freezes only Parachute's own container, never the rest of its Compose project (UPD-018). Snapshots of the stack are not removed (BKP-008). The freeze ends only when an operator, after repairing the stack, releases it with `POST /v1/approve` for a frozen container (API-007); the release needs no held update, is bound to the frozen transaction ID (POL-011), and approves no digest. There is no other supported way: editing the state file is not one (STS-006, [ADR-0008](../adr/0008-state-storage.md)). `parachute status` shows the frozen stack, its `rollback_failed` transaction ID, the snapshot ID, and the frozen containers (field `frozen`, STS-002). This overrides POL-010's "until a different candidate digest appears" for `rollback_failed`.
+**`rollback_failed` is never retried automatically.** After it, the stack is **frozen**: Parachute starts no transaction for any container in that stack, whatever the candidate digest: it holds each such update in the `policy` phase, before any transaction exists (UPD-001), with reason `previous_attempt_failed` unless an earlier reason in the POL-001 order (`monitor_only`, `approval_required`) applies. A self-update freezes only Parachute's own container, never the rest of its Compose project (UPD-018). Snapshots of the stack are not removed (BKP-008). The freeze ends only when an operator, after repairing the stack, releases it with `POST /v1/approve` for a frozen container (API-007); the release needs no held update, is bound to the frozen transaction ID (POL-011), and approves no digest. There is no other supported way: editing the state file is not one (STS-006, [ADR-0008](../adr/0008-state-storage.md)). `parachute status` shows the frozen stack, its `rollback_failed` transaction ID, the snapshot ID, and the frozen containers (field `frozen`, STS-002). This overrides POL-010's "until a different candidate digest appears" for `rollback_failed`.
 
 ## Trust boundaries
 

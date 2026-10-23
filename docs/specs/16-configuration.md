@@ -76,7 +76,7 @@ Porcelain mode does not change notification settings. Any value other than `v1` 
 ### CFG-008 Logging
 `--log-level` MUST accept `error`, `warn`, `info` (default), `debug`, `trace`; `--debug` and `--trace` are shorthands for the last two. `--log-format` MUST accept `auto` (default: `pretty` on a terminal, else `logfmt`), `logfmt`, `pretty`, `json`. With `json`, each line MUST have keys `time` (RFC 3339), `level`, `msg`, and, when they apply, `cycle`, `txn`, `host`, `stack`, `service`, `container`, `phase`. `--no-color` or a non-empty `NO_COLOR` MUST remove colour codes.
 
-- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON, at least one line has `"phase": "verify"`, and every line with a `phase` key also has a `txn` key.
+- **Given** `--log-format json` and an update **When** the cycle runs **Then** every log line parses as JSON, at least one line has `"phase": "verify"`, every line whose `phase` is `snapshot` or later also has a `txn` key, and the `detect` and `policy` lines have none (UPD-001).
 - **Given** `NO_COLOR=1 --log-format pretty` **When** Parachute logs **Then** the output contains no `ESC[` sequences.
 
 ### CFG-009 Exit codes

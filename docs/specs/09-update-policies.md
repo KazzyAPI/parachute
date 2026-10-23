@@ -2,10 +2,10 @@
 
 **Status:** Draft
 
-Rules that decide whether a detected update is applied now ([ADR-0007](../adr/0007-safe-by-default.md)). A policy that stops an update creates a **hold**. Holds are evaluated in the `policy` phase and never change containers.
+Rules that decide whether a detected update is applied now ([ADR-0007](../adr/0007-safe-by-default.md)). A policy that stops an update creates a **hold**. Holds are evaluated in the `policy` phase, before any transaction exists (UPD-001), and never change containers. A stack whose every update is held gets no transaction and no transaction ID in that cycle.
 
 ### POL-001 Holds and reasons
-A held update MUST get result `held` with exactly one reason code, the first that applies in this order: `monitor_only` (SEL-007), `approval_required` (POL-003, POL-006), `previous_attempt_failed` (POL-010), `delay` (POL-002), `maintenance_window` (POL-007), `hook_deferred` (HOK-006). `hook_deferred` is last because it is set in the `snapshot` phase by a `pre-update` hook, which runs only for an update that no policy holds; it is the one reason not evaluated in the `policy` phase. The report entry MUST state when the hold ends where that is known (`delay`: the time; `maintenance_window`: the next window start). A held update is not counted as failed.
+A held update MUST get result `held` with exactly one reason code, the first that applies in this order: `monitor_only` (SEL-007), `approval_required` (POL-003, POL-006), `previous_attempt_failed` (POL-010), `delay` (POL-002), `maintenance_window` (POL-007), `hook_deferred` (HOK-006). `hook_deferred` is last because it is set in the `snapshot` phase by a `pre-update` hook, which runs only for an update that no policy holds; it is the one reason not evaluated in the `policy` phase, and the one hold whose transaction has started (it ends `aborted`, HOK-006). The report entry MUST state when the hold ends where that is known (`delay`: the time; `maintenance_window`: the next window start). A held update is not counted as failed.
 
 - **Given** a database container with an update, inside the delay period, outside the maintenance window **When** a cycle runs **Then** the result is `held` with reason `approval_required`.
 - **Given** an update held by delay **When** a cycle runs **Then** the report entry contains `delay` and an RFC 3339 end time.

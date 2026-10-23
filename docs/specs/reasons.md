@@ -8,7 +8,7 @@ Every candidate ends every cycle in exactly one result state (CFG-007), so every
 
 - **re-evaluated**: the next cycle checks the candidate again from scratch.
 - **held for digest**: the next cycle holds the same candidate digest (POL-010); a new digest or an approval (API-007) clears it.
-- **frozen**: no new transaction starts for the stack (for a self-update, the own container) until an operator releases it with `POST /v1/approve` (API-007; [glossary: Transaction state machine](glossary.md#transaction-state-machine), `rollback_failed`).
+- **frozen**: every update is held in the `policy` phase, so no transaction starts for the stack (for a self-update, the own container) until an operator releases it with `POST /v1/approve` (API-007; [glossary: Transaction state machine](glossary.md#transaction-state-machine), `rollback_failed`).
 
 ## Result states
 
@@ -64,7 +64,7 @@ Nothing was changed (UPD-014). The detail text names the failing step, field, la
 | `dump_failed` | The database dump failed. | BKP-004 | re-evaluated |
 | `snapshot_failed` | Copying data or writing the snapshot failed. | BKP-001, DMN-014 | re-evaluated |
 | `transaction_timeout` | The transaction ceiling was reached before the `update` phase. | UPD-019, HOK-005 | re-evaluated |
-| `interrupted` | Parachute stopped during `policy` or `snapshot`; containers stopped for the snapshot were started again at the next start. | UPD-016 | re-evaluated |
+| `interrupted` | Parachute stopped during `snapshot` (state `aborted`); containers stopped for the snapshot were started again at the next start. | UPD-016 | re-evaluated |
 
 ### rolled_back
 
