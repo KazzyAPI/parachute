@@ -12,12 +12,18 @@ import (
 
 var errNoRandomness = errors.New("no randomness")
 
+type quietCounter struct{}
+
+func (quietCounter) CycleStarted() {}
+
+func (quietCounter) CycleSkipped() {}
+
 type failingIDs struct{}
 
 func (failingIDs) New(time.Time) (string, error) { return "", errNoRandomness }
 
 func TestGateRunsOneCycleAtATime(t *testing.T) {
-	gate := NewGate(fixedIDs{}, &jumpingClock{})
+	gate := NewGate(fixedIDs{}, &jumpingClock{}, quietCounter{})
 	inside := make(chan struct{})
 	release := make(chan struct{})
 	done := make(chan domain.Report)
@@ -46,7 +52,7 @@ func TestGateRunsOneCycleAtATime(t *testing.T) {
 func TestSchedulerStopsWhenNoCycleIDCanBeMade(t *testing.T) {
 	clock := &jumpingClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	logger := slog.New(slog.DiscardHandler)
-	scheduler := NewScheduler(NewIntervalTrigger(time.Minute), &blockingClock{jumpingClock: clock}, NewGate(failingIDs{}, clock), idleRunner{}, logger, time.UTC)
+	scheduler := NewScheduler(NewIntervalTrigger(time.Minute), &blockingClock{jumpingClock: clock}, NewGate(failingIDs{}, clock, quietCounter{}), idleRunner{}, logger, time.UTC)
 	if err := scheduler.Run(context.Background()); !errors.Is(err, errNoRandomness) {
 		t.Fatalf("Run returned %v", err)
 	}

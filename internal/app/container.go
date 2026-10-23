@@ -9,31 +9,34 @@ import (
 	"github.com/KazzyAPI/parachute/internal/config"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/labels"
+	"github.com/KazzyAPI/parachute/internal/metrics"
 	"github.com/KazzyAPI/parachute/internal/notify"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
+	"github.com/KazzyAPI/parachute/internal/redact"
 	"github.com/KazzyAPI/parachute/internal/schedule"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/status"
 )
 
 type Container struct {
-	cfg    config.Config
-	deps   Dependencies
-	logger *slog.Logger
-	labels *labels.Reader
+	cfg      config.Config
+	deps     Dependencies
+	logger   *slog.Logger
+	redactor *redact.Redactor
+	labels   *labels.Reader
 }
 
-func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger) *Container {
-	return &Container{cfg: cfg, deps: deps, logger: logger, labels: labels.NewReader(logger)}
+func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, redactor *redact.Redactor) *Container {
+	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, labels: labels.NewReader(logger)}
 }
 
-func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter) *pipeline.Pipeline {
+func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector) *pipeline.Pipeline {
 	return pipeline.New(
 		pipeline.NewDiscoverStage(c.logger),
 		c.selectStage(),
 		c.detectStage(),
 		c.policyStage(store),
-		pipeline.NewReportStage(c.deps.Clock, c.logger, c.sinks(store, reporter)...),
+		pipeline.NewReportStage(c.deps.Clock, c.logger, append(c.sinks(store, reporter), collector)...),
 	)
 }
 
@@ -54,14 +57,17 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	runner := NewRunner(c.cyclePipeline(store, reporter), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
-	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock)
+	collector := metrics.NewCollector()
+	runner := NewRunner(c.cyclePipeline(store, reporter, collector), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
+	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
 	if c.cfg.RunOnce {
 		loop, scheduleText = NewSingleCycle(gate, runner), "run once"
+	} else if c.apiTriggered() {
+		loop, scheduleText = requestsOnly{}, "on HTTP API requests"
 	}
-	server, err := c.server(ServerParts{Gate: gate, Runner: runner, Store: store, Status: c.statusSource(hosts), Hosts: hosts})
+	server, err := c.server(ServerParts{Gate: gate, Runner: runner, Store: store, Status: c.statusSource(hosts), Hosts: hosts, Metrics: collector})
 	if err != nil {
 		return nil, nil, errors.Join(err, closeHosts())
 	}

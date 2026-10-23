@@ -100,12 +100,12 @@ Parachute MUST count failed authentications (API-002) per source IP address over
 - **Given** `--trusted-proxies not-an-ip` **When** Parachute starts **Then** it exits with code 2 and the message names `not-an-ip`.
 
 ### API-011 Constant-time token comparison
-Parachute MUST compare a presented token with `--http-api-token` and `--http-api-status-token` in time that does not depend on the presented token's content or length, by comparing fixed-length digests (SHA-256) of both values with a constant-time comparison. Both configured tokens are always compared, whichever matches.
+Parachute MUST compare a presented token with `--http-api-token` and `--http-api-status-token` in time that does not depend on the presented token's content or length, by comparing fixed-length digests (HMAC-SHA256 under a random per-process key) of both values with a constant-time comparison. Both configured tokens are always compared, whichever matches.
 
 The constant-time property is tested by a code-level unit test, a documented exception to black-box testing ([ADR-0015](../adr/0015-traceability-and-test-practice.md)); the black-box test covers the observable part.
 
 - **Given** a 64-character token and a status token **When** requests are sent with wrong tokens that equal the token except in the last character, share no character with it, are empty, are one character long, and are 1 KiB long, from source addresses chosen so that none is throttled (API-010) **Then** every response is 401.
-- **Given** the token comparison in a code-level unit test (ADR-0015) **When** it is called with a presented token equal to either configured token, differing from it only in the last character, a prefix of it, longer than it, and sharing no character with it **Then** it reports the right match every time, compares SHA-256 digests of the presented token with both configured tokens' digests on every call, and uses a constant-time comparison.
+- **Given** the token comparison in a code-level unit test (ADR-0015) **When** it is called with a presented token equal to either configured token, differing from it only in the last character, a prefix of it, longer than it, and sharing no character with it **Then** it reports the right match every time, compares HMAC-SHA256 digests of the presented token with both configured tokens' digests on every call, and uses a constant-time comparison.
 
 ### API-012 Responses are redacted
 Every HTTP response body and header, on every endpoint and status code, MUST be redacted per [glossary: Redaction](glossary.md#redaction) ([ADR-0013](../adr/0013-secret-redaction.md)). Error bodies MUST NOT echo the presented credentials. Metric label values MUST NOT contain secrets.

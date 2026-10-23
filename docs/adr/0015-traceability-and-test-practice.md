@@ -1,6 +1,6 @@
 # ADR-0015: Traceability and test practice as built
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-23
 
 ## Context
@@ -27,6 +27,9 @@ Separately, API-011 (constant-time token comparison) had a black-box timing crit
 - Milestone coverage is enforced now, without waiting for spec files to reach `Accepted`.
 - API-011 no longer depends on timing in CI; the unit test locks in the comparison's structure, which is the point of that requirement.
 - Depending on a fork means following its releases; switching back is a new ADR.
+
+## Amendment (2026-10-23)
+Rule 4: the digests compared are HMAC-SHA256 digests under a random per-process key, not plain SHA-256 digests, so a token is never hashed with an unkeyed fast hash. The comparison stays constant-time on fixed-length digests, both configured tokens are still compared on every call, and the unit test checks exactly that (API-011).
 
 ## Specs affected
 All (test names and traceability), NTF-001, API-011.

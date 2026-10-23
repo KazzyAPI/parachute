@@ -40,6 +40,7 @@ type Selection struct {
 type Schedule struct {
 	Interval time.Duration
 	Cron     string
+	Explicit bool
 	Location *time.Location
 }
 
