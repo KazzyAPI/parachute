@@ -2,6 +2,7 @@ package logging
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/KazzyAPI/parachute/internal/redact"
@@ -58,9 +59,7 @@ func (h *RedactingHandler) attribute(attribute slog.Attr) slog.Attr {
 		}
 		return slog.Group(attribute.Key, redacted...)
 	case slog.KindAny:
-		if err, ok := value.Any().(error); ok {
-			return slog.String(attribute.Key, h.redactor.Redact(err.Error()))
-		}
+		return slog.String(attribute.Key, h.redactor.Redact(fmt.Sprint(value.Any())))
 	}
 	return slog.Attr{Key: attribute.Key, Value: value}
 }
