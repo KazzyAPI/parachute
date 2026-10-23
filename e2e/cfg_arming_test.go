@@ -53,7 +53,7 @@ func TestCFG_006_copied_state_file_cannot_arm(t *testing.T) {
 	app.publishNewer()
 	id, image := env.ContainerState(a)
 	images, volumes := env.ImageList(), env.VolumeList()
-	copied := `{"format":"parachute.state/v1","armed":true,"last_cycle":null,"results":[]}`
+	copied := `{"format":"parachute.state/v1","last_cycle":null,"results":[],"first_seen":[],"approvals":[],"notified":[],"superseded_instances":[]}`
 	env.WriteFile("state/state.json", copied, 0o644)
 	result := runOnce(env)
 	assertState(t, result, a, "would_update", "")
