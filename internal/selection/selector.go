@@ -35,19 +35,18 @@ func (s *Selector) Admit(containers []domain.Container) []domain.Container {
 	s.warnUnmatchedNames(containers)
 	var admitted []domain.Container
 	for _, container := range containers {
-		own := container
-		own.ImageLabels = nil
+		raw := container
+		raw.ImageLabels = nil
 		if s.stateAllowed(container.State) && s.nameAllowed(container) &&
-			!slices.Contains(s.settings.Disabled, container.Name) && s.ownLabelsAllow(own) {
+			!slices.Contains(s.settings.Disabled, container.Name) && s.rawLabelsAllow(raw) {
 			admitted = append(admitted, container)
 		}
 	}
 	return admitted
 }
 
-func (s *Selector) ownLabelsAllow(container domain.Container) bool {
-	enabled, set := s.labels.Bool(container, "enable")
-	if s.settings.LabelEnable && (!set || !enabled) {
+func (s *Selector) rawLabelsAllow(container domain.Container) bool {
+	if s.settings.LabelEnable && !s.enableAllowed(container) {
 		return false
 	}
 	if s.settings.ScopeSet && s.settings.Scope != "none" && !s.scopeAllowed(container) {
