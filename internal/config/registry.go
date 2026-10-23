@@ -102,7 +102,7 @@ func DefaultSettings() []Setting {
 		{Name: "notifications-delay", Kind: KindNonNegativeInt, Default: "0"},
 		{Name: "notification-template", Kind: KindString, FromFile: true},
 		{Name: "notification-log-stdout", Kind: KindBool, Default: "false", Unimplemented: notInThisMilestone("--notification-log-stdout")},
-		{Name: "approval-reminder-days", Kind: KindNonNegativeInt, Default: "7"},
+		{Name: "approval-reminder-days", Kind: KindDecimal, Default: "7"},
 		{Name: "http-api-port", Kind: KindPositiveInt, Default: "8080"},
 		{Name: "http-api-update", Kind: KindBool, Default: "false", Unimplemented: notInThisMilestone("--http-api-update")},
 		{Name: "http-api-metrics", Kind: KindBool, Default: "false", Unimplemented: notInThisMilestone("--http-api-metrics")},

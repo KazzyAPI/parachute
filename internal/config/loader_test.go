@@ -60,11 +60,11 @@ func TestConvenientProfileRelaxesOnlyImplicitDefaults(t *testing.T) {
 
 func TestFeatureSectionsAreBoundFromTypedValues(t *testing.T) {
 	cfg, err := newTestLoader().Load([]string{"--delay-days", "0.5", "--maintenance-window-duration", "90m", "--http-api-port", "9000"},
-		[]string{"PARACHUTE_HTTP_API_TOKEN=tok", "PARACHUTE_APPROVAL_REMINDER_DAYS=3"})
+		[]string{"PARACHUTE_HTTP_API_TOKEN=tok", "PARACHUTE_APPROVAL_REMINDER_DAYS=3.5"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Policy.DelayDays != 0.5 || cfg.Policy.WindowDuration.Minutes() != 90 || cfg.Policy.ReminderDays != 3 || !cfg.Policy.ProtectDatabases {
+	if cfg.Policy.DelayDays != 0.5 || cfg.Policy.WindowDuration.Minutes() != 90 || cfg.Policy.ReminderDays != 3.5 || !cfg.Policy.ProtectDatabases {
 		t.Errorf("unexpected policy %+v", cfg.Policy)
 	}
 	if cfg.API.Port != 9000 || cfg.API.Token != "tok" || !cfg.Notify.Report || cfg.Engine.AllowInsecureTCP {

@@ -16,7 +16,7 @@ func (l *Loader) policy(b *binder) Policy {
 		TagFollow:        b.raw("tag-follow"),
 		Window:           b.raw("maintenance-window"),
 		WindowDuration:   b.duration("maintenance-window-duration"),
-		ReminderDays:     float64(b.integer("approval-reminder-days")),
+		ReminderDays:     b.decimal("approval-reminder-days"),
 	}
 }
 
