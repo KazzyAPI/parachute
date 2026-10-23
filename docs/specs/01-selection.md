@@ -73,7 +73,7 @@ With `--scope <value>` set, Parachute MUST consider only containers whose `parac
 - **Given** `--scope none` and the same containers **When** a cycle runs **Then** only `c` is a candidate.
 - **Given** two Parachute instances with scopes `prod` and `dev`, armed, and newer images for `a` and `b` **When** both run a cycle **Then** each container is updated exactly once, by the instance with the matching scope.
 
-### SEL-012 Parachute's own containers are excluded
+### SEL-012 Helper and other Parachute containers are excluded
 Containers labelled `parachute.helper=true` (helpers, restore-verification containers) MUST never be candidates. Parachute's **own container**, the container the running instance runs in, MUST be identified by the engine alone (UPD-018) and is a candidate only for self-update; Parachute never needs a `parachute.self` label to find it. A `parachute.self=true` label, whether set at creation or inherited from the image (SEL-013), only ever makes Parachute more cautious: any container carrying it that is not the own container MUST NOT be a candidate, and the label never makes a container the own container, a candidate, or armed. (The official image carries `parachute.self=true` for information only.) Whether a container carries `parachute.helper=true` is read as SEL-013 says, so an image cannot exclude its own containers by baking this label in.
 
 - **Given** a running container labelled `parachute.helper=true` at creation **When** a cycle runs **Then** the report has no entry for it.
