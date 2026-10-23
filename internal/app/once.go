@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -23,9 +22,9 @@ func NewSingleCycle(gate *schedule.Gate, runner CycleRunner) *SingleCycle {
 }
 
 func (s *SingleCycle) Run(ctx context.Context) error {
-	report, _, started := s.gate.Run(ctx, s.runner.Run)
-	if !started {
-		return errors.New("the cycle could not be started")
+	report, err := s.gate.Run(ctx, s.runner.Run)
+	if err != nil {
+		return fmt.Errorf("start cycle: %w", err)
 	}
 	if code := report.ExitCode(); code != domain.ExitSuccess {
 		return &ExitError{Code: code, Err: fmt.Errorf("cycle %s finished with problems", report.CycleID)}

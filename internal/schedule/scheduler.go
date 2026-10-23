@@ -1,7 +1,10 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -32,20 +35,29 @@ func NewScheduler(trigger Trigger, clock Clock, gate *Gate, runner CycleRunner, 
 }
 
 func (s *Scheduler) Run(ctx context.Context) error {
+	ctx, abort := context.WithCancelCause(ctx)
+	defer abort(nil)
 	var cycles sync.WaitGroup
 	defer cycles.Wait()
 	next := s.trigger.First(s.clock.Now())
 	for {
 		s.logger.Info("next cycle scheduled", "next", next.In(s.location).Format(time.RFC3339))
 		if err := s.clock.Sleep(ctx, next.Sub(s.clock.Now())); err != nil {
-			return err
+			return cmp.Or(context.Cause(ctx), err)
 		}
-		cycles.Go(func() {
-			if _, running, started := s.gate.Run(ctx, s.runner.Run); !started && running != "" {
-				s.logger.Info("scheduled cycle skipped, previous cycle still running", "running_cycle", running)
-			}
-		})
+		cycles.Go(func() { s.start(ctx, abort) })
 		next = s.following(next)
+	}
+}
+
+func (s *Scheduler) start(ctx context.Context, abort context.CancelCauseFunc) {
+	_, err := s.gate.Run(ctx, s.runner.Run)
+	var busy *BusyError
+	switch {
+	case errors.As(err, &busy):
+		s.logger.Info("scheduled cycle skipped, previous cycle still running", "running_cycle", busy.Running)
+	case err != nil:
+		abort(fmt.Errorf("start scheduled cycle: %w", err))
 	}
 }
 

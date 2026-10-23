@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -17,42 +16,44 @@ type WallClock interface {
 	Now() time.Time
 }
 
+type BusyError struct {
+	Running string
+}
+
+func (e *BusyError) Error() string { return "cycle " + e.Running + " is still running" }
+
 type Gate struct {
 	ids     IDGenerator
 	clock   WallClock
-	logger  *slog.Logger
 	lock    sync.Mutex
 	running string
 }
 
-func NewGate(ids IDGenerator, clock WallClock, logger *slog.Logger) *Gate {
-	return &Gate{ids: ids, clock: clock, logger: logger}
+func NewGate(ids IDGenerator, clock WallClock) *Gate {
+	return &Gate{ids: ids, clock: clock}
 }
 
-func (g *Gate) Run(ctx context.Context, run func(ctx context.Context, id string) domain.Report) (report domain.Report, running string, started bool) {
-	id, running, err := g.claim()
+func (g *Gate) Run(ctx context.Context, run func(ctx context.Context, id string) domain.Report) (domain.Report, error) {
+	id, err := g.claim()
 	if err != nil {
-		g.logger.Error("cannot start cycle", "error", err.Error())
-	}
-	if id == "" {
-		return domain.Report{}, running, false
+		return domain.Report{}, err
 	}
 	defer g.release()
-	return run(ctx, id), "", true
+	return run(ctx, id), nil
 }
 
-func (g *Gate) claim() (id, running string, err error) {
+func (g *Gate) claim() (string, error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	if g.running != "" {
-		return "", g.running, nil
+		return "", &BusyError{Running: g.running}
 	}
-	id, err = g.ids.New(g.clock.Now())
+	id, err := g.ids.New(g.clock.Now())
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	g.running = id
-	return id, "", nil
+	return id, nil
 }
 
 func (g *Gate) release() {

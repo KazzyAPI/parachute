@@ -55,7 +55,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 		return nil, nil, err
 	}
 	runner := NewRunner(c.cyclePipeline(store, reporter), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
-	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, c.logger)
+	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
 	if c.cfg.RunOnce {

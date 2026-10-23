@@ -49,7 +49,7 @@ func (idleRunner) Run(context.Context, string) domain.Report { return domain.Rep
 func TestSchedulerSkipsSlotsMissedDuringAClockJump(t *testing.T) {
 	clock := &jumpingClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), jump: time.Hour}
 	logger := slog.New(slog.DiscardHandler)
-	scheduler := NewScheduler(NewIntervalTrigger(time.Minute), clock, NewGate(fixedIDs{}, clock, logger), idleRunner{}, logger, time.UTC)
+	scheduler := NewScheduler(NewIntervalTrigger(time.Minute), clock, NewGate(fixedIDs{}, clock), idleRunner{}, logger, time.UTC)
 	if err := scheduler.Run(context.Background()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run returned %v", err)
 	}
