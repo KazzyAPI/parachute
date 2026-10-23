@@ -112,3 +112,40 @@ func TestNTF_014_realm_userinfo_is_redacted(t *testing.T) {
 	assertContains(t, body, "[REDACTED]")
 	assertNoSecrets(t, "notification", body, "realmpw")
 }
+
+func TestNTF_011_new_digest_is_reported_again(t *testing.T) {
+	env := harness.NewEnv(t)
+	webhook := env.Webhook()
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	startDaemon(env, env.Parachute("--interval", "5", "--delay-days", "2", "--no-startup-message", "--notification-url", webhook.URL()))
+	env.Eventually(time.Minute, "first hold report", func() bool { return len(webhook.Matching(a)) == 1 })
+	app.registry.Push(refRepo(app.ref), "1", "3")
+	env.Eventually(time.Minute, "hold report for the new digest", func() bool { return len(webhook.Matching(a)) == 2 })
+}
+
+func TestNTF_011_new_reason_is_reported_again(t *testing.T) {
+	env := harness.NewEnv(t)
+	webhook := env.Webhook()
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	startDaemon(env, env.Parachute("--interval", "5", "--delay-days", "2", "--no-startup-message", "--notification-url", webhook.URL()))
+	env.Eventually(time.Minute, "delay hold report", func() bool { return len(webhook.Matching(a)) == 1 })
+	env.Docker("rm", "-f", a)
+	env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.monitor-only": "true"}})
+	env.Eventually(time.Minute, "monitor-only hold report", func() bool { return len(webhook.Matching("held (monitor_only)")) == 1 })
+}
+
+func TestNTF_014_template_functions_cannot_reveal_secrets(t *testing.T) {
+	env := harness.NewEnv(t)
+	webhook := env.Webhook()
+	host := challengeRegistry(env, func(string) string { return "https://tok3nuser@127.0.0.1:1/token" }, 0, "")
+	challengedContainer(env, host)
+	notify(env, webhook, "--notification-report=false",
+		"--notification-template", "{{range .}}{{urlquery .Message}};{{range $key, $value := .Fields}}{{urlquery $value}};{{end}}{{end}}")
+	body := singleReport(t, webhook).Message
+	assertContains(t, body, "REDACTED")
+	assertNoSecrets(t, "notification", body, "tok3nuser")
+}
