@@ -2,11 +2,13 @@
 
 **Docker updates you can trust: back up first, verify after, roll back automatically.**
 
-Keeping containers up to date matters, and blind auto-updates break things. Parachute updates your containers the way a careful operator would. It snapshots your data, checks that the new version really works, and puts the old one back if it doesn't. Open source, one small static binary, no database.
+Keeping containers up to date matters, and blind auto-updates break things. Parachute updates your containers the way a careful operator would. It snapshots your data, checks that the new version really works, and puts the old one back if it doesn't. Built in the open: one small static binary, no database.
 
 > **Status: pre-alpha.** Milestone 1 is report-only: Parachute finds and reports available updates but never changes a container. Do not point it at data you can't lose. Progress is tracked in [`docs/specs/README.md`](docs/specs/README.md).
 
-## Why Parachute
+## What Parachute is built to do
+
+These are the design goals. Today only report-only detection ships; each row below arrives with the milestone in the roadmap.
 
 | | |
 |---|---|
@@ -42,7 +44,7 @@ docker run --rm \
   parachute:dev --run-once
 ```
 
-You get a list of containers with a newer image available, and nothing is touched. To run it on a schedule, drop `--run-once` and set `PARACHUTE_SCHEDULE`.
+You get a list of containers with a newer image available, and nothing is touched. To run it as a daemon, drop `--run-once` and `--rm` and add `-d`. It checks daily by default; set `PARACHUTE_SCHEDULE` for a cron schedule.
 
 Opt a container out with a label, for example `parachute.enable=false`. Every setting and label is in the [configuration spec](docs/specs/16-configuration.md).
 
@@ -50,11 +52,11 @@ Opt a container out with a label, for example `parachute.enable=false`. Every se
 
 ## Roadmap
 
-| Milestone | What it adds | State |
+| Stage | What it adds | State |
 |---|---|---|
-| 1. Report-only core | Selection, scheduling, update detection, registry auth, notifications, status | Done |
-| 2. Safe updates | Backup, the update transaction, verification, rollback, policies, hooks | Next |
-| 3. Control plane | HTTP API, metrics, approvals, multi-host, restore verification | Planned |
+| Report-only core | Selection, scheduling, update detection, registry auth, notifications, status | Done; tests are catching up with later spec changes ([deviations](docs/specs/README.md)) |
+| Safe updates | Backup, the update transaction, verification, rollback, policies and approvals, hooks | Next |
+| Control plane | HTTP API and metrics, multi-host, restore verification | Planned |
 
 ## Project principles
 
