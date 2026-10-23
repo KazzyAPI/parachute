@@ -11,6 +11,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/logging"
+	"github.com/KazzyAPI/parachute/internal/redact"
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
@@ -41,12 +42,14 @@ func New(deps Dependencies) *App {
 }
 
 func (a *App) Run(ctx context.Context, args, environ []string) int {
+	redactor := redact.New()
 	cfg, err := a.loader().Load(args, environ)
 	if err != nil {
-		slog.New(slog.NewTextHandler(a.deps.Stderr, nil)).Error(err.Error())
+		handler := logging.NewRedactingHandler(slog.NewTextHandler(a.deps.Stderr, nil), redactor, domain.LevelDebug.Slog())
+		slog.New(handler).Error(err.Error())
 		return domain.ExitConfiguration
 	}
-	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr)
+	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr, redactor)
 	container := NewContainer(cfg, a.deps, logger)
 	if err := a.dispatch(ctx, container); err != nil {
 		logger.Error(err.Error())
