@@ -86,7 +86,7 @@ M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 
 - Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
 - API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
-- API-007's approve-then-restart and lapse-on-new-digest criteria, and API-008's `parachute_host_up` 0 criterion: their tests exist but are skipped until the policies package (approvals) and the hosts package (`--hosts`) are merged.
+- API-008's `parachute_host_up` 0 criterion: its test exists but is skipped until the hosts package (`--hosts`) is merged.
 - API-007, POL-011: the approval half in M2; the freeze-release half in M3.
 - DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
 - POL-001: its hooks criterion in M4; the others in M2.

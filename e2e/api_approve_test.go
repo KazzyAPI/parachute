@@ -11,8 +11,6 @@ import (
 	"github.com/KazzyAPI/parachute/e2e/harness"
 )
 
-const pendingApprovalService = "skipped until the policies package (feat/m2-policy, internal/approval) merges; see M2 deviations"
-
 func approve(api *harness.API, query url.Values) *harness.APIResponse {
 	return api.Do(harness.APIRequest{Method: http.MethodPost, Path: "/v1/approve?" + query.Encode(), Authorization: harness.Bearer(apiToken)})
 }
@@ -31,7 +29,6 @@ func stopDaemon(process *harness.Process) {
 }
 
 func TestAPI_007_approved_update_survives_a_restart(t *testing.T) {
-	t.Skip(pendingApprovalService)
 	env := harness.NewEnv(t)
 	db, _ := heldDatabase(t, env)
 	process, api := startAPI(env, "--http-api-update", "--porcelain", "v1")
@@ -51,7 +48,6 @@ func TestAPI_007_approved_update_survives_a_restart(t *testing.T) {
 }
 
 func TestAPI_007_approval_lapses_when_the_digest_changes(t *testing.T) {
-	t.Skip(pendingApprovalService)
 	env := harness.NewEnv(t)
 	db, database := heldDatabase(t, env)
 	id, image := env.ContainerState(db)
