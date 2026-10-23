@@ -37,6 +37,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter,
 		c.selectStage(),
 		c.detectStage(),
 		policyStage,
+		pipeline.NewTransactionStage(false),
 		c.driftStage(),
 		pipeline.NewReportStage(c.deps.Clock, c.logger, append(c.sinks(store, reporter), collector)...),
 	)
