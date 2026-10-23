@@ -96,10 +96,7 @@ func (r *Registry) Ref(repo, tag string) string {
 
 func (r *Registry) Push(repo, tag, version string) string {
 	r.env.T.Helper()
-	ref := r.Ref(repo, tag)
-	r.env.BuildImage(ref, version)
-	r.env.Docker("--config", r.cliConfig, "push", "-q", ref)
-	return ref
+	return r.PushSpec(repo, tag, ImageSpec{Version: version})
 }
 
 func (r *Registry) Requests() []RegistryRequest {

@@ -3,36 +3,31 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/schedule"
 )
 
 type CycleRunner interface {
 	Run(ctx context.Context, id string) domain.Report
 }
 
-type IDGenerator interface {
-	New(started time.Time) (string, error)
-}
-
 type SingleCycle struct {
-	ids    IDGenerator
-	clock  Clock
+	gate   *schedule.Gate
 	runner CycleRunner
 }
 
-func NewSingleCycle(ids IDGenerator, clock Clock, runner CycleRunner) *SingleCycle {
-	return &SingleCycle{ids: ids, clock: clock, runner: runner}
+func NewSingleCycle(gate *schedule.Gate, runner CycleRunner) *SingleCycle {
+	return &SingleCycle{gate: gate, runner: runner}
 }
 
 func (s *SingleCycle) Run(ctx context.Context) error {
-	id, err := s.ids.New(s.clock.Now())
+	report, err := s.gate.Run(ctx, s.runner.Run)
 	if err != nil {
-		return err
+		return fmt.Errorf("start cycle: %w", err)
 	}
-	if code := s.runner.Run(ctx, id).ExitCode(); code != domain.ExitSuccess {
-		return &ExitError{Code: code, Err: fmt.Errorf("cycle %s finished with problems", id)}
+	if code := report.ExitCode(); code != domain.ExitSuccess {
+		return &ExitError{Code: code, Err: fmt.Errorf("cycle %s finished with problems", report.CycleID)}
 	}
 	return nil
 }

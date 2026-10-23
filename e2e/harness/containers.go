@@ -1,8 +1,6 @@
 package harness
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -12,20 +10,6 @@ type ContainerOptions struct {
 	Unscoped bool
 	Args     []string
 	Extra    []string
-}
-
-func (e *Env) BuildImage(ref, version string) {
-	e.T.Helper()
-	context, err := os.MkdirTemp(e.Dir, "build-")
-	if err != nil {
-		e.T.Fatal(err)
-	}
-	dockerfile := "FROM " + suite.fixtureImage + "\nLABEL parachute-e2e.version=" + e.ID + "-" + version + "\n"
-	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
-		e.T.Fatal(err)
-	}
-	e.Docker("build", "-q", "--provenance=false", "-t", ref, context)
-	e.trackImage(ref)
 }
 
 func (e *Env) Tag(source, target string) string {

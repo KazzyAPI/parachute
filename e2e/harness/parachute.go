@@ -55,7 +55,14 @@ func (p *Parachute) commandArgs() []string {
 	if !p.unscoped && !has("--scope") {
 		args = append(args, "--scope", p.env.Scope())
 	}
+	if !has("--delay-days") && !has("--profile") && !p.setsAny("PARACHUTE_DELAY_DAYS", "PARACHUTE_PROFILE") {
+		args = append(args, "--delay-days", "0")
+	}
 	return append(command, args...)
+}
+
+func (p *Parachute) setsAny(names ...string) bool {
+	return slices.ContainsFunc(names, func(name string) bool { _, ok := p.vars[name]; return ok })
 }
 
 func (p *Parachute) environment() []string {

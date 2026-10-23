@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type State string
 
 const (
@@ -26,19 +28,22 @@ func (s State) Level() Level {
 }
 
 type Result struct {
-	Host            string `json:"host"`
-	Stack           string `json:"stack"`
-	Compose         bool   `json:"compose"`
-	Service         string `json:"service"`
-	Container       string `json:"container"`
-	Image           string `json:"image"`
-	ImageID         string `json:"image_id"`
-	CandidateDigest string `json:"candidate_digest"`
-	State           State  `json:"state"`
-	Reason          string `json:"reason"`
-	Transaction     string `json:"txn"`
-	Snapshot        string `json:"snapshot"`
-	Detail          string `json:"-"`
+	Host            string     `json:"host"`
+	Stack           string     `json:"stack"`
+	Compose         bool       `json:"compose"`
+	Service         string     `json:"service"`
+	Container       string     `json:"container"`
+	Image           string     `json:"image"`
+	ImageID         string     `json:"image_id"`
+	CandidateDigest string     `json:"candidate_digest"`
+	State           State      `json:"state"`
+	Reason          string     `json:"reason"`
+	Transaction     string     `json:"txn"`
+	Snapshot        string     `json:"snapshot"`
+	HoldUntil       *time.Time `json:"hold_until,omitempty"`
+	Drift           *string    `json:"drift,omitempty"`
+	ContainerID     string     `json:"container_id,omitempty"`
+	Detail          string     `json:"-"`
 }
 
 func NewResult(host string, container Container) Result {

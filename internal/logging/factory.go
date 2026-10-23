@@ -7,6 +7,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/config"
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/redact"
 )
 
 type Factory struct {
@@ -18,7 +19,11 @@ func NewFactory(location *time.Location, terminal bool) *Factory {
 	return &Factory{location: location, terminal: terminal}
 }
 
-func (f *Factory) New(settings config.Log, out io.Writer) *slog.Logger {
+func (f *Factory) New(settings config.Log, out io.Writer, redactor *redact.Redactor) *slog.Logger {
+	return slog.New(NewRedactingHandler(f.handler(settings, out), redactor, domain.LevelDebug.Slog()))
+}
+
+func (f *Factory) handler(settings config.Log, out io.Writer) slog.Handler {
 	options := &slog.HandlerOptions{Level: domain.ParseLevel(settings.Level).Slog(), ReplaceAttr: f.replace}
 	format := settings.Format
 	if format == "auto" {
@@ -29,11 +34,11 @@ func (f *Factory) New(settings config.Log, out io.Writer) *slog.Logger {
 	}
 	switch format {
 	case "json":
-		return slog.New(slog.NewJSONHandler(out, options))
+		return slog.NewJSONHandler(out, options)
 	case "pretty":
-		return slog.New(NewPrettyHandler(out, options.Level.Level(), !settings.NoColor, f))
+		return NewPrettyHandler(out, options.Level.Level(), !settings.NoColor, f)
 	}
-	return slog.New(slog.NewTextHandler(out, options))
+	return slog.NewTextHandler(out, options)
 }
 
 func (f *Factory) replace(groups []string, attribute slog.Attr) slog.Attr {

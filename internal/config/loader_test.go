@@ -58,6 +58,20 @@ func TestConvenientProfileRelaxesOnlyImplicitDefaults(t *testing.T) {
 	}
 }
 
+func TestFeatureSectionsAreBoundFromTypedValues(t *testing.T) {
+	cfg, err := newTestLoader().Load([]string{"--delay-days", "0.5", "--maintenance-window-duration", "90m", "--http-api-port", "9000"},
+		[]string{"PARACHUTE_HTTP_API_TOKEN=tok", "PARACHUTE_APPROVAL_REMINDER_DAYS=3.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Policy.DelayDays != 0.5 || cfg.Policy.WindowDuration.Minutes() != 90 || cfg.Policy.ReminderDays != 3.5 || !cfg.Policy.ProtectDatabases {
+		t.Errorf("unexpected policy %+v", cfg.Policy)
+	}
+	if cfg.API.Port != 9000 || cfg.API.Token != "tok" || !cfg.Notify.Report || cfg.Engine.AllowInsecureTCP {
+		t.Errorf("unexpected api %+v notify %+v", cfg.API, cfg.Notify)
+	}
+}
+
 func TestStartupErrorsNameTheSetting(t *testing.T) {
 	for _, tc := range []struct {
 		args    []string
@@ -71,6 +85,8 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		{args: []string{"--interval", "5", "--schedule", "* * * * * *"}, want: []string{"interval", "schedule"}},
 		{args: []string{"--armed"}, want: []string{"updates are not implemented in this milestone"}},
 		{args: []string{"--http-api-status"}, want: []string{"--http-api-status", "not implemented"}},
+		{args: []string{"--allow-insecure-tcp"}, want: []string{"--allow-insecure-tcp", "not implemented"}},
+		{environ: []string{"PARACHUTE_TRUSTED_PROXIES=10.0.0.1"}, want: []string{"--trusted-proxies", "not implemented"}},
 	} {
 		_, err := newTestLoader().Load(tc.args, tc.environ)
 		if err == nil {

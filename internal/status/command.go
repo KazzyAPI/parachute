@@ -17,17 +17,17 @@ type Clock interface {
 }
 
 type Command struct {
-	builder *Builder
-	clock   Clock
-	out     io.Writer
+	source Source
+	clock  Clock
+	out    io.Writer
 }
 
-func NewCommand(builder *Builder, clock Clock, out io.Writer) *Command {
-	return &Command{builder: builder, clock: clock, out: out}
+func NewCommand(source Source, clock Clock, out io.Writer) *Command {
+	return &Command{source: source, clock: clock, out: out}
 }
 
 func (c *Command) Document(ctx context.Context, saved state.Document) (Document, error) {
-	return c.builder.Build(ctx, saved, c.clock.Now())
+	return c.source.Build(ctx, saved, c.clock.Now())
 }
 
 func (c *Command) WriteJSON(document Document) error {
