@@ -10,7 +10,7 @@ Detection resolves a tag (for example `app:1`) to a manifest digest. The delay (
 - Detection records exactly one **candidate digest** per detected update, validated as `sha256:[0-9a-f]{64}` and, for a `GET`, checked against the body's hash (DET-008).
 - Every policy decision and stored record (first-seen time, approval, failed-digest hold) is keyed on that digest.
 - An update pulls `<repository>@<candidate digest>`, never `<repository>:<tag>`.
-- After the pull, Parachute verifies that the pulled image's repository digests contain `<repository>@<candidate digest>`. If they do not, the transaction ends `failed` with reason `pull_failed` before any container is stopped.
+- After the pull, Parachute verifies that the pulled image's repository digests contain `<repository>@<candidate digest>`. If they do not, the transaction ends `aborted` with result `failed`, reason `pull_failed`, before any container is stopped.
 - Parachute then points the original tag reference at the verified image (what a tag pull would have done) and creates the replacement with the original tag reference, so its configured image is unchanged and the next cycle's detection works as before (a replacement configured as `repo@digest` would be `digest_pinned` forever, DET-005). If the created replacement's image ID differs from the verified image ID (the tag was moved locally in between), the replacement is removed and the transaction rolls back.
 - The same applies to self-update (UPD-018).
 
