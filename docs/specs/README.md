@@ -62,7 +62,7 @@ Requirements implemented by each milestone. `make trace` fails when a `MUST` or 
 | Milestone | Implemented requirements |
 |---|---|
 | M1 report-only core | CFG-001, CFG-002, CFG-003, CFG-004, CFG-005, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SEL-001, SEL-002, SEL-003, SEL-004, SEL-005, SEL-006, SEL-007, SEL-008, SEL-009, SEL-010, SEL-011, SEL-012, SCH-001, SCH-002, SCH-003, SCH-004, SCH-005, SCH-006, SCH-007, DET-001, DET-002, DET-003, DET-004, DET-005, DET-006, DET-007, REG-001, REG-002, REG-003, REG-004, DMN-001, DMN-002, DMN-003, DMN-004, DMN-005, DMN-006, NTF-001, NTF-002, NTF-003, NTF-004, NTF-005, NTF-006, NTF-008, NTF-010, NTF-013, STS-001, STS-002, STS-005, DEP-001, DEP-002 |
-| M2 | SCH-008, API-001, API-002, API-003, API-004, API-005, API-006, API-007, API-008, API-009, API-010, API-011, API-012, STS-003, POL-001, POL-002, POL-003, POL-006, POL-007, POL-008, POL-009, POL-011, SEL-013 |
+| M2 | SCH-008, API-001, API-002, API-003, API-004, API-005, API-006, API-007, API-008, API-009, API-010, API-011, API-012, STS-003, POL-001, POL-002, POL-003, POL-006, POL-007, POL-008, POL-009, POL-011, SEL-013, DMN-003, DMN-005, DMN-007, DMN-008, DMN-009 |
 
 ### M1 deviations
 
@@ -86,7 +86,6 @@ M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 
 - Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
 - API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
-- API-008's `parachute_host_up` 0 criterion: its test exists but is skipped until the hosts package (`--hosts`) is merged.
 - API-007, POL-011: the approval half in M2; the freeze-release half in M3.
 - DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
 - POL-001: its hooks criterion in M4; the others in M2.

@@ -53,20 +53,41 @@ func TestDMN_003_untrusted_daemon_certificate_exits_4(t *testing.T) {
 	}
 }
 
-func TestDMN_003_plain_tcp_host_is_warned(t *testing.T) {
+func TestDMN_003_insecure_tcp_host_exits_2(t *testing.T) {
 	env := harness.NewEnv(t)
 	proxy := env.EngineProxy()
 	result := env.Parachute("--run-once").Setenv("DOCKER_HOST", proxy.Endpoint()).Run(runTimeout)
-	assertExit(t, result, 0)
-	warnings := findLogs(result.Logs(), func(entry harness.Log) bool { return entry.Level() == "warn" && entry.Get("host") == proxy.Endpoint() })
-	if len(warnings) != 1 {
-		t.Errorf("expected one warn line naming %s", proxy.Endpoint())
+	assertExit(t, result, 2)
+	assertContains(t, result.Stderr, proxy.Endpoint(), "allow-insecure-tcp")
+	if connections := proxy.Connections(); connections > 0 {
+		t.Errorf("daemon received %d connections", connections)
 	}
+}
+
+func TestDMN_003_allowed_insecure_host_is_warned_every_cycle(t *testing.T) {
+	env := harness.NewEnv(t)
+	proxy := env.EngineProxy()
+	process := startDaemon(env, env.Parachute("--allow-insecure-tcp", "--interval", "30").Setenv("DOCKER_HOST", proxy.Endpoint()))
+	process.WaitForLogs(60*time.Second, "two cycles", 2, func(entry harness.Log) bool { return entry.Msg() == "cycle finished" })
+	warnings := findLogs(process.Logs(), func(entry harness.Log) bool {
+		return entry.Level() == "warn" && entry.Get("endpoint") == proxy.Endpoint()
+	})
+	if len(warnings) < 3 {
+		t.Errorf("%d warn lines name %s, want at least 3", len(warnings), proxy.Endpoint())
+	}
+	assertContains(t, startupLog(t, process.Logs()).Get("relaxed"), "allow-insecure-tcp")
+}
+
+func TestDMN_003_insecure_host_in_host_list_exits_2(t *testing.T) {
+	env := harness.NewEnv(t)
+	result := env.Parachute("--run-once").Setenv("PARACHUTE_HOSTS", "a="+env.DockerHost()+",b=tcp://127.0.0.1:2375").Run(runTimeout)
+	assertExit(t, result, 2)
+	assertContains(t, result.Stderr, "tcp://127.0.0.1:2375")
 }
 
 func TestDMN_004_unreachable_host_exits_4(t *testing.T) {
 	env := harness.NewEnv(t)
-	result := env.Parachute("--run-once").Setenv("DOCKER_HOST", "tcp://127.0.0.1:1").Run(runTimeout)
+	result := env.Parachute("--run-once", "--allow-insecure-tcp").Setenv("DOCKER_HOST", "tcp://127.0.0.1:1").Run(runTimeout)
 	assertExit(t, result, 4)
 	assertContains(t, result.Stderr, "tcp://127.0.0.1:1")
 }
@@ -74,7 +95,7 @@ func TestDMN_004_unreachable_host_exits_4(t *testing.T) {
 func TestDMN_005_survives_daemon_outage_while_idle(t *testing.T) {
 	env := harness.NewEnv(t)
 	proxy := env.EngineProxy()
-	process := startDaemon(env, env.Parachute("--interval", "15").Setenv("DOCKER_HOST", proxy.Endpoint()))
+	process := startDaemon(env, env.Parachute("--allow-insecure-tcp", "--interval", "15").Setenv("DOCKER_HOST", proxy.Endpoint()))
 	process.WaitForLog(30*time.Second, "first cycle", func(entry harness.Log) bool { return entry.Msg() == "cycle finished" })
 	time.Sleep(2 * time.Second)
 	proxy.Pause()
@@ -92,7 +113,7 @@ func TestDMN_005_long_outage_reports_host_unreachable(t *testing.T) {
 	proxy := env.EngineProxy()
 	image := fixture(env)
 	env.RunContainer("a", image, harness.ContainerOptions{})
-	process := startDaemon(env, env.Parachute("--interval", "30", "--notifications-level", "debug", "--notification-url", webhook.URL()).
+	process := startDaemon(env, env.Parachute("--allow-insecure-tcp", "--interval", "30", "--notifications-level", "debug", "--notification-url", webhook.URL()).
 		Setenv("DOCKER_HOST", proxy.Endpoint()))
 	process.WaitForLog(30*time.Second, "first cycle", func(entry harness.Log) bool { return entry.Msg() == "cycle finished" })
 	proxy.Pause()
