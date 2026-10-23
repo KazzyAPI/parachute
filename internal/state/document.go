@@ -38,13 +38,18 @@ type Notified struct {
 }
 
 type Document struct {
-	Format              string          `json:"format"`
-	LastCycle           *CycleInfo      `json:"last_cycle"`
-	Results             []domain.Result `json:"results"`
-	FirstSeen           []FirstSeen     `json:"first_seen"`
-	Approvals           []Approval      `json:"approvals"`
-	Notified            []Notified      `json:"notified"`
-	SupersededInstances []string        `json:"superseded_instances"`
+	Format              string              `json:"format"`
+	LastCycle           *CycleInfo          `json:"last_cycle"`
+	Results             []domain.Result     `json:"results"`
+	FirstSeen           []FirstSeen         `json:"first_seen"`
+	Approvals           []Approval          `json:"approvals"`
+	Notified            []Notified          `json:"notified"`
+	SupersededInstances []string            `json:"superseded_instances"`
+	Transactions        []TransactionRecord `json:"transactions"`
+	Snapshots           []SnapshotRecord    `json:"snapshots"`
+	FailedDigests       []FailedDigest      `json:"failed_digests"`
+	Freezes             []Freeze            `json:"freezes"`
+	Releases            []Release           `json:"releases"`
 }
 
 func (d Document) clone() Document {
@@ -57,6 +62,17 @@ func (d Document) clone() Document {
 	d.Approvals = slices.Clone(d.Approvals)
 	d.Notified = slices.Clone(d.Notified)
 	d.SupersededInstances = slices.Clone(d.SupersededInstances)
+	d.Transactions = slices.Clone(d.Transactions)
+	d.Snapshots = slices.Clone(d.Snapshots)
+	d.FailedDigests = slices.Clone(d.FailedDigests)
+	d.Freezes = slices.Clone(d.Freezes)
+	for index := range d.Freezes {
+		d.Freezes[index].Keys = slices.Clone(d.Freezes[index].Keys)
+	}
+	d.Releases = slices.Clone(d.Releases)
+	for index := range d.Releases {
+		d.Releases[index].Keys = slices.Clone(d.Releases[index].Keys)
+	}
 	return d.complete()
 }
 
@@ -67,6 +83,11 @@ func (d Document) complete() Document {
 	d.Approvals = orEmpty(d.Approvals)
 	d.Notified = orEmpty(d.Notified)
 	d.SupersededInstances = orEmpty(d.SupersededInstances)
+	d.Transactions = orEmpty(d.Transactions)
+	d.Snapshots = orEmpty(d.Snapshots)
+	d.FailedDigests = orEmpty(d.FailedDigests)
+	d.Freezes = orEmpty(d.Freezes)
+	d.Releases = orEmpty(d.Releases)
 	return d
 }
 
