@@ -50,6 +50,8 @@ func (b *binder) relaxes(label string) bool {
 		return !b.boolean(label)
 	case "tag-follow":
 		return b.raw(label) != "none"
+	case "allow-insecure-tcp":
+		return b.boolean(label)
 	}
 	return false
 }

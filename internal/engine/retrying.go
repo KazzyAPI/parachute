@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/moby/moby/client"
@@ -28,6 +29,7 @@ type RetryPolicy struct {
 	MaxDelay       time.Duration
 	Window         time.Duration
 	AttemptTimeout time.Duration
+	ProbeTimeout   time.Duration
 }
 
 type Retrying struct {
@@ -35,6 +37,7 @@ type Retrying struct {
 	clock  Clock
 	policy RetryPolicy
 	logger *slog.Logger
+	down   atomic.Bool
 }
 
 func NewRetrying(source Source, clock Clock, policy RetryPolicy, logger *slog.Logger) *Retrying {
@@ -62,17 +65,28 @@ func (r *Retrying) Image(ctx context.Context, reference string) (Image, bool, er
 	return image, found, err
 }
 
+func (r *Retrying) MarkUnreachable() { r.down.Store(true) }
+
+func (r *Retrying) Reachable() bool { return !r.down.Load() }
+
 func (r *Retrying) do(ctx context.Context, operation string, call func(context.Context) error) error {
-	deadline := r.clock.Now().Add(r.policy.Window)
+	deadline, timeout := r.clock.Now().Add(r.policy.Window), r.policy.AttemptTimeout
+	if r.down.Load() {
+		deadline, timeout = r.clock.Now(), r.policy.ProbeTimeout
+	}
 	delay := r.policy.FirstDelay
 	for {
-		attempt, cancel := context.WithTimeout(ctx, r.policy.AttemptTimeout)
+		attempt, cancel := context.WithTimeout(ctx, timeout)
 		err := call(attempt)
 		cancel()
 		if err == nil || !r.retryable(ctx, err) {
+			if ctx.Err() == nil {
+				r.down.Store(false)
+			}
 			return err
 		}
 		if !r.clock.Now().Add(delay).Before(deadline) {
+			r.down.Store(true)
 			return &UnreachableError{Err: err}
 		}
 		r.logger.Warn("Docker request failed, retrying", "operation", operation, "retry_in", delay.String(), "error", err.Error())

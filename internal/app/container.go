@@ -32,6 +32,7 @@ func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, red
 
 func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage pipeline.Stage) *pipeline.Pipeline {
 	return pipeline.New(
+		c.insecureHostWarning(),
 		c.discoverStage(),
 		c.selectStage(),
 		c.detectStage(),
@@ -76,7 +77,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 		return nil, nil, errors.Join(err, closeHosts())
 	}
 	return NewDaemon(DaemonParts{
-		Guard:          NewArmedLabelGuard(hosts[0], c.self(), c.labels),
+		Guard:          NewArmedLabelGuard(firstReachable(hosts), c.self(), c.labels),
 		Announcer:      reporter,
 		Marker:         health.NewMarker(c.cfg.RuntimeDir, c.deps.System, c.deps.System),
 		Loop:           loop,

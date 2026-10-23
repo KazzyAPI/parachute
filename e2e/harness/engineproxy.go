@@ -2,18 +2,26 @@ package harness
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"crypto/tls"
+	"encoding/json"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httputil"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type EngineProxy struct {
 	env      *Env
-	port     int
+	address  string
+	accepted atomic.Int64
 	lock     sync.Mutex
 	listener net.Listener
 	conns    map[net.Conn]bool
@@ -21,17 +29,23 @@ type EngineProxy struct {
 
 func (e *Env) EngineProxy() *EngineProxy {
 	e.T.Helper()
-	proxy := &EngineProxy{env: e, port: e.FreePort(), conns: map[net.Conn]bool{}}
-	proxy.Resume()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	proxy := &EngineProxy{env: e, address: listener.Addr().String(), listener: listener, conns: map[net.Conn]bool{}}
+	go proxy.accept(listener)
 	e.T.Cleanup(proxy.Pause)
 	return proxy
 }
 
-func (p *EngineProxy) Endpoint() string { return "tcp://127.0.0.1:" + strconv.Itoa(p.port) }
+func (p *EngineProxy) Endpoint() string { return "tcp://" + p.address }
+
+func (p *EngineProxy) Connections() int64 { return p.accepted.Load() }
 
 func (p *EngineProxy) Resume() {
 	p.env.T.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(p.port))
+	listener, err := net.Listen("tcp", p.address)
 	if err != nil {
 		p.env.T.Fatal(err)
 	}
@@ -60,6 +74,7 @@ func (p *EngineProxy) accept(listener net.Listener) {
 		if err != nil {
 			return
 		}
+		p.accepted.Add(1)
 		outbound, err := net.Dial("unix", strings.TrimPrefix(suite.dockerHost, "unix://"))
 		if err != nil {
 			_ = inbound.Close()
@@ -118,4 +133,92 @@ func (d *FakeTLSDaemon) handle(conn net.Conn, certificate tls.Certificate) {
 		_ = server.Handshake()
 	}
 	_ = conn.Close()
+}
+
+type HTTPEngineProxy struct {
+	Endpoint string
+	engineID string
+	forward  *httputil.ReverseProxy
+	lock     sync.Mutex
+	failing  []string
+	requests []string
+}
+
+func (e *Env) HTTPEngineProxy() *HTTPEngineProxy {
+	e.T.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "")
+	e.serveHTTP(listener, proxy)
+	return proxy
+}
+
+func newHTTPEngineProxy(endpoint, engineID string) *HTTPEngineProxy {
+	socket := strings.TrimPrefix(suite.dockerHost, "unix://")
+	proxy := &HTTPEngineProxy{Endpoint: endpoint, engineID: engineID}
+	proxy.forward = &httputil.ReverseProxy{
+		Rewrite: func(request *httputil.ProxyRequest) {
+			request.Out.URL.Scheme, request.Out.URL.Host = "http", "docker"
+		},
+		Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", socket)
+		}},
+		ModifyResponse: proxy.rewriteEngineID,
+	}
+	return proxy
+}
+
+func (e *Env) serveHTTP(listener net.Listener, handler http.Handler) {
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	go func() { _ = server.Serve(listener) }()
+	e.T.Cleanup(func() { _ = server.Close() })
+}
+
+func (p *HTTPEngineProxy) Fail(pathPart string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.failing = append(p.failing, pathPart)
+}
+
+func (p *HTTPEngineProxy) Requests() []string {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return append([]string{}, p.requests...)
+}
+
+func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	p.lock.Lock()
+	p.requests = append(p.requests, request.Method+" "+request.URL.Path)
+	failing := slices.ContainsFunc(p.failing, func(part string) bool { return strings.Contains(request.URL.Path, part) })
+	p.lock.Unlock()
+	if !failing {
+		p.forward.ServeHTTP(response, request)
+		return
+	}
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(http.StatusInternalServerError)
+	_, _ = io.WriteString(response, `{"message":"injected engine failure"}`)
+}
+
+func (p *HTTPEngineProxy) rewriteEngineID(response *http.Response) error {
+	if p.engineID == "" || !strings.HasSuffix(response.Request.URL.Path, "/info") {
+		return nil
+	}
+	var info map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&info); err != nil {
+		return err
+	}
+	_ = response.Body.Close()
+	info["ID"] = p.engineID
+	body, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
 }

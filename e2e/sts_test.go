@@ -49,7 +49,14 @@ func TestSTS_001_status_without_daemon(t *testing.T) {
 
 func TestSTS_001_status_with_unreachable_host_exits_4(t *testing.T) {
 	env := harness.NewEnv(t)
-	assertExit(t, env.Parachute("status").Setenv("DOCKER_HOST", "tcp://127.0.0.1:1").Run(runTimeout), 4)
+	assertExit(t, env.Parachute("status", "--allow-insecure-tcp").Setenv("DOCKER_HOST", "tcp://127.0.0.1:1").Run(runTimeout), 4)
+}
+
+func TestSTS_001_status_with_insecure_host_exits_2(t *testing.T) {
+	env := harness.NewEnv(t)
+	result := env.Parachute("status").Setenv("DOCKER_HOST", "tcp://127.0.0.1:1").Run(runTimeout)
+	assertExit(t, result, 2)
+	assertContains(t, result.Stderr, "allow-insecure-tcp")
 }
 
 func TestSTS_002_document_shape(t *testing.T) {

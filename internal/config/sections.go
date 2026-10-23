@@ -1,11 +1,10 @@
 package config
 
-import "strings"
-
 func (l *Loader) engine(b *binder) Engine {
 	return Engine{
 		Host: b.raw("host"), APIVersion: b.raw("api-version"), TLSVerify: b.boolean("tlsverify"),
 		CertPath: b.raw("DOCKER_CERT_PATH"), AllowInsecureTCP: b.boolean("allow-insecure-tcp"),
+		HostSet: b.explicit("host"),
 	}
 }
 
@@ -31,13 +30,4 @@ func (l *Loader) api(b *binder) API {
 		StatusToken:    b.raw("http-api-status-token"),
 		TrustedProxies: b.list("trusted-proxies"),
 	}
-}
-
-func (l *Loader) hosts(b *binder) []HostSpec {
-	var hosts []HostSpec
-	for _, entry := range b.list("hosts") {
-		name, endpoint, _ := strings.Cut(entry, "=")
-		hosts = append(hosts, HostSpec{Name: name, Endpoint: endpoint})
-	}
-	return hosts
 }
