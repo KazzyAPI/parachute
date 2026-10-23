@@ -16,9 +16,9 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0005](0005-label-and-configuration-namespace.md) | Label and configuration namespace | Accepted |
 | [0006](0006-compose-is-the-unit-of-update.md) | The Compose stack is the unit of update | Accepted |
 | [0007](0007-safe-by-default.md) | Safe by default | Accepted |
-| [0008](0008-state-storage.md) | State storage layout | Accepted |
+| [0008](0008-state-storage.md) | State storage layout | Accepted (amended 2026-10-23, see Amendment) |
 | [0009](0009-snapshot-format-and-storage.md) | Snapshot format and storage | Accepted |
-| [0010](0010-docker-socket-access-and-security.md) | Docker socket access and security model | Accepted |
+| [0010](0010-docker-socket-access-and-security.md) | Docker socket access and security model | Accepted (amended 2026-10-23, see Amendment) |
 | [0011](0011-untrusted-input-handling.md) | Untrusted input handling | Accepted |
 | [0012](0012-digest-pinned-updates.md) | Digest-pinned updates | Accepted |
 | [0013](0013-secret-redaction.md) | Secret redaction | Accepted |
