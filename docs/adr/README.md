@@ -24,3 +24,4 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0013](0013-secret-redaction.md) | Secret redaction | Accepted |
 | [0014](0014-self-update-safety.md) | Self-update safety | Accepted |
 | [0015](0015-traceability-and-test-practice.md) | Traceability and test practice as built | Accepted |
+| [0016](0016-identifying-own-container.md) | Identifying Parachute's own container | Accepted |
