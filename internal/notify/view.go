@@ -54,7 +54,7 @@ func NewViewBuilder(minimum domain.Level, hostname string) *ViewBuilder {
 	return &ViewBuilder{minimum: minimum, hostname: hostname}
 }
 
-func (b *ViewBuilder) Build(report domain.Report, title string) ReportView {
+func (b *ViewBuilder) Build(report domain.Report, title string, hidden func(domain.Result) bool) ReportView {
 	counts := report.Counts()
 	view := ReportView{
 		Title: title, Host: b.hostname, CycleID: report.CycleID, Armed: report.Armed,
@@ -62,17 +62,17 @@ func (b *ViewBuilder) Build(report domain.Report, title string) ReportView {
 		Skipped: counts.Skipped, Held: counts.Held, WouldUpdate: counts.WouldUpdate,
 	}
 	for _, host := range report.Hosts {
-		view.Hosts = append(view.Hosts, HostView{Name: host.Name, Reachable: host.Reachable, Stacks: b.stacks(host.Results)})
+		view.Hosts = append(view.Hosts, HostView{Name: host.Name, Reachable: host.Reachable, Stacks: b.stacks(host.Results, hidden)})
 	}
 	return view
 }
 
 func (b *ViewBuilder) Shows(level domain.Level) bool { return level >= b.minimum }
 
-func (b *ViewBuilder) stacks(results []domain.Result) []StackView {
+func (b *ViewBuilder) stacks(results []domain.Result, hidden func(domain.Result) bool) []StackView {
 	var stacks []StackView
 	for _, result := range results {
-		if !b.Shows(result.State.Level()) {
+		if !b.Shows(result.State.Level()) || hidden(result) {
 			continue
 		}
 		if len(stacks) == 0 || stacks[len(stacks)-1].Name != result.Stack {
