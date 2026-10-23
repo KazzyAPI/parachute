@@ -6,12 +6,15 @@ const (
 )
 
 type Container struct {
-	ID       string
-	Name     string
-	State    string
-	Labels   map[string]string
-	ImageRef string
-	ImageID  string
+	ID          string
+	Name        string
+	State       string
+	Labels      map[string]string
+	ImageRef    string
+	ImageID     string
+	ImageLabels map[string]string
+	Env         []string
+	Own         bool
 }
 
 func (c Container) IsCompose() bool {
