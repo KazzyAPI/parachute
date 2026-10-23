@@ -28,12 +28,9 @@ func NewStore(directory string, files FileSystem) *Store {
 }
 
 func (s *Store) Open() error {
-	document, found, err := s.Read()
+	document, _, err := s.Read()
 	if err != nil {
 		return err
-	}
-	if !found {
-		document = Document{Format: Format}
 	}
 	s.lock.Lock()
 	s.current = document

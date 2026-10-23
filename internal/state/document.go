@@ -49,6 +49,10 @@ type Document struct {
 
 func (d Document) clone() Document {
 	d.Results = slices.Clone(d.Results)
+	for index := range d.Results {
+		d.Results[index].HoldUntil = clonePointer(d.Results[index].HoldUntil)
+		d.Results[index].Drift = clonePointer(d.Results[index].Drift)
+	}
 	d.FirstSeen = slices.Clone(d.FirstSeen)
 	d.Approvals = slices.Clone(d.Approvals)
 	d.Notified = slices.Clone(d.Notified)
@@ -57,12 +61,21 @@ func (d Document) clone() Document {
 }
 
 func (d Document) complete() Document {
+	d.Format = Format
 	d.Results = orEmpty(d.Results)
 	d.FirstSeen = orEmpty(d.FirstSeen)
 	d.Approvals = orEmpty(d.Approvals)
 	d.Notified = orEmpty(d.Notified)
 	d.SupersededInstances = orEmpty(d.SupersededInstances)
 	return d
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
 }
 
 func orEmpty[T any](items []T) []T {

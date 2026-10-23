@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"strings"
 	"testing"
@@ -45,6 +46,28 @@ func TestRecorderKeepsFieldsItDoesNotOwn(t *testing.T) {
 	}
 	if current := reopened.Current(); len(current.SupersededInstances) != 1 || current.LastCycle.ID != "cyc" {
 		t.Errorf("unexpected document %+v", current)
+	}
+}
+
+func TestFailedUpdateLeavesCurrentUntouched(t *testing.T) {
+	store := NewStore("/s", memoryFiles{})
+	if err := store.Open(); err != nil {
+		t.Fatal(err)
+	}
+	drift := "none"
+	if err := NewRecorder(store).Publish(context.Background(), domain.Report{Hosts: []domain.HostReport{{Results: []domain.Result{{Drift: &drift}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("refused")
+	err := store.Update(func(document *Document) error {
+		*document.Results[0].Drift = "changed"
+		return failure
+	})
+	if !errors.Is(err, failure) {
+		t.Fatalf("Update returned %v", err)
+	}
+	if got := *store.Current().Results[0].Drift; got != "none" {
+		t.Errorf("current drift %q after a failed update", got)
 	}
 }
 
