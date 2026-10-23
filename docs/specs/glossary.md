@@ -52,7 +52,7 @@ handover -> rolling_back                  (replacement failed verification, UPD-
 handover -> rollback_failed               (old instance stopped while the marker exists, step 6; new instance records it)
 ```
 
-Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `detect`, `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, `rolling_back` go to `rolling_back` and then `rolled_back` or `rollback_failed` with reason `interrupted`; `handover` follows UPD-018 step 6.
+Interruption (crash, kill, reboot) in an open state is resolved at the next start, before any cycle (UPD-016): `detect`, `policy`, `snapshot` go to `aborted` with reason `interrupted` after starting any container stopped for the snapshot; `update`, `verify`, `rolling_back` go to `rolling_back` and then `rolled_back` with reason `interrupted`, or `rollback_failed` with the VER-010 reason (`restore_failed` or `snapshot_invalid`, never `interrupted`); `handover` follows UPD-018 step 6.
 
 A terminal state is never left. A new attempt is a new transaction with a new ID.
 
