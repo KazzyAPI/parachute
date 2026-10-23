@@ -211,3 +211,13 @@ Affects UPD-018, UPD-007. The replacement must run beside the old instance, so a
 Affects UPD-009, UPD-016, UPD-017. If Parachute crashes after recording `committed` but before removing a renamed original, the original remains; UPD-017 forbids removal without in-process proof.
 
 **Recommendation:** warn at startup naming the leftover container; never delete it.
+
+### Q27 Reason code for a failed write in the update phase
+**Status:** Resolved 2026-10-23: A. A write that fails from the `update` phase on rolls back with `rolled_back`/`engine_error`, and the digest is held (POL-010), as for every `rolled_back` reason (DMN-005, [reasons.md](reasons.md#rolled_back)).
+
+Affects DMN-005, VER-008, reasons.md. DMN-005 says a failed engine write is never retried and fails its step; from the `update` phase on the transaction rolls back. The `rolled_back` table had no reason for a rollback caused by a failed write.
+- **A.** Reuse `engine_error` in the `rolled_back` table (held for digest).
+- **B.** Reuse `engine_error`, but re-evaluate the digest next cycle instead of holding it, because the image is not at fault.
+- **C.** A new code, for example `update_step_failed`.
+
+**Recommendation: A**, so that every `rolled_back` reason holds the digest.

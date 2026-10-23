@@ -51,7 +51,7 @@ MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are used as defined in RFC 2119. Nam
 
 - Each acceptance criterion is one test, a Go test function in `e2e/*_test.go` named `Test`, the requirement ID with `_` for `-`, and a short description: `TestSEL_001_default_selects_all_running` ([ADR-0015](../adr/0015-traceability-and-test-practice.md)).
 - Every `MUST` and `SHOULD` requirement has at least one test. `make trace` fails when a milestone lists an ID that is in no spec, or a `MUST` or `SHOULD` requirement listed for a milestone, or in a file with status `Accepted`, has no test.
-- Tests are black-box ([ADR-0003](../adr/0003-black-box-tests-from-specs.md)): they start Parachute (binary or image) against a real Docker engine and a local `registry:2`, and assert only on containers and labels, volume contents, the Docker event stream, registry access logs, payloads received by a fake webhook, HTTP responses, logs, stdout, and exit codes. Fixture images (for example `localhost:5000/fixture/app`) are built and pushed locally; tests never use Docker Hub. The one exception is API-011's constant-time comparison, which a code-level unit test covers in addition to its black-box test (ADR-0015).
+- Tests are black-box ([ADR-0003](../adr/0003-black-box-tests-from-specs.md)): they start Parachute (binary or image) against a real Docker engine and a local `registry:2`, and assert only on containers and labels, volume contents, the Docker event stream, registry access logs, payloads received by a fake webhook, HTTP responses, logs, stdout, and exit codes. Fixture images (for example `localhost:5000/fixture/app`) are built and pushed locally. Official images used as test infrastructure (`registry:2`, `busybox`, `postgres`, `mysql`, `docker`) MAY be pulled from Docker Hub before the tests and re-pushed to the local registry; tests never depend on Docker Hub for the images under test. The one exception is API-011's constant-time comparison, which a code-level unit test covers in addition to its black-box test (ADR-0015).
 - Unless a criterion says otherwise, it assumes Parachute is armed (CFG-006), lifecycle hooks are off, `--delay-days 0`, `--protect-databases` on, and one host named `local`.
 - Times stated in criteria have a tolerance of ±5 seconds unless stated.
 
@@ -74,6 +74,21 @@ M1 reports and never changes containers. Until update execution exists:
 - STS-002 is produced by `parachute status --json`; `GET /v1/status` arrives with the HTTP API.
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012, DET-004, DMN-003, STS-002.
+
+### Later milestones
+
+The later milestones are M2 policies, HTTP API, and hosts; M3 armed transactions; M4 hooks and self-update; M5 restore verification and Podman. Each gets its row in the coverage table when its tests exist, because `make trace` fails for a listed requirement without a test.
+
+### M2 deviations
+
+M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
+
+- Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
+- API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
+- API-007, POL-011: the approval half in M2; the freeze-release half in M3.
+- DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
+- POL-001: its hooks criterion in M4; the others in M2.
+- Criteria meaningless unarmed are tested in M3: CFG-006's `PARACHUTE_ARMED=true` criterion (expects `updated`), DMN-005's stop-request and replacement-start criteria, UPD-019's paused-helper criterion, and BKP-010's armed startup criterion.
 
 ## Index
 
