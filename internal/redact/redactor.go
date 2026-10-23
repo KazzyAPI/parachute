@@ -28,6 +28,8 @@ type Redactor struct {
 	url           *regexp.Regexp
 	queryValue    *regexp.Regexp
 	authorization *regexp.Regexp
+	credential    *regexp.Regexp
+	authParam     *regexp.Regexp
 }
 
 func New(sources ...Source) *Redactor {
@@ -35,7 +37,9 @@ func New(sources ...Source) *Redactor {
 		sources:       sources,
 		url:           regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>]+`),
 		queryValue:    regexp.MustCompile(`([?&][^=&#?]*=)[^&#]+`),
-		authorization: regexp.MustCompile(`(?i)(authorization:\s*(?:(?:bearer|basic)\s+)?)[^\s,;"]+`),
+		authorization: regexp.MustCompile(`(?i)(authorization"?\s*[:=]\s*"?(?:(?:bearer|basic)\s+)?)[^\s,;"]+`),
+		credential:    regexp.MustCompile(`(?i)\b(bearer|basic)(\s+)([A-Za-z0-9._~+/-]+=*)("?)`),
+		authParam:     regexp.MustCompile(`^[a-z_-]+=$`),
 	}
 }
 
@@ -44,7 +48,16 @@ func (r *Redactor) Redact(text string) string {
 		text = strings.ReplaceAll(text, secret, placeholder)
 	}
 	text = r.url.ReplaceAllStringFunc(text, r.redactURL)
+	text = r.credential.ReplaceAllStringFunc(text, r.redactCredential)
 	return r.authorization.ReplaceAllString(text, "${1}"+placeholder)
+}
+
+func (r *Redactor) redactCredential(match string) string {
+	parts := r.credential.FindStringSubmatch(match)
+	if parts[4] == `"` && r.authParam.MatchString(parts[3]) {
+		return match
+	}
+	return parts[1] + parts[2] + placeholder + parts[4]
 }
 
 func (r *Redactor) literals() []string {
