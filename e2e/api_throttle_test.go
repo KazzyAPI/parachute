@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,6 +51,25 @@ func TestAPI_010_repeated_failures_are_throttled(t *testing.T) {
 	process, api := throttledDaemon(t)
 	assertThrottled(t, trigger(api, harness.Bearer(apiToken)))
 	assertNoCycle(t, process)
+}
+
+func TestAPI_010_parallel_failures_never_exceed_the_limit(t *testing.T) {
+	env := harness.NewEnv(t)
+	_, api := startAPI(env, "--http-api-update")
+	statuses := make(chan int, 20)
+	var requests sync.WaitGroup
+	for range 20 {
+		requests.Go(func() { statuses <- trigger(api, harness.Bearer("wrong")).Status })
+	}
+	requests.Wait()
+	close(statuses)
+	counts := map[int]int{}
+	for status := range statuses {
+		counts[status]++
+	}
+	if counts[http.StatusUnauthorized] > 10 || counts[http.StatusUnauthorized]+counts[http.StatusTooManyRequests] != 20 {
+		t.Errorf("parallel wrong tokens got %v, want at most 10 checked (401) and the rest 429", counts)
+	}
 }
 
 func TestAPI_010_other_addresses_are_not_throttled(t *testing.T) {

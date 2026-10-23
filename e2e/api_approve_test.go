@@ -11,7 +11,7 @@ import (
 	"github.com/KazzyAPI/parachute/e2e/harness"
 )
 
-const pendingApprovalService = "pending the approval service (package P2, internal/approval)"
+const pendingApprovalService = "skipped until the policies package (feat/m2-policy, internal/approval) merges; see M2 deviations"
 
 func approve(api *harness.API, query url.Values) *harness.APIResponse {
 	return api.Do(harness.APIRequest{Method: http.MethodPost, Path: "/v1/approve?" + query.Encode(), Authorization: harness.Bearer(apiToken)})

@@ -71,7 +71,7 @@ func TestAPI_008_metrics_describe_the_last_cycle(t *testing.T) {
 }
 
 func TestAPI_008_unreachable_host_is_reported_down(t *testing.T) {
-	t.Skip("pending the multi-host package: --hosts is not implemented on this branch")
+	t.Skip("skipped until the hosts package (feat/m2-hosts, --hosts) merges; see M2 deviations")
 	env := harness.NewEnv(t)
 	process, api := startAPI(env, "--http-api-metrics", "--allow-insecure-tcp",
 		"--hosts", "local="+env.DockerHost()+",remote=tcp://127.0.0.1:1")
