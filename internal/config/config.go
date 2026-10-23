@@ -6,7 +6,6 @@ type Config struct {
 	Command        Command
 	JSON           bool
 	Profile        string
-	Relaxed        []string
 	Relaxations    []Relaxation
 	Armed          bool
 	RunOnce        bool
