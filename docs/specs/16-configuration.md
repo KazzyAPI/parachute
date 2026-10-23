@@ -58,7 +58,7 @@ Every candidate on a reachable host MUST end each cycle in exactly one of these 
 | `held` | Update available but not applied this cycle: held by a policy (POL-001) or deferred by a `pre-update` hook (HOK-006, reason `hook_deferred`). |
 | `skipped` | Not checkable for a non-error reason (`digest_pinned`, `local_image`, `managed_by_runtime`). |
 | `failed` | Not updated because of an error; nothing changed (UPD-014, BKP-011, UPD-019, DET-003, DEP-008, POL-008, DMN-005). An unreachable host is not a result: it is reported per host and contributes no entries (DMN-005). |
-| `rolled_back` | Update applied, verification failed, previous state restored (reason `verify_failed`, `verify_timeout`, `transaction_timeout`, `interrupted`, `image_mismatch`, or `engine_error`; VER-011). |
+| `rolled_back` | Update applied, then the transaction failed and the previous state was restored (reason: one of the `rolled_back` codes in [reasons.md](reasons.md#rolled_back); VER-011). |
 | `rollback_failed` | Update applied, and the previous state could not be fully restored (VER-010). |
 
 With `--porcelain v1`, Parachute MUST write exactly one JSON object per line to stdout and nothing else (logs go to stderr): one `entry` line per candidate per cycle, then one `summary` line. Every key is always present, `null` when it has no value:

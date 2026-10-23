@@ -88,7 +88,7 @@ M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 - API-007, POL-011: the approval half in M2; the freeze-release half in M3.
 - DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
 - POL-001: its hooks criterion in M4; the others in M2.
-- Criteria meaningless unarmed are tested in M3: CFG-006's `PARACHUTE_ARMED=true` criterion (expects `updated`), DMN-005's stop-request criterion, UPD-019's paused-helper criterion, and BKP-010's armed startup criterion.
+- Criteria meaningless unarmed are tested in M3: CFG-006's `PARACHUTE_ARMED=true` criterion (expects `updated`), DMN-005's stop-request and replacement-start criteria, UPD-019's paused-helper criterion, and BKP-010's armed startup criterion.
 
 ## Index
 

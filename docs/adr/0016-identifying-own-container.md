@@ -8,7 +8,7 @@ Several rules depend on Parachute's **own container**, the container the running
 
 ## Decision
 1. **Candidate ID, in this order.** Parachute takes the first container ID it finds from:
-   1. `/proc/self/mountinfo`: the root field (the fourth field, the path within the mounted file system, not the device) of the mount at `/etc/hostname`, `/etc/hosts`, or `/etc/resolv.conf`, when it matches `/containers/<id>/(hostname|hosts|resolv.conf)` with `<id>` 64 lower-case hex characters. This does not depend on the engine's data-root path;
+   1. `/proc/self/mountinfo`: the root field (the fourth field, the path within the mounted file system, not the device) of the mount at `/etc/hostname`, `/etc/hosts`, or `/etc/resolv.conf`, when it ends with `/containers/<id>/(hostname|hosts|resolv.conf)` with `<id>` 64 lower-case hex characters. This does not depend on the engine's data-root path;
    2. `/proc/self/cgroup`: a 64-hex container ID in the cgroup path (cgroup v1, or v2 without a private cgroup namespace);
    3. the hostname, only when it is 12 or 64 lower-case hex characters and is a prefix of the ID of exactly one running container.
 2. **Always confirmed by the engine.** The candidate ID becomes the own container only when `inspect` of that ID returns a running container; Parachute then uses the full ID the engine returns. A candidate the engine does not confirm is discarded, and the next source is tried. With one host, that host's engine confirms. With several hosts (DMN-007), the candidate is confirmed against each host's engine, and the own container belongs only to the host whose engine confirms it; source 3 looks only at the host whose endpoint is a local socket (`unix://`). A candidate confirmed by two engines is discarded.
@@ -23,4 +23,4 @@ Several rules depend on Parachute's **own container**, the container the running
 - Identification needs read access to `/proc/self`, which every container has.
 
 ## Specs affected
-SEL-012, SEL-013, UPD-018, BKP-010, CFG-006, DMN-007.
+SEL-011, SEL-012, SEL-013, UPD-018, BKP-010, CFG-006, DMN-007.
