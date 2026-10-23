@@ -36,7 +36,7 @@ Order of precedence is the order of the rows (POL-001): the first that applies i
 | `previous_attempt_failed` | A transaction to this candidate digest already ended `rolled_back` or `rollback_failed`. | POL-010, UPD-018 | held for digest (after `rollback_failed`: frozen) |
 | `delay` | The candidate digest is younger than `--delay-days`. | POL-002 | re-evaluated |
 | `maintenance_window` | The cycle is outside the maintenance window. | POL-007 | re-evaluated |
-| `hook_deferred` | A `pre-update` hook exited 75; no container was stopped. | HOK-006, HOK-008 | re-evaluated |
+| `hook_deferred` | A `pre-update` hook exited 75; no container was stopped. | HOK-006 | re-evaluated |
 
 ### skipped
 
