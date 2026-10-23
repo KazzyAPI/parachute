@@ -1,6 +1,6 @@
 # ADR-0014: Self-update safety
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-10-23, see Amendment)
 - **Date:** 2026-10-23
 
 ## Context
@@ -26,3 +26,6 @@ Parachute can update its own container. That container holds the Docker socket, 
 
 ## Specs affected
 UPD-001, UPD-008, UPD-009, UPD-016, UPD-017, UPD-018, UPD-019, UPD-020, DEP-003, VER-001, VER-010, SEL-012, API-007, CFG-010, CFG-011.
+
+## Amendment (2026-10-23)
+A self-update that ends `rollback_failed` freezes only the own container, not its Compose project. The operator releases the freeze with `POST /v1/approve` for the own container, which works even when no update is held for it (after decision 9 the new instance already runs the approved digest); the release is bound to the frozen transaction ID (API-007, POL-010, POL-011).

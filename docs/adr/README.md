@@ -22,5 +22,5 @@ ADRs record decisions the code must follow. Specs say **what** the system does; 
 | [0011](0011-untrusted-input-handling.md) | Untrusted input handling | Accepted |
 | [0012](0012-digest-pinned-updates.md) | Digest-pinned updates | Accepted |
 | [0013](0013-secret-redaction.md) | Secret redaction | Accepted |
-| [0014](0014-self-update-safety.md) | Self-update safety | Accepted |
+| [0014](0014-self-update-safety.md) | Self-update safety | Accepted (amended 2026-10-23, see Amendment) |
 | [0015](0015-traceability-and-test-practice.md) | Traceability and test practice as built | Accepted |
