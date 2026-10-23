@@ -1,9 +1,11 @@
 package registry
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -59,7 +61,7 @@ func (a *Authenticator) basic(credential Credential) string {
 
 func (a *Authenticator) token(ctx context.Context, challenge Challenge, credential *Credential) (token string, err error) {
 	realm, err := url.Parse(challenge.Params["realm"])
-	if err != nil || realm.Host == "" {
+	if err != nil || realm.Host == "" || realm.Scheme != "https" && realm.Scheme != "http" {
 		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("invalid token realm %q", challenge.Params["realm"])}
 	}
 	query := realm.Query()
@@ -95,15 +97,22 @@ func (a *Authenticator) token(ctx context.Context, challenge Challenge, credenti
 	if response.StatusCode != http.StatusOK {
 		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token request to %s: %s", realm.Host, response.Status)}
 	}
+	contents, err := io.ReadAll(io.LimitReader(response.Body, maxBodyBytes+1))
+	if err != nil {
+		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s: %w", realm.Host, err)}
+	}
+	if len(contents) > maxBodyBytes {
+		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s larger than %d bytes", realm.Host, maxBodyBytes)}
+	}
 	var body struct {
 		Token       string `json:"token"`
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s: %w", realm.Host, err)}
+	if err := json.Unmarshal(contents, &body); err != nil {
+		return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s is not a JSON object with a token", realm.Host)}
 	}
-	if body.Token != "" {
-		return body.Token, nil
+	if token := cmp.Or(body.Token, body.AccessToken); token != "" {
+		return token, nil
 	}
-	return body.AccessToken, nil
+	return "", &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("token response from %s has no token", realm.Host)}
 }

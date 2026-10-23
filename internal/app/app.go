@@ -51,7 +51,7 @@ func (a *App) Run(ctx context.Context, args, environ []string) int {
 		slog.New(handler).Error(err.Error())
 		return domain.ExitConfiguration
 	}
-	redactor = redact.New(redact.Static(cfg.API.Token, cfg.API.StatusToken))
+	redactor = redact.New(redact.Static(cfg.API.Token, cfg.API.StatusToken), registrySecrets(cfg, a.deps.System))
 	logger := logging.NewFactory(cfg.Schedule.Location, a.deps.Terminal).New(cfg.Log, a.deps.Stderr, redactor)
 	container := NewContainer(cfg, a.deps, logger, redactor)
 	if err := a.dispatch(ctx, container); err != nil {

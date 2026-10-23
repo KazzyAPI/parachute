@@ -16,7 +16,7 @@ type ContainerSource interface {
 }
 
 type ResultDetector interface {
-	Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, error)
+	Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, registry.Helper, error)
 }
 
 type Host struct {
