@@ -22,7 +22,7 @@ For a container that is updated, the hooks MUST run in the order `pre-check`, `p
 - **Given** the same and no update available **When** a cycle runs **Then** the file reads `pre-check post-check`.
 
 ### HOK-004 Held and monitor-only containers
-For a container whose update is held (POL-001), including monitor-only and unarmed, `pre-check` and `post-check` MUST run and `pre-update` and `post-update` MUST NOT run.
+For a container whose update is held in the policy phase (POL-001, every reason except `hook_deferred`), including monitor-only and unarmed, `pre-check` and `post-check` MUST run and `pre-update` and `post-update` MUST NOT run.
 
 - **Given** a monitor-only container with all four hooks and an update available **When** a cycle runs **Then** the file reads `pre-check post-check`.
 
