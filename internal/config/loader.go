@@ -111,7 +111,8 @@ func (l *Loader) schedule(b *binder) (Schedule, error) {
 	if err != nil {
 		return Schedule{}, fmt.Errorf("invalid value %q for TZ: %w", b.raw("TZ"), err)
 	}
-	return Schedule{Interval: b.seconds("interval"), Cron: b.raw("schedule"), Location: location}, nil
+	return Schedule{Interval: b.seconds("interval"), Cron: b.raw("schedule"),
+		Explicit: b.explicit("interval") || b.explicit("schedule"), Location: location}, nil
 }
 
 func (l *Loader) notify(b *binder) (Notify, error) {

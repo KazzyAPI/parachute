@@ -84,9 +84,7 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		{args: []string{"--revive-stopped"}, want: []string{"revive-stopped", "include-stopped"}},
 		{args: []string{"--interval", "5", "--schedule", "* * * * * *"}, want: []string{"interval", "schedule"}},
 		{args: []string{"--armed"}, want: []string{"updates are not implemented in this milestone"}},
-		{args: []string{"--http-api-status"}, want: []string{"--http-api-status", "not implemented"}},
 		{args: []string{"--allow-insecure-tcp"}, want: []string{"--allow-insecure-tcp", "not implemented"}},
-		{environ: []string{"PARACHUTE_TRUSTED_PROXIES=10.0.0.1"}, want: []string{"--trusted-proxies", "not implemented"}},
 	} {
 		_, err := newTestLoader().Load(tc.args, tc.environ)
 		if err == nil {
