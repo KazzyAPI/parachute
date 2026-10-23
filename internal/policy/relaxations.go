@@ -38,7 +38,7 @@ func (r *Relaxations) relaxed(c domain.Container, o Overrides) []string {
 	if o.Approval() == "auto" {
 		names = append(names, "approval")
 	}
-	if o.has("delay-days") && o.DelayDays(1) == 0 {
+	if o.has("delay-days") && o.values["delay-days"].Decimal == 0 {
 		names = append(names, "delay-days")
 	}
 	if o.has("tag-follow") && o.raw("tag-follow") != "none" {
