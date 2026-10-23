@@ -66,7 +66,6 @@ func (d *Docker) Containers(ctx context.Context) ([]domain.Container, error) {
 		if details.Config != nil {
 			container.Labels = details.Config.Labels
 			container.ImageRef = details.Config.Image
-			container.Env = details.Config.Env
 		}
 		containers = append(containers, container)
 	}

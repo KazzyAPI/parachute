@@ -44,7 +44,22 @@ func (r *Reader) Value(container domain.Container, name string) (string, bool) {
 func (r *Reader) inherited(container domain.Container, key string) bool {
 	value := container.Labels[key]
 	image, ok := container.ImageLabels[key]
-	return ok && image == value && r.cautious[key] != value
+	return ok && image == value && r.cautious[key] != normalised(value)
+}
+
+func normalised(value string) string {
+	switch value = strings.ToLower(value); value {
+	case "1":
+		return "true"
+	case "0":
+		return "false"
+	}
+	return value
+}
+
+func (r *Reader) Is(container domain.Container, name string) bool {
+	value, ok := r.Value(container, name)
+	return ok && normalised(value) == "true"
 }
 
 func (r *Reader) WarnInherited(containers []domain.Container) {
@@ -67,10 +82,10 @@ func (r *Reader) Bool(container domain.Container, name string) (bool, bool) {
 	if !ok {
 		return false, false
 	}
-	switch strings.ToLower(value) {
-	case "true", "1":
+	switch normalised(value) {
+	case "true":
 		return true, true
-	case "false", "0":
+	case "false":
 		return false, true
 	}
 	r.logger.Warn("ignoring label with an invalid boolean value", "container", container.Name, "label", prefix+name, "value", value)

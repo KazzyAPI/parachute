@@ -13,9 +13,9 @@ type SelfMarker interface {
 }
 
 type DiscoverStage struct {
-	self   SelfMarker
-	logger *slog.Logger
-	warned bool
+	self      SelfMarker
+	logger    *slog.Logger
+	evaluated bool
 }
 
 func NewDiscoverStage(self SelfMarker, logger *slog.Logger) *DiscoverStage {
@@ -30,16 +30,19 @@ func (s *DiscoverStage) Run(ctx context.Context, cycle *Cycle) error {
 			return ctx.Err()
 		}
 		if err != nil {
-			host.Reachable = false
-			s.logger.Error("host unreachable", "cycle", cycle.ID, "host", host.Host.Name, "endpoint", host.Host.Endpoint, "error", err.Error())
+			host.Unreachable(s.logger, cycle.ID, err)
 			continue
 		}
 		host.Containers = containers
 		listed = append(listed, engine.SelfHost{Local: engine.LocalEndpoint(host.Host.Endpoint), Containers: containers})
 	}
-	if !s.self.Mark(listed) && s.self.Contained() && !s.warned {
+	marked := s.self.Mark(listed)
+	if len(listed) == 0 || s.evaluated {
+		return nil
+	}
+	s.evaluated = true
+	if !marked && s.self.Contained() {
 		s.logger.Warn("running in a container whose ID cannot be established; running as not containerised", "cycle", cycle.ID)
-		s.warned = true
 	}
 	return nil
 }

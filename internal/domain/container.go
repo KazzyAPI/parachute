@@ -13,7 +13,6 @@ type Container struct {
 	ImageRef    string
 	ImageID     string
 	ImageLabels map[string]string
-	Env         []string
 	Own         bool
 }
 

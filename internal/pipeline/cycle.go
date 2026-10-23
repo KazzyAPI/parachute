@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -51,6 +52,11 @@ func NewCycle(id string, started time.Time, armed bool, hosts []Host) *Cycle {
 		cycle.Hosts = append(cycle.Hosts, &HostRun{Host: host, Reachable: true})
 	}
 	return cycle
+}
+
+func (h *HostRun) Unreachable(logger *slog.Logger, cycleID string, err error) {
+	h.Reachable = false
+	logger.Error("host unreachable", "cycle", cycleID, "host", h.Host.Name, "endpoint", h.Host.Endpoint, "error", err.Error())
 }
 
 func (c *Cycle) ReachableHosts() []*HostRun {

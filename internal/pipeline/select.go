@@ -53,8 +53,7 @@ func (s *SelectStage) selectHost(ctx context.Context, cycle *Cycle, host *HostRu
 		}
 		var unreachable *engine.UnreachableError
 		if errors.As(lookup.err, &unreachable) {
-			host.Reachable = false
-			s.logger.Error("host unreachable", "cycle", cycle.ID, "host", host.Host.Name, "endpoint", host.Host.Endpoint, "error", lookup.err.Error())
+			host.Unreachable(s.logger, cycle.ID, lookup.err)
 			return nil
 		}
 		if lookup.err != nil {

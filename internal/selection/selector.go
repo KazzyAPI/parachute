@@ -12,6 +12,7 @@ import (
 type LabelReader interface {
 	Value(container domain.Container, name string) (string, bool)
 	Bool(container domain.Container, name string) (bool, bool)
+	Is(container domain.Container, name string) bool
 	WarnUnknown(containers []domain.Container)
 	WarnInherited(containers []domain.Container)
 }
@@ -35,24 +36,22 @@ func (s *Selector) Admit(containers []domain.Container) []domain.Container {
 	s.warnUnmatchedNames(containers)
 	var admitted []domain.Container
 	for _, container := range containers {
-		raw := container
-		raw.ImageLabels = nil
 		if s.stateAllowed(container.State) && s.nameAllowed(container) &&
-			!slices.Contains(s.settings.Disabled, container.Name) && s.rawLabelsAllow(raw) {
+			!slices.Contains(s.settings.Disabled, container.Name) && s.ownLabelsAllow(container) {
 			admitted = append(admitted, container)
 		}
 	}
 	return admitted
 }
 
-func (s *Selector) rawLabelsAllow(container domain.Container) bool {
-	if s.settings.LabelEnable && !s.enableAllowed(container) {
+func (s *Selector) ownLabelsAllow(container domain.Container) bool {
+	if s.settings.LabelEnable && !s.labels.Is(container, "enable") {
 		return false
 	}
 	if s.settings.ScopeSet && s.settings.Scope != "none" && !s.scopeAllowed(container) {
 		return false
 	}
-	return !s.foreignSelf(container)
+	return container.Own || !s.labels.Is(container, "self")
 }
 
 func (s *Selector) Select(containers []domain.Container) []domain.Container {

@@ -46,7 +46,7 @@ func TestSEL_013_inherited_scope_does_not_select(t *testing.T) {
 
 func TestSEL_013_inherited_monitor_only_is_honoured(t *testing.T) {
 	env := harness.NewEnv(t)
-	app, publishNewer := labelledUpdatable(env, map[string]string{"parachute.monitor-only": "true"})
+	app, publishNewer := labelledUpdatable(env, map[string]string{"parachute.monitor-only": "true", "parachute.enable": "false"})
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	publishNewer()
 	assertState(t, runOnce(env), a, "held", "monitor_only")

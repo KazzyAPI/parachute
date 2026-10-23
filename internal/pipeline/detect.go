@@ -53,9 +53,8 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 			}
 			var unreachable *engine.UnreachableError
 			if errors.As(err, &unreachable) {
-				host.Reachable = false
+				host.Unreachable(s.logger, cycle.ID, err)
 				host.Candidates = nil
-				s.logger.Error("host unreachable", "cycle", cycle.ID, "host", host.Host.Name, "endpoint", host.Host.Endpoint, "error", err.Error())
 				break
 			}
 			if err != nil {
