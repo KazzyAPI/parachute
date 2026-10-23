@@ -9,6 +9,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/config"
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/drift"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/logging"
 	"github.com/KazzyAPI/parachute/internal/redact"
@@ -21,6 +22,7 @@ type System interface {
 	state.FileSystem
 	health.FileSystem
 	health.Process
+	drift.FileReader
 }
 
 type Dependencies struct {
