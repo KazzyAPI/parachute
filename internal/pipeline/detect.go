@@ -41,15 +41,20 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 	if err != nil {
 		s.logger.Warn("registry credentials not loaded, using anonymous access", "cycle", cycle.ID, "error", err.Error())
 	}
+	warned := map[string]bool{}
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
 			if candidate.Result.State != "" {
 				continue
 			}
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)
-			result, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
+			result, helper, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			if helper.Name != "" && !warned[helper.Registry] {
+				warned[helper.Registry] = true
+				s.logger.Warn("credential helpers are not supported, using anonymous access", "cycle", cycle.ID, "helper", helper.Name, "registry", helper.Registry)
 			}
 			var unreachable *engine.UnreachableError
 			if errors.As(err, &unreachable) {

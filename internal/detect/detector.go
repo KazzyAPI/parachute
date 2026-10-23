@@ -32,37 +32,34 @@ func NewDetector(images ImageSource, digests DigestSource) *Detector {
 	return &Detector{images: images, registry: digests}
 }
 
-func (d *Detector) Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, error) {
+func (d *Detector) Detect(ctx context.Context, result domain.Result, credentials registry.Credentials, noPull bool) (domain.Result, registry.Helper, error) {
 	if registry.IsDigestPinned(result.Image) {
-		return result.Conclude(domain.StateSkipped, ReasonDigestPinned, ""), nil
+		return result.Conclude(domain.StateSkipped, ReasonDigestPinned, ""), registry.Helper{}, nil
 	}
 	ref, err := registry.ParseReference(result.Image)
 	if err != nil {
-		return result.Conclude(domain.StateSkipped, ReasonLocalImage, err.Error()), nil
+		return result.Conclude(domain.StateSkipped, ReasonLocalImage, err.Error()), registry.Helper{}, nil
 	}
 	if noPull {
-		return d.detectLocally(ctx, result)
+		result, err = d.detectLocally(ctx, result)
+		return result, registry.Helper{}, err
 	}
 	image, found, err := d.images.Image(ctx, result.ImageID)
 	if err != nil {
-		return result, err
+		return result, registry.Helper{}, err
 	}
 	if found && len(image.Digests) == 0 {
-		return result.Conclude(domain.StateSkipped, ReasonLocalImage, ""), nil
+		return result.Conclude(domain.StateSkipped, ReasonLocalImage, ""), registry.Helper{}, nil
 	}
-	credential, hasCredential := credentials.For(ref)
-	var credentialPointer *registry.Credential
-	if hasCredential {
-		credentialPointer = &credential
-	}
-	digest, err := d.registry.Digest(ctx, ref, credentialPointer)
+	credential, helper := credentials.For(ref)
+	digest, err := d.registry.Digest(ctx, ref, credential)
 	if err != nil {
-		return d.registryFailure(result, err), nil
+		return d.registryFailure(result, err), helper, nil
 	}
 	if slices.Contains(image.Digests, digest) || digest == result.ImageID {
-		return result.Conclude(domain.StateFresh, "", ""), nil
+		return result.Conclude(domain.StateFresh, "", ""), helper, nil
 	}
-	return result.Available(digest), nil
+	return result.Available(digest), helper, nil
 }
 
 func (d *Detector) detectLocally(ctx context.Context, result domain.Result) (domain.Result, error) {

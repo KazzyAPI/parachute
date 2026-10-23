@@ -1,7 +1,6 @@
 package app
 
 import (
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -22,10 +21,10 @@ func (c *Container) registryClient() *registry.Client {
 
 func (c *Container) detectStage() pipeline.Stage {
 	return pipeline.NewDetectStage(
-		registry.NewCredentialStore(c.cfg.Detection.DockerConfigDir, c.deps.System, c.logger), c.labels,
+		registry.NewCredentialStore(c.cfg.Detection.DockerConfigDir, c.deps.System), c.labels,
 		pipeline.SwitchSettings{Global: c.cfg.Selection.NoPull, LabelWins: c.cfg.Selection.LabelTakePrecedence}, c.logger)
 }
 
 func registrySecrets(cfg config.Config, files registry.FileReader) redact.Source {
-	return registry.NewCredentialStore(cfg.Detection.DockerConfigDir, files, slog.New(slog.DiscardHandler))
+	return registry.NewCredentialStore(cfg.Detection.DockerConfigDir, files)
 }
