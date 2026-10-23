@@ -17,6 +17,7 @@ type ImageSpec struct {
 	Volumes     []string
 	Healthcheck []string
 	Cmd         []string
+	BuildArgs   map[string]string
 }
 
 func (e *Env) BuildImage(ref, version string) {
@@ -33,7 +34,11 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(e.dockerfile(spec)), 0o644); err != nil {
 		e.T.Fatal(err)
 	}
-	e.Docker("build", "-q", "--provenance=false", "-t", ref, context)
+	args := []string{"build", "-q", "--provenance=false", "-t", ref}
+	for _, key := range slices.Sorted(maps.Keys(spec.BuildArgs)) {
+		args = append(args, "--build-arg", key+"="+spec.BuildArgs[key])
+	}
+	e.Docker(append(args, context)...)
 	e.trackImage(ref)
 }
 

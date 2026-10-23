@@ -13,9 +13,18 @@ import (
 
 const approvalToken = "pol-approval-token"
 
-func cronAt(at time.Time) string {
-	at = at.UTC()
-	return fmt.Sprintf("%d %d %d %d %d *", at.Second(), at.Minute(), at.Hour(), at.Day(), int(at.Month()))
+const windowZone = "Asia/Kolkata"
+
+func windowRun(env *harness.Env, at time.Time, args ...string) *harness.Result {
+	env.T.Helper()
+	zone, err := time.LoadLocation(windowZone)
+	if err != nil {
+		env.T.Fatal(err)
+	}
+	local := at.In(zone)
+	cron := fmt.Sprintf("%d %d %d %d %d *", local.Second(), local.Minute(), local.Hour(), local.Day(), int(local.Month()))
+	args = append([]string{"--run-once", "--porcelain", "v1", "--maintenance-window", cron, "--maintenance-window-duration", "1h"}, args...)
+	return env.Parachute(args...).Setenv("TZ", windowZone).Run(runTimeout)
 }
 
 func reportedHoldEnd(t *testing.T, message, reason string) time.Time {

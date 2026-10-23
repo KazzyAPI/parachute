@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ func TestPOL_001_database_inside_delay_outside_window_is_approval_required(t *te
 	db := newUpdatable(env, "postgres")
 	name := env.RunContainer("db", db.ref, harness.ContainerOptions{})
 	db.publishNewer()
-	result := runOnce(env, "--delay-days", "7", "--maintenance-window", cronAt(time.Now().Add(12*time.Hour)), "--maintenance-window-duration", "1h")
+	result := windowRun(env, time.Now().Add(12*time.Hour), "--delay-days", "7")
 	assertState(t, result, name, "held", "approval_required")
 }
 
@@ -70,7 +71,10 @@ func TestPOL_002_image_created_time_is_not_used(t *testing.T) {
 	webhook := env.Webhook()
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
-	app.registry.PushEpoch(refRepo(app.ref), "1", "2")
+	newer := app.registry.PushSpec(refRepo(app.ref), "1", harness.ImageSpec{Version: "2", BuildArgs: map[string]string{"SOURCE_DATE_EPOCH": "0"}})
+	if created := env.Docker("image", "inspect", "-f", "{{.Created}}", newer); !strings.HasPrefix(created, "1970-01-01") {
+		t.Fatalf("newer image created %s, want 1970-01-01", created)
+	}
 	result := notify(env, webhook, "--delay-days", "0.0005")
 	entry := assertState(t, result, a, "held", "delay")
 	end := reportedHoldEnd(t, singleReport(t, webhook).Message, "delay")
@@ -139,7 +143,7 @@ func TestPOL_007_closed_window_holds_until_next_start(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	start := time.Now().Add(12 * time.Hour).Truncate(time.Second)
-	result := notify(env, webhook, "--maintenance-window", cronAt(start), "--maintenance-window-duration", "1h")
+	result := windowRun(env, start, "--no-startup-message", "--notification-url", webhook.URL())
 	assertState(t, result, a, "held", "maintenance_window")
 	if end := reportedHoldEnd(t, singleReport(t, webhook).Message, "maintenance_window"); !end.Equal(start) {
 		t.Errorf("next window start %s, want %s", end, start)
@@ -151,7 +155,7 @@ func TestPOL_007_open_window_applies_the_update(t *testing.T) {
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
-	result := runOnce(env, "--maintenance-window", cronAt(time.Now().Add(-10*time.Minute)), "--maintenance-window-duration", "1h")
+	result := windowRun(env, time.Now().Add(-10*time.Minute))
 	assertState(t, result, a, "would_update", "")
 }
 
