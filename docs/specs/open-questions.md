@@ -213,11 +213,11 @@ Affects UPD-009, UPD-016, UPD-017. If Parachute crashes after recording `committ
 **Recommendation:** warn at startup naming the leftover container; never delete it.
 
 ### Q27 Reason code for a failed write in the update phase
-**Status:** Open. The specs name no code for this case yet.
+**Status:** Resolved 2026-10-23: A. A write that fails from the `update` phase on rolls back with `rolled_back`/`engine_error`, and the digest is held (POL-010), as for every `rolled_back` reason (DMN-005, [reasons.md](reasons.md#rolled_back)).
 
-Affects DMN-005, VER-008, reasons.md. DMN-005 now says a failed engine write (create, rename, remove, start, stop) is never retried and fails its step; from the `update` phase on the transaction rolls back. The [`rolled_back` table](reasons.md#rolled_back) has no reason for a rollback caused by a failed write, so such a result has no code.
+Affects DMN-005, VER-008, reasons.md. DMN-005 says a failed engine write is never retried and fails its step; from the `update` phase on the transaction rolls back. The `rolled_back` table had no reason for a rollback caused by a failed write.
 - **A.** Reuse `engine_error` in the `rolled_back` table (held for digest).
 - **B.** Reuse `engine_error`, but re-evaluate the digest next cycle instead of holding it, because the image is not at fault.
 - **C.** A new code, for example `update_step_failed`.
 
-**Recommendation:** B: the failure is the engine's, so holding the digest (POL-010) would punish the image.
+**Recommendation: A**, so that every `rolled_back` reason holds the digest.

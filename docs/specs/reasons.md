@@ -77,6 +77,7 @@ The previous state was restored and passed its base check (VER-010). The candida
 | `transaction_timeout` | The transaction ceiling was reached in or after the `update` phase. | UPD-019 | held for digest |
 | `config_unreproducible` | A created replacement's configuration differs from the original (beyond UPD-004 and UPD-005). | UPD-007 | held for digest |
 | `image_mismatch` | A created replacement's image ID differs from the pulled, checked image's ID. | UPD-020 | held for digest |
+| `engine_error` | A Docker engine write request failed in or after the `update` phase while the host stayed reachable; it is never retried. | DMN-005 | held for digest |
 | `interrupted` | Parachute stopped during `update`, `verify`, or `rolling_back` of an ordinary stack, or during `handover` or `rolling_back` of a self-update whose old instance then restarted (UPD-018 step 6); rolled back at the next start. | UPD-016, UPD-018 | held for digest |
 
 ### rollback_failed
