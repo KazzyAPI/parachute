@@ -17,6 +17,17 @@ func NewRecreator(engine Engine, settings func() Settings) *Recreator {
 	return &Recreator{engine: engine, settings: settings}
 }
 
+func (r *Recreator) Reproducible(ctx context.Context, container string) error {
+	original, err := r.engine.Inspect(ctx, container)
+	if err != nil {
+		return err
+	}
+	if field, ok := checkReproducible(ctx, r.engine, original); !ok {
+		return Failure{State: "failed", Reason: "config_unreproducible", Detail: field}
+	}
+	return nil
+}
+
 func (r *Recreator) Replacement(ctx context.Context, plan txn.Plan, container string) (string, error) {
 	original, err := r.engine.Inspect(ctx, container)
 	if err != nil {

@@ -1,6 +1,7 @@
 package txn
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -13,6 +14,21 @@ type Ceiling struct {
 	paused time.Duration
 	pause  time.Time
 	active bool
+}
+
+type ceilingKey struct{}
+
+func WithCeiling(ctx context.Context, ceiling *Ceiling) context.Context {
+	return context.WithValue(ctx, ceilingKey{}, ceiling)
+}
+
+func CeilingFrom(ctx context.Context) *Ceiling {
+	ceiling, _ := ctx.Value(ceilingKey{}).(*Ceiling)
+	return ceiling
+}
+
+func (c *Ceiling) Remaining() time.Duration {
+	return c.limit - c.Elapsed()
 }
 
 func NewCeiling(limit time.Duration, clock func() time.Time) *Ceiling {

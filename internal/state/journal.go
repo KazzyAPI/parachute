@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -20,7 +21,7 @@ func (j *Journal) Begin(ctx context.Context, record txn.OpenRecord) error {
 	return j.store.Update(func(document *Document) error {
 		document.Transactions = append(document.Transactions, TransactionRecord{
 			ID: record.ID, Host: record.Host, Stacks: record.Stacks, State: string(record.State),
-			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, Time: j.clock(),
+			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, Originals: record.Originals, Time: j.clock(),
 		})
 		return nil
 	})
@@ -64,7 +65,7 @@ func (j *Journal) Open(ctx context.Context) ([]txn.OpenRecord, error) {
 		}
 		open = append(open, txn.OpenRecord{
 			ID: record.ID, Host: record.Host, Stacks: record.Stacks, State: state,
-			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate,
+			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, Originals: slices.Clone(record.Originals),
 		})
 	}
 	return open, nil
