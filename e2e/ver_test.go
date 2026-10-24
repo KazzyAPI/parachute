@@ -10,7 +10,6 @@ import (
 
 func TestVER_001_process_exit_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver001")
 	labels := map[string]string{"parachute.verify.stable": "2s"}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"EXIT_AFTER": "2"}}
@@ -23,7 +22,6 @@ func TestVER_001_process_exit_rolls_back(t *testing.T) {
 
 func TestVER_002_health_succeeds_commits(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver002")
 	labels := map[string]string{"parachute.verify.stable": "1s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}
@@ -36,7 +34,6 @@ func TestVER_002_health_succeeds_commits(t *testing.T) {
 
 func TestVER_002_health_fails_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver002b")
 	labels := map[string]string{"parachute.verify.timeout": "30s"}
 	health := []string{"CMD", "/fixture", "exit", "1"}
@@ -49,7 +46,6 @@ func TestVER_002_health_fails_rolls_back(t *testing.T) {
 
 func TestVER_003_stable_running_commits(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver003")
 	labels := map[string]string{"parachute.verify.stable": "5s"}
 	ref := env.Registry().PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
@@ -65,7 +61,6 @@ func TestVER_003_stable_running_commits(t *testing.T) {
 
 func TestVER_003_exit_with_restart_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver003b")
 	labels := map[string]string{"parachute.verify.stable": "30s"}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"EXIT_AFTER": "10"}}
@@ -78,7 +73,6 @@ func TestVER_003_exit_with_restart_rolls_back(t *testing.T) {
 
 func TestVER_004_cmd_ready_commits(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver004")
 	labels := map[string]string{
 		"parachute.verify.stable": "1s",
@@ -95,7 +89,6 @@ func TestVER_004_cmd_ready_commits(t *testing.T) {
 
 func TestVER_004_cmd_exit1_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver004b")
 	labels := map[string]string{
 		"parachute.verify.stable":  "1s",
@@ -111,7 +104,6 @@ func TestVER_004_cmd_exit1_rolls_back(t *testing.T) {
 
 func TestVER_005_url_200_commits(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver005")
 	labels := map[string]string{
 		"parachute.verify.stable": "1s",
@@ -127,7 +119,6 @@ func TestVER_005_url_200_commits(t *testing.T) {
 
 func TestVER_005_url_500_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver005b")
 	labels := map[string]string{
 		"parachute.verify.stable":  "1s",
@@ -153,7 +144,6 @@ func TestVER_005_url_500_rolls_back(t *testing.T) {
 
 func TestVER_006_short_timeout_health_starting_rolls_back(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver006")
 	labels := map[string]string{"parachute.verify.timeout": "20s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}
@@ -170,7 +160,6 @@ func TestVER_006_short_timeout_health_starting_rolls_back(t *testing.T) {
 
 func TestVER_006_long_start_period_commits(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver006b")
 	labels := map[string]string{}
 	health := []string{"CMD", "/fixture", "exit", "0"}
@@ -195,7 +184,6 @@ func TestVER_006_deadline_after_post_update_hook_skipped_until_HOK_002_hooks_exi
 
 func TestVER_007_stack_partial_fail_rolls_back_both(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	registry := env.Registry()
 	webRef := registry.PushSpec("web", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: map[string]string{"parachute.verify.stable": "2s"}})
 	apiRef := registry.PushSpec("api", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: map[string]string{"parachute.verify.stable": "2s"}})
@@ -215,7 +203,6 @@ func TestVER_007_stack_partial_fail_rolls_back_both(t *testing.T) {
 
 func TestVER_012_no_restart_commits_without_health_wait(t *testing.T) {
 	env := harness.NewEnv(t)
-	skipUnlessArmedUpdates(t, env)
 	app := newUpdatable(env, "ver012")
 	labels := map[string]string{"parachute.verify.stable": "30s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}

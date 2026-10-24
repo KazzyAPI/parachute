@@ -92,7 +92,7 @@ func TestNTF_003_default_level_omits_fresh(t *testing.T) {
 	updated := env.RunContainer("updated", app.ref, harness.ContainerOptions{})
 	fresh := env.RunContainer("fresh", env.Registry().Push("other", "1", "1"), harness.ContainerOptions{})
 	app.publishNewer()
-	notify(env, webhook)
+	armedParachute(env, "--no-startup-message", "--notification-url", webhook.URL()).Run(runTimeout)
 	report := singleReport(t, webhook).Message
 	assertContains(t, report, updated)
 	if strings.Contains(report, fresh) {
@@ -105,13 +105,13 @@ func TestNTF_003_warn_level_lists_only_failures(t *testing.T) {
 	webhook := env.Webhook()
 	app := newUpdatable(env, "app")
 	updated := env.RunContainer("updated", app.ref, harness.ContainerOptions{})
-	failed := env.RunContainer("failed", env.Rehome(app.ref, "127.0.0.1:1"), harness.ContainerOptions{})
+	rolledBack := rollbackCandidate(env, "broken")
 	app.publishNewer()
-	notify(env, webhook, "--notifications-level", "warn")
+	armedParachute(env, "--backup", "none", "--no-startup-message", "--notification-url", webhook.URL(), "--notifications-level", "warn").Run(runTimeout)
 	report := singleReport(t, webhook).Message
-	assertContains(t, report, failed)
+	assertContains(t, report, rolledBack)
 	if strings.Contains(report, updated) {
-		t.Errorf("report lists the would_update container:\n%s", report)
+		t.Errorf("report lists the updated container:\n%s", report)
 	}
 }
 

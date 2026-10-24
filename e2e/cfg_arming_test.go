@@ -33,7 +33,23 @@ func TestCFG_006_armed_updates_container(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	id, image := env.ContainerState(a)
-	result := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--helper-image", env.ParachuteImage()).Run(runTimeout)
+	result := armedParachute(env).Run(runTimeout)
+	assertExit(t, result, 0)
+	assertState(t, result, a, "updated", "")
+	afterID, afterImage := env.ContainerState(a)
+	if afterID == id || afterImage == image {
+		t.Fatalf("container unchanged")
+	}
+}
+
+func TestCFG_006_environment_variable_arms(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	id, image := env.ContainerState(a)
+	result := env.Parachute("--run-once", "--porcelain", "v1", "--protect-databases=false", "--helper-image", env.ParachuteImage()).
+		Setenv("PARACHUTE_ARMED", "true").Run(runTimeout)
 	assertExit(t, result, 0)
 	assertState(t, result, a, "updated", "")
 	afterID, afterImage := env.ContainerState(a)
@@ -55,7 +71,7 @@ func TestCFG_006_restart_without_armed_changes_nothing(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	id, image := env.ContainerState(a)
-	result := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--helper-image", env.ParachuteImage()).Run(runTimeout)
+	result := armedParachute(env).Run(runTimeout)
 	assertExit(t, result, 0)
 	assertState(t, result, a, "updated", "")
 	afterID, afterImage := env.ContainerState(a)
@@ -92,7 +108,7 @@ func TestCFG_007_porcelain_lines(t *testing.T) {
 	env.RunContainer("b", fresh, harness.ContainerOptions{})
 	env.RunContainer("c", fresh, harness.ContainerOptions{})
 	app.publishNewer()
-	result := runOnce(env)
+	result := armedParachute(env).Run(runTimeout)
 	lines := result.StdoutLines()
 	if len(lines) != 4 {
 		t.Fatalf("expected 4 porcelain lines, got %d:\n%s", len(lines), result.Stdout)
@@ -102,9 +118,9 @@ func TestCFG_007_porcelain_lines(t *testing.T) {
 			t.Errorf("line without v=1: %v", object)
 		}
 	}
-	assertState(t, result, updated, "would_update", "")
+	assertState(t, result, updated, "updated", "")
 	summary := result.Summary()
-	if summary["type"] != "summary" || summary["scanned"] != float64(3) || summary["would_update"] != float64(1) || summary["fresh"] != float64(2) {
+	if summary["type"] != "summary" || summary["scanned"] != float64(3) || summary["updated"] != float64(1) || summary["fresh"] != float64(2) || summary["armed"] != true {
 		t.Errorf("unexpected summary %v", summary)
 	}
 	for _, key := range []string{"v", "type", "cycle", "host", "stack", "service", "container", "image", "image_id", "candidate_digest", "state", "reason", "txn", "snapshot"} {
@@ -119,11 +135,22 @@ func TestCFG_007_unknown_porcelain_version(t *testing.T) {
 	assertExit(t, env.Parachute("--porcelain", "v2").Run(runTimeout), 2)
 }
 
-func TestCFG_011_convenient_profile_arms_and_is_refused(t *testing.T) {
+func TestCFG_011_convenient_profile_arms_and_needs_helper_image(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once", "--profile", "convenient").Run(runTimeout)
 	assertExit(t, result, 2)
 	assertContains(t, result.Stderr, "helper-image")
+}
+
+func TestCFG_011_convenient_profile_updates_database_without_approval(t *testing.T) {
+	env := harness.NewEnv(t)
+	db := newUpdatable(env, "postgres")
+	name := env.RunContainer("db", db.ref, harness.ContainerOptions{})
+	db.publishNewer()
+	result := env.Parachute("--run-once", "--porcelain", "v1", "--profile", "convenient", "--helper-image", env.ParachuteImage(),
+		"--verify-stable", "1s").Run(runTimeout)
+	assertExit(t, result, 0)
+	assertState(t, result, name, "updated", "")
 }
 
 func TestCFG_011_explicit_setting_wins_over_profile(t *testing.T) {

@@ -38,6 +38,53 @@ func TestDMN_005_engine_error_fails_only_that_candidate(t *testing.T) {
 	}
 }
 
+func TestDMN_005_failed_stop_leaves_container_untouched(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
+	app.publishNewer()
+	id, image := env.ContainerState(a)
+	stop := "/containers/" + id + "/stop"
+	proxy := env.HTTPEngineProxy()
+	proxy.FailFirst(stop)
+	result := armedParachute(env, "--backup", "stop", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
+	assertExit(t, result, 1)
+	assertState(t, result, a, "failed", "engine_error")
+	if stops := requestsMatching(proxy.Requests(), stop); len(stops) != 1 {
+		t.Errorf("%d stop requests for %s, want 1: %v", len(stops), a, stops)
+	}
+	assertUnchanged(env, a, id, image)
+	if status := containerStatus(env, a); status != "running" {
+		t.Errorf("%s is %s, want running", a, status)
+	}
+}
+
+func TestDMN_005_failed_replacement_start_rolls_back(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	id, image := env.ContainerState(a)
+	proxy := env.HTTPEngineProxy()
+	proxy.FailFirst("/start")
+	result := armedParachute(env, "--backup", "none", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
+	assertState(t, result, a, "rolled_back", "engine_error")
+	replacementStarts := 0
+	for _, request := range requestsMatching(proxy.Requests(), "/start") {
+		if !strings.Contains(request, id) {
+			replacementStarts++
+		}
+	}
+	if replacementStarts != 1 {
+		t.Errorf("%d start requests for the replacement, want 1: %v", replacementStarts, proxy.Requests())
+	}
+	assertUnchanged(env, a, id, image)
+	if status := containerStatus(env, a); status != "running" {
+		t.Errorf("%s is %s, want running", a, status)
+	}
+	assertState(t, armedParachute(env, "--backup", "none").Run(runTimeout), a, "held", "previous_attempt_failed")
+}
+
 func TestDMN_007_host_list_is_in_startup_message(t *testing.T) {
 	env := harness.NewEnv(t)
 	process := startDaemon(env, env.Parachute("--allow-insecure-tcp").
