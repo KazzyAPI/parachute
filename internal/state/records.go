@@ -1,6 +1,11 @@
 package state
 
-import "time"
+import (
+	"slices"
+	"time"
+
+	"github.com/KazzyAPI/parachute/internal/txn"
+)
 
 type TransactionRecord struct {
 	ID         string    `json:"id"`
@@ -44,4 +49,20 @@ type Release struct {
 	Transaction string      `json:"transaction"`
 	Keys        []FreezeKey `json:"keys"`
 	Time        time.Time   `json:"time"`
+}
+
+func (d Document) discardInvalid() Document {
+	d.Transactions = slices.DeleteFunc(d.Transactions, func(record TransactionRecord) bool {
+		return !txn.ValidID(record.ID) || !txn.State(record.State).Valid()
+	})
+	d.Snapshots = slices.DeleteFunc(d.Snapshots, func(record SnapshotRecord) bool {
+		return !txn.ValidID(record.ID) || !txn.ValidID(record.Transaction)
+	})
+	d.Freezes = slices.DeleteFunc(d.Freezes, func(record Freeze) bool {
+		return !txn.ValidID(record.Transaction) || !txn.ValidID(record.Snapshot)
+	})
+	d.Releases = slices.DeleteFunc(d.Releases, func(record Release) bool {
+		return !txn.ValidID(record.Transaction)
+	})
+	return d
 }

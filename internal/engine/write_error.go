@@ -2,8 +2,6 @@ package engine
 
 import "fmt"
 
-const ReasonEngineError = "engine_error"
-
 type WriteError struct {
 	Operation string
 	Err       error

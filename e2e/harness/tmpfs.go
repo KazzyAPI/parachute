@@ -1,16 +1,21 @@
 package harness
 
-import (
-	"os"
-)
-
 func (e *Env) TmpfsMount(hostPath string) string {
 	e.T.Helper()
-	if err := os.MkdirAll(hostPath, 0o755); err != nil {
-		e.T.Fatal(err)
-	}
-	name := e.Name("tmpfs")
-	e.Docker("run", "-d", "--privileged", "--name", name, "--label", "parachute-e2e="+e.ID,
-		"-v", hostPath+":"+hostPath, "--tmpfs", hostPath+":rw,size=2g", suite.fixtureV2Image, "sleep", "infinity")
+	e.hostShell("mkdir -p " + hostPath + " && mount -t tmpfs -o size=2g tmpfs " + hostPath)
+	e.T.Cleanup(func() {
+		if _, err := e.DockerMayFail(hostShellArgs("umount " + hostPath + " && rmdir " + hostPath)...); err != nil {
+			e.T.Logf("cleanup: unmount %s: %v", hostPath, err)
+		}
+	})
 	return hostPath
+}
+
+func (e *Env) hostShell(script string) {
+	e.T.Helper()
+	e.Docker(hostShellArgs(script)...)
+}
+
+func hostShellArgs(script string) []string {
+	return []string{"run", "--rm", "--privileged", "--pid=host", "--entrypoint", "nsenter", suite.fixtureV2Image, "-t", "1", "-m", "--", "sh", "-c", script}
 }

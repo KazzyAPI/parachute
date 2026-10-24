@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	cerrdefs "github.com/containerd/errdefs"
@@ -11,7 +12,7 @@ import (
 func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	inspected, err := d.client.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
-		return Spec{}, writeError("inspect container", err)
+		return Spec{}, fmt.Errorf("inspect container %s: %w", id, err)
 	}
 	details := inspected.Container
 	spec := Spec{
@@ -30,7 +31,7 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	if details.Config != nil && details.Config.Image != "" {
 		image, err := d.client.ImageInspect(ctx, details.Config.Image)
 		if err != nil && !cerrdefs.IsNotFound(err) {
-			return Spec{}, writeError("inspect image", err)
+			return Spec{}, fmt.Errorf("inspect image %s: %w", details.Config.Image, err)
 		}
 		if err == nil && image.Config != nil {
 			spec.ImageConfig = image.Config

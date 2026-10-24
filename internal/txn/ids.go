@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"time"
 )
+
+var idPattern = regexp.MustCompile(`^(txn|snap)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$`)
 
 type IDGenerator struct {
 	now func() time.Time
@@ -15,16 +18,12 @@ func NewIDGenerator(now func() time.Time) *IDGenerator {
 	return &IDGenerator{now: now}
 }
 
-func (g *IDGenerator) Transaction() string {
-	stamp := g.now().UTC().Format("20060102T%H%M%SZ")
+func (g *IDGenerator) New(prefix string) (string, error) {
 	var suffix [3]byte
-	_, _ = rand.Read(suffix[:])
-	return fmt.Sprintf("txn-%s-%s", stamp, hex.EncodeToString(suffix[:]))
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return "", fmt.Errorf("generate %s id: %w", prefix, err)
+	}
+	return fmt.Sprintf("%s-%s-%s", prefix, g.now().UTC().Format("20060102T150405Z"), hex.EncodeToString(suffix[:])), nil
 }
 
-func (g *IDGenerator) Snapshot() string {
-	stamp := g.now().UTC().Format("20060102T%H%M%SZ")
-	var suffix [3]byte
-	_, _ = rand.Read(suffix[:])
-	return fmt.Sprintf("snap-%s-%s", stamp, hex.EncodeToString(suffix[:]))
-}
+func ValidID(id string) bool { return idPattern.MatchString(id) }

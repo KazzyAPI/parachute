@@ -2,13 +2,20 @@ package txn
 
 import (
 	"context"
-	"time"
+
+	"github.com/KazzyAPI/parachute/internal/domain"
 )
+
+type Outcome struct {
+	State  State
+	Result domain.State
+	Reason string
+}
 
 type Journal interface {
 	Begin(ctx context.Context, record OpenRecord) error
 	Advance(ctx context.Context, id string, state State) error
-	Finish(ctx context.Context, id string, state State, result string, reason string) error
+	Finish(ctx context.Context, id string, outcome Outcome) error
 	Open(ctx context.Context) ([]OpenRecord, error)
 }
 
@@ -19,6 +26,15 @@ type OpenRecord struct {
 	State      State
 	Snapshot   string
 	SelfUpdate bool
+}
+
+type Plan struct {
+	ID         string
+	Host       string
+	Stacks     []string
+	Containers []string
+	SelfUpdate bool
+	Snapshot   string
 }
 
 type Snapshotter interface {
@@ -32,62 +48,15 @@ type Snapshotter interface {
 
 type Recreator interface {
 	Replacement(ctx context.Context, plan Plan, container string) (string, error)
-	Compare(ctx context.Context, original, replacement string) error
 }
 
 type Verdict struct {
-	Passed   bool
-	Reason   string
-	Check    string
-	Output   string
-	Deadline time.Time
+	Passed bool
+	Reason string
+	Check  string
+	Output string
 }
 
 type Verifier interface {
 	Verify(ctx context.Context, plan Plan, container string) (Verdict, error)
 }
-
-type Planner interface {
-	Plan(ctx context.Context, graph DependencyGraph) ([]Plan, error)
-}
-
-type DependencyGraph struct {
-	Host      string
-	Stacks    []StackGraph
-	SelfStack string
-}
-
-type StackGraph struct {
-	Name       string
-	Containers []string
-	DependsOn  map[string][]string
-}
-
-type Plan struct {
-	ID         string
-	Host       string
-	Stacks     []string
-	Containers []string
-	SelfUpdate bool
-	Snapshot   string
-}
-
-type PlanIssue struct {
-	Kind    string
-	Stacks  []string
-	Message string
-}
-
-type Hooks interface {
-	PreUpdate(ctx context.Context, plan Plan) error
-	PostUpdate(ctx context.Context, plan Plan) error
-	PreCheck(ctx context.Context, plan Plan) error
-	PostCheck(ctx context.Context, plan Plan) error
-}
-
-type NoOpHooks struct{}
-
-func (NoOpHooks) PreUpdate(context.Context, Plan) error  { return nil }
-func (NoOpHooks) PostUpdate(context.Context, Plan) error { return nil }
-func (NoOpHooks) PreCheck(context.Context, Plan) error   { return nil }
-func (NoOpHooks) PostCheck(context.Context, Plan) error  { return nil }

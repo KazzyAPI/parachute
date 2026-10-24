@@ -2,10 +2,11 @@ package harness
 
 import (
 	"bufio"
-	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 )
 
 type EventRecorder struct {
@@ -53,23 +54,28 @@ func (r *EventRecorder) Events() []string {
 	return append([]string{}, r.events...)
 }
 
-func (r *EventRecorder) AssertOrder(want ...string) {
-	got := r.Events()
+func inOrder(got, want []string) bool {
 	index := 0
 	for _, expected := range want {
 		for index < len(got) && !strings.Contains(got[index], expected) {
 			index++
 		}
 		if index >= len(got) {
-			r.env.T.Fatalf("event order: missing %q in %v", expected, got)
+			return false
 		}
 		index++
 	}
+	return true
 }
 
-func (r *EventRecorder) Wait(ctx context.Context) {
-	select {
-	case <-r.done:
-	case <-ctx.Done():
+func (r *EventRecorder) AssertOrder(want ...string) {
+	r.env.T.Helper()
+	if got := r.Events(); !inOrder(got, want) {
+		r.env.T.Fatalf("event order: want %q in %v", want, got)
 	}
+}
+
+func (r *EventRecorder) Wait(timeout time.Duration, want ...string) {
+	r.env.T.Helper()
+	r.env.Eventually(timeout, fmt.Sprintf("events %q", want), func() bool { return inOrder(r.Events(), want) })
 }

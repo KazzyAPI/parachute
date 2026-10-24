@@ -63,6 +63,9 @@ func (d Document) clone() Document {
 	d.Notified = slices.Clone(d.Notified)
 	d.SupersededInstances = slices.Clone(d.SupersededInstances)
 	d.Transactions = slices.Clone(d.Transactions)
+	for index := range d.Transactions {
+		d.Transactions[index].Stacks = slices.Clone(d.Transactions[index].Stacks)
+	}
 	d.Snapshots = slices.Clone(d.Snapshots)
 	d.FailedDigests = slices.Clone(d.FailedDigests)
 	d.Freezes = slices.Clone(d.Freezes)

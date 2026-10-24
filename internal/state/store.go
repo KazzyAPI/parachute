@@ -66,7 +66,7 @@ func (s *Store) decode(contents []byte) (Document, error) {
 	if document.Format != Format {
 		return Document{}, fmt.Errorf("state file %s has format %q, expected %q", s.path, document.Format, Format)
 	}
-	return document, nil
+	return document.discardInvalid(), nil
 }
 
 func (s *Store) Current() Document {

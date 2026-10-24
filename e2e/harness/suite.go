@@ -87,15 +87,15 @@ func (s *Suite) prepare() error {
 func (s *Suite) FixtureV2Image() string { return s.fixtureV2Image }
 
 func (s *Suite) buildFixture() error {
-	arch, err := s.command("", nil, "docker", "version", "--format", "{{.Server.Arch}}")
+	arch, err := s.serverArch()
 	if err != nil {
-		return fmt.Errorf("docker version: %w: %s", err, arch)
+		return err
 	}
 	context := filepath.Join(s.workDir, "fixture")
 	if err := os.MkdirAll(context, 0o755); err != nil {
 		return err
 	}
-	env := []string{"GOOS=linux", "GOARCH=" + strings.TrimSpace(arch), "CGO_ENABLED=0"}
+	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
 	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixture"), "./fixture"); err != nil {
 		return fmt.Errorf("build fixture: %w: %s", err, out)
 	}
@@ -110,19 +110,27 @@ func (s *Suite) buildFixture() error {
 	return nil
 }
 
+func (s *Suite) serverArch() (string, error) {
+	arch, err := s.command("", nil, "docker", "version", "--format", "{{.Server.Arch}}")
+	if err != nil {
+		return "", fmt.Errorf("docker version: %w: %s", err, arch)
+	}
+	return strings.TrimSpace(arch), nil
+}
+
 func (s *Suite) buildFixtureV2() error {
 	if out, err := s.command("", nil, "docker", "pull", "busybox@"+busyboxDigest); err != nil {
 		return fmt.Errorf("pull busybox: %w: %s", err, out)
 	}
-	arch, err := s.command("", nil, "docker", "version", "--format", "{{.Server.Arch}}")
+	arch, err := s.serverArch()
 	if err != nil {
-		return fmt.Errorf("docker version: %w: %s", err, arch)
+		return err
 	}
 	context := filepath.Join(s.workDir, "fixturev2")
 	if err := os.MkdirAll(context, 0o755); err != nil {
 		return err
 	}
-	env := []string{"GOOS=linux", "GOARCH=" + strings.TrimSpace(arch), "CGO_ENABLED=0"}
+	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
 	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixturev2"), "./fixturev2"); err != nil {
 		return fmt.Errorf("build fixturev2: %w: %s", err, out)
 	}

@@ -3,11 +3,11 @@ package engine
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"io"
-	"strings"
 	"time"
 
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 )
@@ -72,12 +72,12 @@ func (d *Docker) Rename(ctx context.Context, id, name string) error {
 	return writeError("rename container", err)
 }
 
-func (d *Docker) Remove(ctx context.Context, id string, anonymousVolumes bool) error {
-	_, err := d.client.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: true, RemoveVolumes: anonymousVolumes})
+func (d *Docker) Remove(ctx context.Context, id string, anonymousVolumes, force bool) error {
+	_, err := d.client.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: force, RemoveVolumes: anonymousVolumes})
 	return writeError("remove container", err)
 }
 
-func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit time.Duration) (ExecResult, error) {
+func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit time.Duration, maxOutput int64) (ExecResult, error) {
 	attempt, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	created, err := d.client.ExecCreate(attempt, id, client.ExecCreateOptions{
@@ -94,12 +94,9 @@ func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit t
 		return ExecResult{}, writeError("attach exec", err)
 	}
 	defer attached.Close()
-	if _, err := d.client.ExecStart(attempt, created.ID, client.ExecStartOptions{}); err != nil {
-		return ExecResult{}, writeError("start exec", err)
-	}
-	var output bytes.Buffer
-	if attached.Reader != nil {
-		_, _ = io.Copy(&output, attached.Reader)
+	output := &cappedBuffer{limit: maxOutput}
+	if _, err := stdcopy.StdCopy(output, output, attached.Reader); err != nil {
+		return ExecResult{}, writeError("read exec output", err)
 	}
 	inspected, err := d.client.ExecInspect(attempt, created.ID, client.ExecInspectOptions{})
 	if err != nil {
@@ -131,10 +128,7 @@ func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string
 				if !ok {
 					return
 				}
-				event := Event{Type: string(message.Type), Action: string(message.Action), Time: time.Unix(0, message.TimeNano)}
-				if message.Actor.ID != "" {
-					event.ActorID = message.Actor.ID
-				}
+				event := Event{Type: string(message.Type), Action: string(message.Action), Time: time.Unix(0, message.TimeNano), ActorID: message.Actor.ID}
 				select {
 				case events <- event:
 				case <-ctx.Done():
@@ -145,7 +139,7 @@ func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string
 				if !ok {
 					return
 				}
-				if err != nil && !strings.Contains(err.Error(), "context canceled") {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					errs <- err
 				}
 				return
@@ -159,11 +153,23 @@ func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string
 }
 
 func (d *Docker) RemoveImage(ctx context.Context, reference string) error {
-	_, err := d.client.ImageRemove(ctx, reference, client.ImageRemoveOptions{Force: true, PruneChildren: true})
+	_, err := d.client.ImageRemove(ctx, reference, client.ImageRemoveOptions{PruneChildren: false})
 	return writeError("remove image", err)
 }
 
 func (d *Docker) RemoveVolume(ctx context.Context, name string) error {
 	_, err := d.client.VolumeRemove(ctx, name, client.VolumeRemoveOptions{Force: true})
 	return writeError("remove volume", err)
+}
+
+type cappedBuffer struct {
+	bytes.Buffer
+	limit int64
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	if room := b.limit - int64(b.Len()); room > 0 {
+		b.Buffer.Write(p[:min(int64(len(p)), room)])
+	}
+	return len(p), nil
 }
