@@ -22,6 +22,8 @@ type Suite struct {
 	fixtureV2Image string
 	runID          string
 	imageOnce      sync.Once
+	v2Once         sync.Once
+	v2Err          error
 	image          string
 	imageErr       error
 }
@@ -78,13 +80,13 @@ func (s *Suite) prepare() error {
 		return fmt.Errorf("docker info: %w: %s", err, osName)
 	}
 	s.desktop = strings.Contains(osName, "Docker Desktop")
-	if err := s.buildFixture(); err != nil {
-		return err
-	}
-	return s.buildFixtureV2()
+	return s.buildFixture()
 }
 
-func (s *Suite) FixtureV2Image() string { return s.fixtureV2Image }
+func (s *Suite) FixtureV2Image() (string, error) {
+	s.v2Once.Do(func() { s.v2Err = s.buildFixtureV2() })
+	return s.fixtureV2Image, s.v2Err
+}
 
 func (s *Suite) buildFixture() error {
 	arch, err := s.serverArch()
