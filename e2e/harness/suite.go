@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const busyboxDigest = "sha256:3875c8efb5b0bb608bbe85a4bbabc4657c3d1e72ccbb629601fcac68e3356c83"
+const busyboxDigest = "sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"
 
 type Suite struct {
 	repoRoot       string
