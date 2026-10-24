@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	cerrdefs "github.com/containerd/errdefs"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/moby/client"
 )
 
@@ -16,8 +17,10 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	}
 	details := inspected.Container
 	spec := Spec{
-		ID:   details.ID,
-		Name: strings.TrimPrefix(details.Name, "/"),
+		ID:      details.ID,
+		Name:    strings.TrimPrefix(details.Name, "/"),
+		ImageID: details.Image,
+		Mounts:  details.Mounts,
 	}
 	if details.Config != nil {
 		spec.Config = details.Config
@@ -27,6 +30,9 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	}
 	if details.NetworkSettings != nil {
 		spec.Networks = details.NetworkSettings.Networks
+	}
+	if details.State != nil && details.State.Health != nil {
+		spec.HealthStatus = string(details.State.Health.Status)
 	}
 	if details.Config != nil && details.Config.Image != "" {
 		image, err := d.client.ImageInspect(ctx, details.Config.Image)
@@ -38,4 +44,12 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 		}
 	}
 	return spec, nil
+}
+
+func (d *Docker) ImageConfig(ctx context.Context, reference string) (*dockerspec.DockerOCIImageConfig, error) {
+	inspected, err := d.client.ImageInspect(ctx, reference)
+	if err != nil {
+		return nil, fmt.Errorf("inspect image %s: %w", reference, err)
+	}
+	return inspected.Config, nil
 }

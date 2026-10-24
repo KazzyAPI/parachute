@@ -37,12 +37,13 @@ type Target struct {
 type Reason string
 
 type Plan struct {
-	ID         string
-	Host       string
-	Stacks     []string
-	Targets    []Target
-	SelfUpdate bool
-	Snapshot   string
+	ID            string
+	Host          string
+	Stacks        []string
+	Targets       []Target
+	SelfUpdate    bool
+	Snapshot      string
+	RemoveVolumes bool
 }
 
 type Snapshotter interface {
