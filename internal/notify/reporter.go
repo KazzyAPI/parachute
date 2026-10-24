@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -61,6 +62,7 @@ func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 	if len(r.settings.URLs) == 0 {
 		return nil
 	}
+	r.announceFailures(ctx, report)
 	if r.settings.Report {
 		data = r.parts.Views.Build(report, r.title, r.hidden(report))
 	}
@@ -77,6 +79,17 @@ func (r *Reporter) Publish(ctx context.Context, report domain.Report) error {
 		}
 	})
 	return nil
+}
+
+func (r *Reporter) announceFailures(ctx context.Context, report domain.Report) {
+	for _, result := range report.Results() {
+		if result.State != domain.StateRollbackFailed {
+			continue
+		}
+		body := fmt.Sprintf("error: rollback_failed (%s) for %s, transaction %s, snapshot %s; the stack is frozen until released with POST /v1/approve",
+			result.Reason, result.Container, result.Transaction, result.Snapshot)
+		r.pending.Go(func() { r.parts.Sender.Send(ctx, r.title, body) })
+	}
 }
 
 func (r *Reporter) hidden(report domain.Report) func(domain.Result) bool {
