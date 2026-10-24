@@ -11,6 +11,7 @@ import (
 )
 
 type ImageSpec struct {
+	Base        string
 	Version     string
 	Labels      map[string]string
 	Env         map[string]string
@@ -44,7 +45,11 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 
 func (e *Env) dockerfile(spec ImageSpec) string {
 	var file strings.Builder
-	fmt.Fprintf(&file, "FROM %s\nLABEL parachute-e2e.version=%s-%s\n", suite.fixtureImage, e.ID, spec.Version)
+	base := spec.Base
+	if base == "" {
+		base = suite.fixtureImage
+	}
+	fmt.Fprintf(&file, "FROM %s\nLABEL parachute-e2e.version=%s-%s\n", base, e.ID, spec.Version)
 	for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
 		fmt.Fprintf(&file, "LABEL %q=%q\n", key, spec.Labels[key])
 	}

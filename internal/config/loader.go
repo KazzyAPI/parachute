@@ -66,6 +66,8 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Policy:         l.policy(b),
 		API:            l.api(b),
 		Log:            l.log(b),
+		Backup:         l.backup(b),
+		Update:         l.update(b),
 	}
 	cfg.Relaxations = b.relaxations()
 	if b.boolean("health-check") {
@@ -139,6 +141,25 @@ func (l *Loader) notify(b *binder) (Notify, error) {
 		Report:    b.boolean("notification-report"),
 		LogStdout: b.boolean("notification-log-stdout"),
 	}, nil
+}
+
+func (l *Loader) backup(b *binder) Backup {
+	return Backup{
+		Mode:      b.raw("backup"),
+		Volume:    b.raw("backup-volume"),
+		Retention: b.integer("backup-retention"),
+		Helper:    b.raw("helper-image"),
+	}
+}
+
+func (l *Loader) update(b *binder) Update {
+	return Update{
+		StopTimeout:   b.duration("stop-timeout"),
+		Cleanup:       b.boolean("cleanup"),
+		RemoveVolumes: b.boolean("remove-volumes"),
+		VerifyTimeout: b.duration("verify-timeout"),
+		VerifyStable:  b.duration("verify-stable"),
+	}
 }
 
 func (l *Loader) log(b *binder) Log {

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -43,9 +42,6 @@ func (g *ArmedLabelGuard) Check(ctx context.Context) error {
 			return unreachableError(fmt.Errorf("inspect image of own container: %w", err))
 		}
 		container.ImageLabels = image.Labels
-		if g.labels.Is(container, "armed") {
-			return configurationError(errors.New("updates are not implemented in this milestone (parachute.armed=true on own container)"))
-		}
 	}
 	return nil
 }

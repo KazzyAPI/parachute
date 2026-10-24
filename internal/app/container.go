@@ -32,7 +32,7 @@ func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, red
 	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, entries: entries, labels: labels.NewReader(logger)}
 }
 
-func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage pipeline.Stage) *pipeline.Pipeline {
+func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage pipeline.Stage, execute pipeline.Stage) *pipeline.Pipeline {
 	return pipeline.New(
 		c.insecureHostWarning(),
 		c.discoverStage(),
@@ -40,6 +40,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter,
 		c.detectStage(),
 		policyStage,
 		c.driftStage(),
+		execute,
 		pipeline.NewReportStage(c.deps.Clock, c.logger, append(c.sinks(store, reporter), collector)...),
 	)
 }
@@ -61,12 +62,16 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	hosts, closeHosts, err := c.hosts(ctx)
+	hosts, connected, closeHosts, err := c.hosts(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
+	helper, err := c.requireHelperImage(ctx, connected)
+	if err != nil {
+		return nil, nil, errors.Join(closeHosts(), configurationError(err))
+	}
 	collector := metrics.NewCollector(hostNames(hosts))
-	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
+	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, c.executeStage(store, connected, helper)), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
@@ -96,7 +101,7 @@ func (c *Container) Status(ctx context.Context) (err error) {
 	if err != nil {
 		return configurationError(err)
 	}
-	hosts, closeHosts, err := c.hosts(ctx)
+	hosts, _, closeHosts, err := c.hosts(ctx)
 	if err != nil {
 		return err
 	}
