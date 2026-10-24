@@ -18,7 +18,7 @@ func TestBKP_001_snapshot_failure_leaves_container_unchanged(t *testing.T) {
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data", "--mount", "type=volume,source=" + env.ID + "-data,target=/data"}})
-	env.Docker("run", "--rm", "-v", env.ID+"-data:/data", env.FixtureV2Image(), "sh", "-c", "head -c 10485760 /dev/zero > /data/fill")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", env.ID+"-data:/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
 	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
@@ -529,7 +529,7 @@ func TestBKP_009_partial_snapshot_removed(t *testing.T) {
 	a := env.RunContainer("a", pushV2(env, "app", "1", harness.ImageSpec{Version: "1"}), harness.ContainerOptions{
 		Extra: []string{"-v", volume + ":/data"},
 	})
-	env.Docker("run", "--rm", "-v", volume+":/data", env.FixtureV2Image(), "sh", "-c", "head -c 10485760 /dev/zero > /data/fill")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
 	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
 	done := runArmedAsync(env, "--backup-volume", store)
 	env.Eventually(2*time.Minute, "container stopped for snapshot", func() bool {
@@ -567,9 +567,9 @@ func TestBKP_010_helper_hardening(t *testing.T) {
 	env := harness.NewEnv(t)
 	volume := env.ID + "-big"
 	app := newUpdatable(env, "app")
-	inspectHelperOnCreate(env, func() {
+	inspectHelperOnCreate(env, volume, func() {
 		env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
-		env.Docker("run", "--rm", "-v", volume+":/data", env.FixtureV2Image(), "sh", "-c", "head -c 52428800 /dev/zero > /data/fill")
+		env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 52428800 /dev/zero > /data/fill")
 		app.publishNewer()
 		runArmed(env)
 	})
@@ -642,7 +642,7 @@ func TestBKP_011_insufficient_space_refuses_update(t *testing.T) {
 	a := env.RunContainer("a", pushV2(env, "app", "1", harness.ImageSpec{Version: "1"}), harness.ContainerOptions{
 		Extra: []string{"-v", volume + ":/data"},
 	})
-	env.Docker("run", "--rm", "-v", volume+":/data", env.FixtureV2Image(), "sh", "-c", "head -c 1610612736 /dev/zero > /data/fill")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 1610612736 /dev/zero > /data/fill")
 	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
@@ -655,7 +655,7 @@ func TestBKP_011_small_volume_proceeds(t *testing.T) {
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-small:/data"}})
-	env.Docker("run", "--rm", "-v", env.ID+"-small:/data", env.FixtureV2Image(), "sh", "-c", "head -c 104857600 /dev/zero > /data/fill")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", env.ID+"-small:/data", env.FixtureV2Image(), "-c", "head -c 104857600 /dev/zero > /data/fill")
 	app.publishNewer()
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "updated", "")
@@ -867,7 +867,7 @@ func TestBKP_013_manifest_source_not_used_as_target(t *testing.T) {
 		"-v", volume + ":/data",
 		"-v", signalDir + ":" + signalDir,
 	}})
-	env.Docker("run", "--rm", "-v", volume+":/data", env.FixtureV2Image(), "sh", "-c", "echo original > /data/marker")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "echo original > /data/marker")
 	verifyFailUpdate(env, "app", &app, signalDir)
 	mountpoint := strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
 	done := runArmedAsync(env, "--backup-volume", store)

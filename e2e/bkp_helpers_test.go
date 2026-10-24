@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -161,38 +160,42 @@ func postgresReady(env *harness.Env, container string) {
 	})
 }
 
-func inspectHelperOnCreate(env *harness.Env, run func()) {
+func inspectHelperOnCreate(env *harness.Env, volume string, run func()) {
 	env.T.Helper()
-	var once sync.Once
-	done := make(chan struct{})
+	stop := make(chan struct{})
+	finished := make(chan struct{})
+	var problems []string
 	go func() {
+		defer close(finished)
 		for {
 			select {
-			case <-done:
+			case <-stop:
 				return
 			default:
 			}
-			ids := strings.Fields(env.Docker("ps", "-aq", "--filter", "label=parachute.helper=true"))
-			for _, id := range ids {
-				once.Do(func() {
-					spec := env.Docker("inspect", id)
-					if !strings.Contains(spec, `"Privileged": false`) {
-						env.T.Error("helper privileged")
-					}
-					if !strings.Contains(spec, `"ReadonlyRootfs": true`) {
-						env.T.Error("helper readonly rootfs")
-					}
-					if strings.Contains(spec, `"NetworkMode": "host"`) {
-						env.T.Error("helper host network")
-					}
-					close(done)
-				})
+			ids := strings.Fields(env.Docker("ps", "-aq", "--filter", "label=parachute.helper=true", "--filter", "volume="+volume))
+			if len(ids) > 0 {
+				spec := env.Docker("inspect", ids[0])
+				if !strings.Contains(spec, `"Privileged": false`) {
+					problems = append(problems, "helper privileged")
+				}
+				if !strings.Contains(spec, `"ReadonlyRootfs": true`) {
+					problems = append(problems, "helper readonly rootfs")
+				}
+				if strings.Contains(spec, `"NetworkMode": "host"`) {
+					problems = append(problems, "helper host network")
+				}
+				return
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 		}
 	}()
 	run()
-	close(done)
+	close(stop)
+	<-finished
+	for _, problem := range problems {
+		env.T.Error(problem)
+	}
 }
 
 func createFakeHelper(env *harness.Env, labels map[string]string) string {
@@ -208,7 +211,7 @@ func createFakeHelper(env *harness.Env, labels map[string]string) string {
 func replaceArchive(env *harness.Env, storeDir, snapID, file string, shellScript string) {
 	env.T.Helper()
 	snapDir := filepath.Join(storeDir, snapID)
-	env.Docker("run", "--rm", "-v", snapDir+":/snap", env.FixtureV2Image(), "sh", "-c", shellScript+" > /snap/"+file)
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", snapDir+":/snap", env.FixtureV2Image(), "-c", shellScript+" > /snap/"+file)
 	data := []byte(env.ReadHostPath(filepath.Join(snapDir, file)))
 	sum := sha256.Sum256(data)
 	manifest := readManifest(env, storeDir, snapID)
@@ -224,7 +227,7 @@ func replaceArchive(env *harness.Env, storeDir, snapID, file string, shellScript
 
 func killDuringSnapshot(env *harness.Env, volume string, app *updatable, container string) {
 	env.T.Helper()
-	env.Docker("run", "--rm", "-v", volume+":/data", env.FixtureV2Image(), "sh", "-c", "head -c 104857600 /dev/zero > /data/fill")
+	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 104857600 /dev/zero > /data/fill")
 	app.publishNewer()
 	process := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--delay-days", "0",
 		"--verify-stable", "1s", "--verify-timeout", "30s", "--helper-image", env.ParachuteImage(), "--porcelain", "v1").Start()
