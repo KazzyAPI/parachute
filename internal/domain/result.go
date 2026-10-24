@@ -44,6 +44,7 @@ type Result struct {
 	Drift           *string    `json:"drift,omitempty"`
 	ContainerID     string     `json:"container_id,omitempty"`
 	Detail          string     `json:"-"`
+	TargetImage     string     `json:"-"`
 }
 
 func NewResult(host string, container Container) Result {

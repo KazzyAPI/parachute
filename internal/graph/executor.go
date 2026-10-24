@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"strings"
@@ -90,7 +91,7 @@ func (e *Executor) Run(ctx context.Context, host string, containers []domain.Con
 		}
 		targets[candidate.Container.Name] = txn.Target{
 			Container: candidate.Container.Name,
-			Image:     candidate.Container.ImageRef,
+			Image:     cmp.Or(candidate.Result.TargetImage, candidate.Container.ImageRef),
 			Digest:    candidate.Result.CandidateDigest,
 		}
 	}
@@ -384,7 +385,7 @@ func (e *Executor) pull(ctx context.Context, container domain.Container, targets
 		if target.Container != container.Name {
 			continue
 		}
-		reference := strings.Split(container.ImageRef, "@")[0]
+		reference := strings.Split(target.Image, "@")[0]
 		parsed, err := registry.ParseReference(reference)
 		if err != nil {
 			return err
