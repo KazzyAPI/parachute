@@ -29,16 +29,27 @@ func (r recordingSnapshotter) Take(ctx context.Context, plan txn.Plan) (string, 
 	return snapshot, nil
 }
 
+func (c *Container) hostSnapshotter(host connectedHost, journal *state.Journal, helper string, ids *txn.IDGenerator) *backup.Snapshotter {
+	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper}
+	snapshotter := backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
+	snapshotter.SetCatalog(catalogFor(journal))
+	return snapshotter
+}
+
+func (c *Container) hostFinisher(host connectedHost, snapshotter *backup.Snapshotter) *RollbackFinisher {
+	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.labels, c.logger)
+}
+
 func (c *Container) graphStage(store *state.Store, connected []connectedHost, helper string) pipeline.Stage {
 	journal := state.NewJournal(store, c.deps.Clock.Now)
 	ids := txn.NewIDGenerator(c.deps.Clock.Now)
-	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper}
 	options := graph.Options{
-		StopTimeout:   c.cfg.Update.StopTimeout,
-		Rolling:       c.cfg.Update.RollingRestart,
-		Cleanup:       c.cfg.Update.Cleanup,
-		RemoveVolumes: c.cfg.Update.RemoveVolumes,
-		Retention:     c.cfg.Backup.Retention,
+		StopTimeout:        c.cfg.Update.StopTimeout,
+		Rolling:            c.cfg.Update.RollingRestart,
+		Cleanup:            c.cfg.Update.Cleanup,
+		RemoveVolumes:      c.cfg.Update.RemoveVolumes,
+		Retention:          c.cfg.Backup.Retention,
+		TransactionTimeout: c.cfg.Update.TransactionTimeout,
 	}
 	recreateSettings := func() recreate.Settings {
 		return recreate.Settings{RemoveVolumes: c.cfg.Update.RemoveVolumes, CommittedAt: c.deps.Clock.Now()}
@@ -48,8 +59,7 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 		if host.docker == nil || host.err != nil {
 			continue
 		}
-		snapshotter := backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
-		snapshotter.SetCatalog(catalogFor(journal))
+		snapshotter := c.hostSnapshotter(host, journal, helper, ids)
 		executors[host.spec.Name] = graph.NewExecutor(
 			graph.NewBuilder(),
 			host.docker,
@@ -57,6 +67,7 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 			recordingSnapshotter{Snapshotter: snapshotter, journal: journal},
 			recreate.NewRecreator(host.docker, recreateSettings),
 			c.verifier(host.docker),
+			c.hostFinisher(host, snapshotter),
 			ids,
 			c.deps.Clock,
 			c.logger,
@@ -65,4 +76,16 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 		)
 	}
 	return graph.NewStage(executors, "")
+}
+
+func (c *Container) recovery(connected []connectedHost, journal *state.Journal, helper string) *Recovery {
+	ids := txn.NewIDGenerator(c.deps.Clock.Now)
+	hosts := map[string]RecoveryHost{}
+	for _, host := range connected {
+		if host.docker == nil || host.err != nil {
+			continue
+		}
+		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Finisher: c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))}
+	}
+	return NewRecovery(hosts, journal, c.logger)
 }

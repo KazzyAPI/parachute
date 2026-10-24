@@ -32,12 +32,13 @@ func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, red
 	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, entries: entries, labels: labels.NewReader(logger)}
 }
 
-func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage, graphStage pipeline.Stage) *pipeline.Pipeline {
+func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage, graphStage, recoveredStage pipeline.Stage) *pipeline.Pipeline {
 	return pipeline.New(
 		c.insecureHostWarning(),
 		c.discoverStage(),
 		c.selectStage(),
 		c.detectStage(),
+		recoveredStage,
 		policyStage,
 		graphStage,
 		c.driftStage(),
@@ -71,10 +72,12 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 		return nil, nil, errors.Join(closeHosts(), configurationError(err))
 	}
 	journal := state.NewJournal(store, c.deps.Clock.Now)
+	recovery := c.recovery(connected, journal, helper)
+	recovery.Recover(ctx)
 	c.cleanupHelpers(ctx, connected, journal)
 	collector := metrics.NewCollector(hostNames(hosts))
 	graphStage := c.graphStage(store, connected, helper)
-	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
+	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()

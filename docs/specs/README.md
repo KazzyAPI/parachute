@@ -91,6 +91,7 @@ Spine S0 lays shared foundations; parallel work lands in these packages:
 | F failure policy | POL-010, POL-011 (release), API-007 (release), NTF-012, STS-004, STS-002 (`frozen`, `last_transaction`), POL-004, POL-005 |
 | H second engine | DMN-010 |
 | M1 rewrites | CFG-001, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SCH-005, SEL-008, SEL-010, SEL-011, DET-001, DET-004, REG-001, NTF-003 |
+| M3 rollback | VER-008, VER-009, VER-010, VER-011, UPD-009, UPD-010, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019 |
 
 `internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
 
