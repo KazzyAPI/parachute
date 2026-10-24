@@ -77,6 +77,8 @@ With `--http-api-periodic-polls` on, scheduled cycles (SCH-001, SCH-002) MUST al
 | `parachute_host_up` | gauge | 1 when the host was reachable in the last cycle, else 0 |
 | `parachute_restore_verification_last_success_timestamp_seconds` | gauge | Unix time of the last passed restore verification, per `host` and `stack` |
 
+While unarmed (M2), `parachute_containers_updated` is 0.
+
 - **Given** `--http-api-metrics`, a token, and a cycle that updated one of three containers **When** `GET /v1/metrics` is called **Then** the body contains `parachute_containers_scanned{host="local"} 3`, `parachute_containers_updated{host="local"} 1`, and `parachute_scans_total 1`.
 - **Given** a second host that is unreachable **When** a cycle ends **Then** `parachute_host_up{host="<name>"} 0` is reported.
 
