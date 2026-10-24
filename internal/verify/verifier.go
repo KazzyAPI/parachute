@@ -172,14 +172,20 @@ func (v *Verifier) stableBase(ctx context.Context, containerID string, initial e
 
 func (v *Verifier) retryCheck(ctx context.Context, containerID string, deadlineAt time.Time, check string, attempt func(context.Context) (bool, string)) txn.Verdict {
 	var lastOutput string
+	attempted := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return txn.Verdict{Passed: false, Reason: ReasonFailed, Check: check, Output: err.Error()}
 		}
 		if v.clock.Now().After(deadlineAt) {
-			return txn.Verdict{Passed: false, Reason: ReasonTimeout, Check: check, Output: truncate(lastOutput)}
+			reason := ReasonTimeout
+			if attempted {
+				reason = ReasonFailed
+			}
+			return txn.Verdict{Passed: false, Reason: reason, Check: check, Output: truncate(lastOutput)}
 		}
 		ok, output := attempt(ctx)
+		attempted = true
 		lastOutput = output
 		if ok {
 			return txn.Verdict{Passed: true}

@@ -50,7 +50,7 @@ func (p *urlProber) Probe(ctx context.Context, transactionID, containerID, url s
 	if err := p.docker.Start(ctx, id); err != nil {
 		return 0, "", err
 	}
-	result, err := p.docker.Exec(ctx, id, []string{"sh", "-c", fmt.Sprintf("wget -q -S -O /dev/null %q 2>&1", shellQuote(url))}, nil, 30*time.Second, 1000)
+	result, err := p.docker.Exec(ctx, id, []string{"sh", "-c", "wget -q -S -O /dev/null " + shellQuote(url) + " 2>&1"}, nil, 30*time.Second, 1000)
 	if err != nil {
 		return 0, "", err
 	}

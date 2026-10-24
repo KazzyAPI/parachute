@@ -140,7 +140,7 @@ func TestVerifier_cmd_must_exit_zero(t *testing.T) {
 	labels := &fakeLabels{values: map[string]string{"verify.cmd": "exit 1", "verify.stable": "0s"}}
 	verifier := New(inspector, &fakeCommander{exit: 1}, nil, labels, Settings{Timeout: time.Minute, Stable: 0}, &fakeClock{now: start})
 	verdict, err := verifier.Verify(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
-	if err != nil || verdict.Passed || verdict.Reason != ReasonTimeout {
+	if err != nil || verdict.Passed || verdict.Reason != ReasonFailed {
 		t.Fatalf("verdict %+v err %v", verdict, err)
 	}
 }
