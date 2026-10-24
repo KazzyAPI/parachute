@@ -43,10 +43,11 @@ func (s *SelectStage) selectHost(ctx context.Context, cycle *Cycle, host *HostRu
 	var inspected []domain.Container
 	var failed []*Candidate
 	for _, container := range s.selector.Admit(host.Containers) {
-		lookup, cached := images[container.ImageID]
+		cacheKey := container.ImageRef + "\x00" + container.ImageID
+		lookup, cached := images[cacheKey]
 		if !cached {
-			lookup = s.inspect(ctx, host, container.ImageID)
-			images[container.ImageID] = lookup
+			lookup = s.inspect(ctx, host, container)
+			images[cacheKey] = lookup
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -71,10 +72,21 @@ func (s *SelectStage) selectHost(ctx context.Context, cycle *Cycle, host *HostRu
 	return nil
 }
 
-func (s *SelectStage) inspect(ctx context.Context, host *HostRun, imageID string) imageLookup {
-	image, found, err := host.Host.Source.Image(ctx, imageID)
-	if err == nil && !found {
-		err = fmt.Errorf("image %s of the container not found", imageID)
+func (s *SelectStage) inspect(ctx context.Context, host *HostRun, container domain.Container) imageLookup {
+	references := []string{container.ImageRef, container.ImageID}
+	var lastErr error
+	for _, reference := range references {
+		if reference == "" {
+			continue
+		}
+		image, found, err := host.Host.Source.Image(ctx, reference)
+		if err != nil {
+			return imageLookup{err: err}
+		}
+		if found {
+			return imageLookup{labels: image.Labels}
+		}
+		lastErr = fmt.Errorf("image %s of the container not found", reference)
 	}
-	return imageLookup{labels: image.Labels, err: err}
+	return imageLookup{err: lastErr}
 }
