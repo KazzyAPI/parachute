@@ -36,9 +36,6 @@ func (d *Docker) Create(ctx context.Context, spec Spec) (string, error) {
 		HostConfig:       spec.HostConfig,
 		NetworkingConfig: networkingConfig(spec.Networks),
 	}
-	if spec.Config != nil && spec.Config.Image != "" {
-		options.Image = spec.Config.Image
-	}
 	created, err := d.client.ContainerCreate(ctx, options)
 	if err != nil {
 		return "", writeError("create container", err)
