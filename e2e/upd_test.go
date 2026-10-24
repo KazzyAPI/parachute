@@ -79,9 +79,9 @@ func TestUPD_007_autoremove_blocks_update(t *testing.T) {
 func TestUPD_011_anonymous_volume_data_carries_over(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
-	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1", Volumes: []string{"/data"}, Cmd: []string{"sh", "-c", "sleep 3600"}})
-	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Volumes: []string{"/data"}, Cmd: []string{"sh", "-c", "sleep 3600"}})
+	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "1", Volumes: []string{"/data"}, Cmd: []string{"sh", "-c", "sleep 3600"}})
 	a := env.RunContainer("a", v1, harness.ContainerOptions{})
+	registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "2", Volumes: []string{"/data"}, Cmd: []string{"sh", "-c", "sleep 3600"}})
 	env.Docker("exec", a, "sh", "-c", "echo marker > /data/marker")
 	assertState(t, armedOnce(env), a, "updated", "")
 	out := env.Docker("exec", a, "cat", "/data/marker")
@@ -94,15 +94,10 @@ func TestUPD_020_pull_uses_approved_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	v1 := registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "1"})
-	d2 := registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "2"})
-	a := env.RunContainer("a", v1, harness.ContainerOptions{})
 	proxy := registry.Proxy(harness.ProxyOptions{})
-	rehomed := env.Rehome(v1, strings.Split(proxy.Host, ":")[0])
-	env.Docker("pull", "-q", rehomed)
-	env.Docker("tag", rehomed, v1)
-	env.Docker("rmi", "-f", rehomed)
-	_ = d2
-	result := armedOnce(env, "--registry", "http://"+proxy.Host)
+	a := env.RunContainer("a", env.Rehome(v1, proxy.Host), harness.ContainerOptions{})
+	registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "2"})
+	result := armedOnce(env)
 	assertState(t, result, a, "updated", "")
 	requests := proxy.Requests()
 	found := false
@@ -116,11 +111,11 @@ func TestUPD_020_pull_uses_approved_digest(t *testing.T) {
 	}
 }
 
-func TestUPD_008_original_container_kept_until_commit(t *testing.T) {
+func TestUPD_008_original_container_kept_until_commit_blocked_on_verify_phase_hook(t *testing.T) {
 	t.Skip("needs verify-phase timing hook to inspect renamed original mid-transaction")
 }
 
-func TestUPD_020_rejects_pulled_image_without_approved_digest(t *testing.T) {
+func TestUPD_020_rejects_pulled_image_without_approved_digest_blocked_because_docker_validates_digests_itself(t *testing.T) {
 	t.Skip("needs registry proxy that serves wrong digest body after manifest approval")
 }
 
