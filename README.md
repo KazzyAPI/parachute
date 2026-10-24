@@ -4,7 +4,7 @@
 
 Keeping containers up to date matters, and blind auto-updates break things. Parachute updates your containers the way a careful operator would. It snapshots your data, checks that the new version really works, and puts the old one back if it doesn't. Built in the open: one small static binary, no database.
 
-> **Status: pre-alpha.** Milestone 1 is report-only: Parachute finds and reports available updates but never changes a container. Do not point it at data you can't lose. Progress is tracked in [`docs/specs/README.md`](docs/specs/README.md).
+> **Status: pre-alpha.** Milestones 1 and 2 are report-only: selection, policies and approvals, HTTP API and metrics, multi-host, status, and notifications ship, but nothing is updated yet. Do not point it at data you can't lose. Progress is tracked in [`docs/specs/README.md`](docs/specs/README.md).
 
 ## What Parachute is built to do
 
@@ -54,9 +54,9 @@ Opt a container out with a label, for example `parachute.enable=false`. Every se
 
 | Stage | What it adds | State |
 |---|---|---|
-| Report-only core | Selection, scheduling, update detection, registry auth, notifications, status | Done; tests are catching up with later spec changes ([deviations](docs/specs/README.md)) |
-| Safe updates | Backup, the update transaction, verification, rollback, policies and approvals, hooks | Next |
-| Control plane | HTTP API and metrics, multi-host, restore verification | Planned |
+| Report-only core | Selection, scheduling, update detection, registry auth, notifications, status, policies and approvals, HTTP API and metrics, multi-host | Done; tests are catching up with later spec changes ([deviations](docs/specs/README.md)) |
+| Safe updates | Backup, the update transaction, verification, rollback, hooks | Next |
+| Control plane | Restore verification | Planned |
 
 ## Project principles
 
