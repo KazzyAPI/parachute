@@ -27,13 +27,6 @@ func TestCFG_006_unarmed_reports_would_update_and_changes_nothing(t *testing.T) 
 	}
 }
 
-func TestCFG_006_armed_is_refused_in_this_milestone(t *testing.T) {
-	env := harness.NewEnv(t)
-	result := env.Parachute("--run-once").Setenv("PARACHUTE_ARMED", "true").Run(runTimeout)
-	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
-}
-
 func TestCFG_006_restart_without_armed_changes_nothing(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
@@ -98,13 +91,6 @@ func TestCFG_007_unknown_porcelain_version(t *testing.T) {
 	assertExit(t, env.Parachute("--porcelain", "v2").Run(runTimeout), 2)
 }
 
-func TestCFG_011_convenient_profile_arms_and_is_refused(t *testing.T) {
-	env := harness.NewEnv(t)
-	result := env.Parachute("--run-once", "--profile", "convenient").Run(runTimeout)
-	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
-}
-
 func TestCFG_011_explicit_setting_wins_over_profile(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once", "--profile", "convenient", "--armed=false", "--delay-days", "3").Run(runTimeout)
@@ -132,14 +118,4 @@ func TestCFG_011_unknown_profile(t *testing.T) {
 	result := env.Parachute("--profile", "fast").Run(runTimeout)
 	assertExit(t, result, 2)
 	assertContains(t, result.Stderr, "profile", "fast")
-}
-
-func TestCFG_006_armed_label_on_own_container_is_refused(t *testing.T) {
-	env := harness.NewEnv(t)
-	result := env.RunParachuteContainer("parachute", harness.ContainerRun{
-		Args:   []string{"--run-once", "--scope", env.Scope()},
-		Labels: map[string]string{"parachute.armed": "true"},
-	}, runTimeout)
-	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
 }

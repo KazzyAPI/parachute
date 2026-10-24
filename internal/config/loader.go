@@ -66,6 +66,7 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Policy:         l.policy(b),
 		API:            l.api(b),
 		Log:            l.log(b),
+		Update:         l.update(b),
 	}
 	cfg.Relaxations = b.relaxations()
 	if b.boolean("health-check") {
@@ -150,4 +151,12 @@ func (l *Loader) log(b *binder) Log {
 		level = "trace"
 	}
 	return Log{Level: level, Format: b.raw("log-format"), NoColor: b.boolean("no-color")}
+}
+
+func (l *Loader) update(b *binder) Update {
+	return Update{
+		StopTimeout:   b.duration("stop-timeout"),
+		Cleanup:       b.boolean("cleanup"),
+		RemoveVolumes: b.boolean("remove-volumes"),
+	}
 }
