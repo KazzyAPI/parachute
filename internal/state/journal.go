@@ -49,6 +49,10 @@ func (j *Journal) Finish(ctx context.Context, id string, outcome txn.Outcome) er
 			document.Transactions[index].State = string(outcome.State)
 			document.Transactions[index].Result = string(outcome.Result)
 			document.Transactions[index].Reason = string(outcome.Reason)
+			document.Transactions[index].Time = j.clock()
+			if outcome.State == txn.StateRollbackFail && !record.SelfUpdate {
+				document.Freezes = append(document.Freezes, freezeOf(*document, record))
+			}
 			return nil
 		}
 		return nil
@@ -102,4 +106,17 @@ func (j *Journal) RecordSnapshot(host, stack, transaction, snapshot string) erro
 		})
 		return nil
 	})
+}
+
+func freezeOf(document Document, record TransactionRecord) Freeze {
+	freeze := Freeze{Transaction: record.ID, Snapshot: NoSnapshot}
+	for _, stack := range record.Stacks {
+		freeze.Keys = append(freeze.Keys, FreezeKey{Host: record.Host, Stack: stack})
+	}
+	for _, snapshot := range document.Snapshots {
+		if snapshot.Transaction == record.ID {
+			freeze.Snapshot = snapshot.ID
+		}
+	}
+	return freeze
 }

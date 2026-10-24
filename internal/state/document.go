@@ -38,18 +38,19 @@ type Notified struct {
 }
 
 type Document struct {
-	Format              string              `json:"format"`
-	LastCycle           *CycleInfo          `json:"last_cycle"`
-	Results             []domain.Result     `json:"results"`
-	FirstSeen           []FirstSeen         `json:"first_seen"`
-	Approvals           []Approval          `json:"approvals"`
-	Notified            []Notified          `json:"notified"`
-	SupersededInstances []string            `json:"superseded_instances"`
-	Transactions        []TransactionRecord `json:"transactions"`
-	Snapshots           []SnapshotRecord    `json:"snapshots"`
-	FailedDigests       []FailedDigest      `json:"failed_digests"`
-	Freezes             []Freeze            `json:"freezes"`
-	Releases            []Release           `json:"releases"`
+	Format              string               `json:"format"`
+	LastCycle           *CycleInfo           `json:"last_cycle"`
+	Results             []domain.Result      `json:"results"`
+	FirstSeen           []FirstSeen          `json:"first_seen"`
+	Approvals           []Approval           `json:"approvals"`
+	Notified            []Notified           `json:"notified"`
+	SupersededInstances []string             `json:"superseded_instances"`
+	Transactions        []TransactionRecord  `json:"transactions"`
+	Snapshots           []SnapshotRecord     `json:"snapshots"`
+	FailedDigests       []FailedDigest       `json:"failed_digests"`
+	Freezes             []Freeze             `json:"freezes"`
+	Releases            []Release            `json:"releases"`
+	ServiceTransactions []ServiceTransaction `json:"service_transactions"`
 }
 
 func (d Document) clone() Document {
@@ -76,6 +77,7 @@ func (d Document) clone() Document {
 	for index := range d.Releases {
 		d.Releases[index].Keys = slices.Clone(d.Releases[index].Keys)
 	}
+	d.ServiceTransactions = slices.Clone(d.ServiceTransactions)
 	return d.complete()
 }
 
@@ -91,6 +93,7 @@ func (d Document) complete() Document {
 	d.FailedDigests = orEmpty(d.FailedDigests)
 	d.Freezes = orEmpty(d.Freezes)
 	d.Releases = orEmpty(d.Releases)
+	d.ServiceTransactions = orEmpty(d.ServiceTransactions)
 	return d
 }
 
