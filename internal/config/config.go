@@ -21,7 +21,13 @@ type Config struct {
 	API            API
 	Hosts          []HostSpec
 	Log            Log
+	Update         Update
 	StartupMessage bool
+}
+
+type Update struct {
+	StopTimeout    time.Duration
+	RollingRestart bool
 }
 
 type Relaxation struct {

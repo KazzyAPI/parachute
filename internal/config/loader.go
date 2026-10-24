@@ -66,6 +66,7 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		Policy:         l.policy(b),
 		API:            l.api(b),
 		Log:            l.log(b),
+		Update:         l.update(b),
 	}
 	cfg.Relaxations = b.relaxations()
 	if b.boolean("health-check") {

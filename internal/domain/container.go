@@ -14,6 +14,8 @@ type Container struct {
 	ImageID     string
 	ImageLabels map[string]string
 	Own         bool
+	Links       []string
+	NetworkMode string
 }
 
 func (c Container) IsCompose() bool {

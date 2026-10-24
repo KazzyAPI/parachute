@@ -119,7 +119,7 @@ func DefaultSettings() []Setting {
 		{Name: "allow-insecure-tcp", Kind: KindBool, Default: "false"},
 		{Name: "hosts", Kind: KindList},
 		{Name: "restore-verify-schedule", Kind: KindString, Unimplemented: notInThisMilestone("--restore-verify-schedule")},
-		{Name: "armed", Kind: KindBool, Default: "false", ConvenientDefault: convenient("true"), Unimplemented: armedUnavailable},
+		{Name: "armed", Kind: KindBool, Default: "false", ConvenientDefault: convenient("true")},
 		{Name: "profile", Kind: KindEnum, Default: ProfileSafe, Choices: []string{ProfileSafe, ProfileConvenient}},
 		{Name: "porcelain", Kind: KindEnum, Choices: []string{"v1"}},
 		{Name: "log-level", Kind: KindEnum, Default: "info", Choices: []string{"error", "warn", "info", "debug", "trace"}},

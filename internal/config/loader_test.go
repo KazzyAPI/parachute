@@ -84,7 +84,6 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		{environ: []string{"PARACHUTE_NOTIFICATION_SLACK_HOOK_URL=x"}, want: []string{"--notification-url", "slack://"}},
 		{args: []string{"--revive-stopped"}, want: []string{"revive-stopped", "include-stopped"}},
 		{args: []string{"--interval", "5", "--schedule", "* * * * * *"}, want: []string{"interval", "schedule"}},
-		{args: []string{"--armed"}, want: []string{"updates are not implemented in this milestone"}},
 		{args: []string{"--hosts", "a=unix:///x,a=unix:///y"}, want: []string{"duplicate host name", "a"}},
 		{args: []string{"--hosts", "Bad=unix:///x"}, want: []string{"Bad", "[a-z0-9]"}},
 		{args: []string{"--hosts", "a"}, want: []string{"name=endpoint"}},
