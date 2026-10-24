@@ -2,7 +2,7 @@
 
 **Status:** Draft
 
-An optional HTTP server for triggering cycles, approving updates, metrics, and the status view ([14-status-view.md](14-status-view.md)). All responses with a body are JSON (`Content-Type: application/json`) except metrics and the HTML status page.
+An optional HTTP server for triggering cycles, approving updates, metrics, and the status view ([14-status-view.md](14-status-view.md)). All responses with a body are JSON (`Content-Type: application/json`) except metrics, the HTML status page, and Go's net/http `431 Request Header Fields Too Large` response, which is plain text.
 
 ### API-001 Server
 Parachute MUST listen for HTTP on `--http-api-port` (default `8080`, all interfaces) when any of `--http-api-update`, `--http-api-metrics`, or `--http-api-status` is on, and MUST NOT listen on any port otherwise. Endpoints whose setting is off MUST return 404.
@@ -83,7 +83,7 @@ While unarmed (M2), `parachute_containers_updated` is 0.
 - **Given** a second host that is unreachable **When** a cycle ends **Then** `parachute_host_up{host="<name>"} 0` is reported.
 
 ### API-009 Request limits
-The server MUST bound what one request can cost. A request whose request line and headers together exceed 8 KiB MUST get 431. A request with a body larger than 1 KiB (by `Content-Length` or by bytes read) MUST get 413 after reading at most 1 KiB of the body; no endpoint uses a request body, and a smaller body is ignored. A connection that has not sent complete request headers within 10 seconds of opening, or that stays idle for 60 seconds between requests, MUST be closed. Limits are checked before authentication, and a rejected request MUST NOT run anything.
+The server MUST bound what one request can cost. A request whose request line and headers together exceed 8 KiB MUST get 431 (Go's net/http writes that response as plain text, not a JSON error body). A request with a body larger than 1 KiB (by `Content-Length` or by bytes read) MUST get 413 after reading at most 1 KiB of the body; no endpoint uses a request body, and a smaller body is ignored. A connection that has not sent complete request headers within 10 seconds of opening, or that stays idle for 60 seconds between requests, MUST be closed. Limits are checked before authentication, and a rejected request MUST NOT run anything.
 
 - **Given** `--http-api-update` and a token **When** `POST /v1/update` is sent with the token and a 9 KiB `X-Pad` header **Then** the response is 431 and no cycle starts.
 - **Given** the same **When** `POST /v1/update` is sent with the token and a 2 KiB body **Then** the response is 413 and no cycle starts.
