@@ -41,25 +41,47 @@ func (c *Container) requireHelperImage(ctx context.Context, hosts []connectedHos
 func (c *Container) executeStage(store *state.Store, hosts []connectedHost, helper string) pipeline.Stage {
 	journal := state.NewJournal(store, c.deps.Clock.Now)
 	engines := map[string]*engine.Docker{}
+	snapshotters := map[string]*backup.Snapshotter{}
 	settings := backup.Settings{
 		Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper,
 	}
 	ids := txn.NewIDGenerator(c.deps.Clock.Now)
-	snapshotters := map[string]txn.Snapshotter{}
 	for _, host := range hosts {
 		if host.docker == nil {
 			continue
 		}
 		engines[host.spec.Name] = host.docker
-		snapshotters[host.spec.Name] = backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
+		snap := backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
+		snap.SetCatalog(catalogFor(journal))
+		snapshotters[host.spec.Name] = snap
 	}
 	executor := &stackExecutor{
-		engines: engines, ids: ids, labels: c.labels,
+		engines: engines, snapshotters: snapshotters, ids: ids, labels: c.labels,
 		cfg: updateSettings{
 			stopTimeout: c.cfg.Update.StopTimeout, verifyTimeout: c.cfg.Update.VerifyTimeout,
-			verifyStable: c.cfg.Update.VerifyStable, helperImage: helper,
+			verifyStable: c.cfg.Update.VerifyStable, helperImage: helper, backupDefault: c.cfg.Backup.Mode,
 		},
-		logger: c.logger,
+		logger: c.logger, clock: c.deps.Clock,
 	}
-	return NewExecuteStage(c.cfg.Armed, journal, snapshotters, executor, c.logger)
+	return NewExecuteStage(c.cfg.Armed, journal, snapshotters, c.cfg.Backup.Retention, executor, c.logger)
+}
+
+func catalogFor(journal *state.Journal) backup.SnapshotCatalog {
+	return func(host, stack string) []backup.RecordedSnapshot {
+		var snapshots []backup.RecordedSnapshot
+		for _, record := range journal.Snapshots(host, stack) {
+			snapshots = append(snapshots, backup.RecordedSnapshot{ID: record.ID, Transaction: record.Transaction, Time: record.Time})
+		}
+		return snapshots
+	}
+}
+
+func (c *Container) cleanupHelpers(ctx context.Context, hosts []connectedHost, journal *state.Journal) {
+	allowed := journal.OpenTransactionIDs()
+	for _, host := range hosts {
+		if host.docker == nil {
+			continue
+		}
+		_ = backup.CleanupHelpers(ctx, host.docker, allowed)
+	}
 }

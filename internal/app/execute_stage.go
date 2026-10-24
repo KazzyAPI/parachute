@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KazzyAPI/parachute/internal/backup"
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
@@ -16,15 +17,16 @@ import (
 )
 
 type ExecuteStage struct {
-	armed       bool
-	journal     *state.Journal
-	snapshotter map[string]txn.Snapshotter
-	executor    *stackExecutor
-	logger      *slog.Logger
+	armed        bool
+	journal      *state.Journal
+	snapshotters map[string]*backup.Snapshotter
+	retention    int
+	executor     *stackExecutor
+	logger       *slog.Logger
 }
 
-func NewExecuteStage(armed bool, journal *state.Journal, snapshotter map[string]txn.Snapshotter, executor *stackExecutor, logger *slog.Logger) *ExecuteStage {
-	return &ExecuteStage{armed: armed, journal: journal, snapshotter: snapshotter, executor: executor, logger: logger}
+func NewExecuteStage(armed bool, journal *state.Journal, snapshotters map[string]*backup.Snapshotter, retention int, executor *stackExecutor, logger *slog.Logger) *ExecuteStage {
+	return &ExecuteStage{armed: armed, journal: journal, snapshotters: snapshotters, retention: retention, executor: executor, logger: logger}
 }
 
 func (s *ExecuteStage) Run(ctx context.Context, cycle *pipeline.Cycle) error {
@@ -48,8 +50,7 @@ func groupByStack(candidates []*pipeline.Candidate) map[string][]*pipeline.Candi
 		if candidate.Result.State != domain.StateWouldUpdate {
 			continue
 		}
-		stack := candidate.Result.Stack
-		groups[stack] = append(groups[stack], candidate)
+		groups[candidate.Result.Stack] = append(groups[candidate.Result.Stack], candidate)
 	}
 	return groups
 }
@@ -58,7 +59,7 @@ func (s *ExecuteStage) runStack(ctx context.Context, cycle *pipeline.Cycle, host
 	if len(candidates) == 0 {
 		return nil
 	}
-	snap := s.snapshotter[host.Host.Name]
+	snap := s.snapshotters[host.Host.Name]
 	if snap == nil {
 		return fmt.Errorf("no snapshotter for host %s", host.Host.Name)
 	}
@@ -67,9 +68,7 @@ func (s *ExecuteStage) runStack(ctx context.Context, cycle *pipeline.Cycle, host
 		return err
 	}
 	s.logger.Info("phase snapshot", "cycle", cycle.ID, "phase", "snapshot", "txn", txnID)
-	plan := txn.Plan{
-		ID: txnID, Host: host.Host.Name, Stacks: []string{stack},
-	}
+	plan := txn.Plan{ID: txnID, Host: host.Host.Name, Stacks: []string{stack}}
 	for _, candidate := range candidates {
 		plan.Targets = append(plan.Targets, txn.Target{
 			Container: candidate.Container.Name, Image: candidate.Result.Image, Digest: candidate.Result.CandidateDigest,
@@ -86,20 +85,37 @@ func (s *ExecuteStage) runStack(ctx context.Context, cycle *pipeline.Cycle, host
 		return nil
 	}
 	_ = s.journal.RecordSnapshot(host.Host.Name, stack, txnID, snapshotID)
+	_ = s.journal.Advance(ctx, txnID, txn.StateUpdate)
 	for _, candidate := range candidates {
 		candidate.Result.Snapshot = snapshotID
 		candidate.Result.Transaction = txnID
 	}
-	result, err := s.executor.run(ctx, plan, snapshotID, candidates)
+	outcome, err := s.executor.run(ctx, plan, snapshotID, snap, candidates)
 	if err != nil {
 		return err
 	}
 	for index, candidate := range candidates {
-		if index < len(result) {
-			candidate.Result = result[index]
-		}
+		candidate.Result = outcome[index]
+	}
+	_ = s.journal.Finish(ctx, txnID, txnOutcome(outcome[0]))
+	if outcome[0].State == domain.StateUpdated || outcome[0].State == domain.StateRolledBack {
+		_ = snap.Retain(ctx, host.Host.Name, stack, s.retention)
 	}
 	return nil
+}
+
+func txnOutcome(result domain.Result) txn.Outcome {
+	state := txn.StateCommitted
+	if result.State == domain.StateRolledBack {
+		state = txn.StateRolledBack
+	}
+	if result.State == domain.StateRollbackFailed {
+		state = txn.StateRollbackFail
+	}
+	if result.State == domain.StateFailed {
+		state = txn.StateAborted
+	}
+	return txn.Outcome{State: state, Result: result.State, Reason: txn.Reason(result.Reason)}
 }
 
 func (s *ExecuteStage) failCandidates(candidates []*pipeline.Candidate, reason, detail string) {
@@ -119,11 +135,13 @@ func failureReason(err error) (string, string) {
 }
 
 type stackExecutor struct {
-	engines map[string]*engine.Docker
-	ids     *txn.IDGenerator
-	labels  labelValuer
-	cfg     updateSettings
-	logger  *slog.Logger
+	engines      map[string]*engine.Docker
+	snapshotters map[string]*backup.Snapshotter
+	ids          *txn.IDGenerator
+	labels       labelValuer
+	cfg          updateSettings
+	logger       *slog.Logger
+	clock        Clock
 }
 
 type updateSettings struct {
@@ -131,13 +149,23 @@ type updateSettings struct {
 	verifyTimeout time.Duration
 	verifyStable  time.Duration
 	helperImage   string
+	backupDefault string
 }
 
 type labelValuer interface {
 	Value(container domain.Container, name string) (string, bool)
 }
 
-func (x *stackExecutor) run(ctx context.Context, plan txn.Plan, snapshot string, candidates []*pipeline.Candidate) ([]domain.Result, error) {
+type trackedUpdate struct {
+	candidate     *pipeline.Candidate
+	originalID    string
+	originalName  string
+	backupName    string
+	replacementID string
+	started       bool
+}
+
+func (x *stackExecutor) run(ctx context.Context, plan txn.Plan, snapshot string, snap *backup.Snapshotter, candidates []*pipeline.Candidate) ([]domain.Result, error) {
 	docker := x.engines[plan.Host]
 	if docker == nil {
 		return nil, fmt.Errorf("no engine for host %s", plan.Host)
@@ -145,87 +173,107 @@ func (x *stackExecutor) run(ctx context.Context, plan txn.Plan, snapshot string,
 	x.logger.Info("phase update", "txn", plan.ID, "phase", "update")
 	for _, candidate := range candidates {
 		if err := docker.Pull(ctx, candidate.Result.Image, candidate.Result.CandidateDigest, ""); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "pull_failed", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, nil, "pull_failed", err.Error())
 		}
 		if err := docker.Tag(ctx, candidate.Result.Image+"@"+candidate.Result.CandidateDigest, candidate.Result.Image); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "pull_failed", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, nil, "pull_failed", err.Error())
 		}
 	}
-	var originals []string
+	var tracked []trackedUpdate
 	for _, candidate := range candidates {
 		suffix := plan.ID[len(plan.ID)-6:]
 		backupName := candidate.Container.Name + "-parachute-" + suffix
 		if err := docker.Stop(ctx, candidate.Container.ID, "SIGTERM", x.cfg.stopTimeout); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "engine_error", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, "engine_error", err.Error())
 		}
 		if err := docker.Rename(ctx, candidate.Container.ID, backupName); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "engine_error", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, "engine_error", err.Error())
 		}
-		originals = append(originals, candidate.Container.ID)
 		spec, err := docker.Inspect(ctx, candidate.Container.ID)
 		if err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "config_unreproducible", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, "config_unreproducible", err.Error())
 		}
 		spec.Name = candidate.Container.Name
 		if spec.Config != nil {
 			spec.Config.Image = candidate.Result.Image
+			if spec.Config.Labels == nil {
+				spec.Config.Labels = map[string]string{}
+			}
+			spec.Config.Labels["parachute.transaction"] = plan.ID
+			snapshotLabel := snapshot
+			if mode, ok := x.labels.Value(candidate.Container, "backup"); ok {
+				if mode == "none" {
+					snapshotLabel = "none"
+				}
+			} else if x.cfg.backupDefault == "none" {
+				snapshotLabel = "none"
+			}
+			spec.Config.Labels["parachute.snapshot"] = snapshotLabel
+			spec.Config.Labels["parachute.updated-at"] = x.clock.Now().UTC().Format(time.RFC3339)
+			spec.Config.Labels["parachute.previous-image"] = candidate.Result.Image + "@" + candidate.Result.CandidateDigest
 		}
 		replacement, err := docker.Create(ctx, spec)
 		if err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "config_unreproducible", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, "config_unreproducible", err.Error())
 		}
+		tracked = append(tracked, trackedUpdate{
+			candidate: candidate, originalID: candidate.Container.ID, originalName: candidate.Container.Name,
+			backupName: backupName, replacementID: replacement,
+		})
 		candidate.Result.ContainerID = replacement
 		if err := docker.Start(ctx, replacement); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "verify_failed", err.Error())
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, "verify_failed", err.Error())
+		}
+		for index := range tracked {
+			tracked[index].started = true
 		}
 	}
 	x.logger.Info("phase verify", "txn", plan.ID, "phase", "verify")
-	for index, candidate := range candidates {
-		if err := x.verify(ctx, docker, candidate); err != nil {
-			return x.rollbackAll(ctx, plan, snapshot, candidates, "verify_failed", err.Error())
+	for _, item := range tracked {
+		if err := x.verify(ctx, docker, item.candidate); err != nil {
+			reason := "verify_failed"
+			if err.Error() == "verify_timeout" {
+				reason = "verify_timeout"
+			}
+			return x.finishRollback(ctx, plan, snapshot, snap, candidates, tracked, reason, err.Error())
 		}
-		candidates[index].Result = candidate.Result.Conclude(domain.StateUpdated, "", "")
-		candidates[index].Result.Transaction = plan.ID
-		candidates[index].Result.Snapshot = snapshot
 	}
 	x.logger.Info("phase commit", "txn", plan.ID, "phase", "commit")
-	for _, id := range originals {
-		_ = docker.Remove(ctx, id, false, true)
+	for _, item := range tracked {
+		_ = docker.Remove(ctx, item.originalID, false, true)
+		item.candidate.Result = item.candidate.Result.Conclude(domain.StateUpdated, "", "")
+		item.candidate.Result.Transaction = plan.ID
+		item.candidate.Result.Snapshot = snapshot
 	}
 	return resultsFrom(candidates), nil
 }
 
 func (x *stackExecutor) verify(ctx context.Context, docker *engine.Docker, candidate *pipeline.Candidate) error {
-	spec, err := docker.Inspect(ctx, candidate.Result.ContainerID)
-	if err != nil {
-		return err
-	}
-	if spec.Config != nil {
-		for _, item := range spec.Config.Env {
-			if strings.HasPrefix(item, "FIXTURE_HEALTH=fail") {
-				return errors.New("verify_failed")
-			}
-		}
-	}
 	stable := x.cfg.verifyStable
 	if stable <= 0 {
 		stable = time.Second
 	}
-	deadline := time.Now().Add(x.cfg.verifyTimeout)
-	started := time.Now()
-	for time.Now().Before(deadline) {
-		current, err := docker.Inspect(ctx, candidate.Result.ContainerID)
+	deadline := x.clock.Now().Add(x.cfg.verifyTimeout)
+	started := x.clock.Now()
+	for x.clock.Now().Before(deadline) {
+		spec, err := docker.Inspect(ctx, candidate.Result.ContainerID)
 		if err != nil {
 			return err
 		}
-		if current.Config != nil {
-			for _, item := range current.Config.Env {
+		if spec.Config != nil {
+			for _, item := range spec.Config.Env {
 				if strings.HasPrefix(item, "FIXTURE_HEALTH=fail") {
 					return errors.New("verify_failed")
 				}
 			}
 		}
 		if time.Since(started) >= stable {
+			if cmd, ok := x.labels.Value(candidate.Container, "verify.cmd"); ok {
+				result, err := docker.Exec(ctx, candidate.Result.ContainerID, []string{"sh", "-c", cmd}, nil, x.cfg.verifyTimeout, 1<<20)
+				if err != nil || result.ExitCode != 0 {
+					return errors.New("verify_failed")
+				}
+			}
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -233,14 +281,78 @@ func (x *stackExecutor) verify(ctx context.Context, docker *engine.Docker, candi
 	return errors.New("verify_timeout")
 }
 
-func (x *stackExecutor) rollbackAll(ctx context.Context, plan txn.Plan, snapshot string, candidates []*pipeline.Candidate, reason, detail string) ([]domain.Result, error) {
+func (x *stackExecutor) finishRollback(ctx context.Context, plan txn.Plan, snapshot string, snap *backup.Snapshotter, candidates []*pipeline.Candidate, tracked []trackedUpdate, reason, detail string) ([]domain.Result, error) {
 	x.logger.Info("phase rollback", "txn", plan.ID, "phase", "rollback")
+	docker := x.engines[plan.Host]
+	for _, item := range tracked {
+		if item.replacementID != "" {
+			_ = docker.Remove(ctx, item.replacementID, false, true)
+		}
+		if item.backupName != "" {
+			_ = docker.Rename(ctx, item.originalID, item.originalName)
+			_ = docker.Start(ctx, item.originalID)
+		}
+	}
 	for _, candidate := range candidates {
-		candidate.Result = candidate.Result.Conclude(domain.StateRolledBack, reason, detail)
+		started := false
+		for _, item := range tracked {
+			if item.originalID == candidate.Container.ID {
+				started = true
+				break
+			}
+		}
+		if !started {
+			_ = docker.Start(ctx, candidate.Container.ID)
+		}
+	}
+	invalidSnapshot := false
+	dataRestored := false
+	if snapshot != "" && snapshot != "none" {
+		if err := snap.ValidateTransaction(ctx, snapshot, plan.Host, plan.Stacks[0], plan.ID); err != nil {
+			invalidSnapshot = true
+		} else if err := snap.Restore(ctx, snapshot); err != nil {
+			if strings.Contains(err.Error(), "snapshot_invalid") {
+				invalidSnapshot = true
+			}
+		} else {
+			dataRestored = true
+		}
+	}
+	skipped, _ := snap.SkippedFromSnapshot(ctx, snapshot)
+	for _, candidate := range candidates {
+		details := detail
+		mode, _ := x.labels.Value(candidate.Container, "backup")
+		switch {
+		case mode == "none":
+			details = joinDetail(details, "data not restored: backup=none")
+		case invalidSnapshot:
+			details = joinDetail(details, "data not restored: snapshot invalid")
+		case dataRestored:
+			details = joinDetail(details, "data restored: yes")
+		}
+		for _, item := range skipped {
+			if item.Container == candidate.Container.Name {
+				details = joinDetail(details, "data not restored: system mount "+item.Destination)
+			}
+		}
+		state := domain.StateRolledBack
+		rollbackReason := reason
+		if invalidSnapshot {
+			state = domain.StateRollbackFailed
+			rollbackReason = "snapshot_invalid"
+		}
+		candidate.Result = candidate.Result.Conclude(state, rollbackReason, details)
 		candidate.Result.Transaction = plan.ID
 		candidate.Result.Snapshot = snapshot
 	}
 	return resultsFrom(candidates), nil
+}
+
+func joinDetail(left, right string) string {
+	if left == "" {
+		return right
+	}
+	return left + "; " + right
 }
 
 func resultsFrom(candidates []*pipeline.Candidate) []domain.Result {

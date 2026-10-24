@@ -70,6 +70,8 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, errors.Join(closeHosts(), configurationError(err))
 	}
+	journal := state.NewJournal(store, c.deps.Clock.Now)
+	c.cleanupHelpers(ctx, connected, journal)
 	collector := metrics.NewCollector(hostNames(hosts))
 	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, c.executeStage(store, connected, helper)), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)

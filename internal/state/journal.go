@@ -70,6 +70,30 @@ func (j *Journal) Open(ctx context.Context) ([]txn.OpenRecord, error) {
 	return open, nil
 }
 
+func (j *Journal) Snapshots(host, stack string) []SnapshotRecord {
+	document := j.store.Current()
+	var snapshots []SnapshotRecord
+	for _, record := range document.Snapshots {
+		if record.Host != host || record.Stack != stack {
+			continue
+		}
+		snapshots = append(snapshots, record)
+	}
+	return snapshots
+}
+
+func (j *Journal) OpenTransactionIDs() []string {
+	document := j.store.Current()
+	var ids []string
+	for _, record := range document.Transactions {
+		state := txn.State(record.State)
+		if state.Open() {
+			ids = append(ids, record.ID)
+		}
+	}
+	return ids
+}
+
 func (j *Journal) RecordSnapshot(host, stack, transaction, snapshot string) error {
 	return j.store.Update(func(document *Document) error {
 		document.Snapshots = append(document.Snapshots, SnapshotRecord{

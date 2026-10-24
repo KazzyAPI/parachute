@@ -30,11 +30,10 @@ type Engine interface {
 	EnsureVolume(ctx context.Context, name string) error
 	Volume(ctx context.Context, name string) (engine.Volume, error)
 	RunHelper(ctx context.Context, spec engine.HelperSpec) (string, error)
-	Wait(ctx context.Context, id string) (int, error)
+	Wait(ctx context.Context, id string) (int64, error)
 	Remove(ctx context.Context, id string, anonymousVolumes, force bool) error
 	Containers(ctx context.Context) ([]domain.Container, error)
-	CopyToContainer(ctx context.Context, id, path string, data []byte) error
-	CopyFromContainer(ctx context.Context, id, path string) ([]byte, error)
+	Helpers(ctx context.Context, filters map[string][]string) ([]string, error)
 }
 
 type HostFS interface {

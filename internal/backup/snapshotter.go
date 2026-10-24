@@ -45,6 +45,7 @@ type Snapshotter struct {
 	clock     Clock
 	logger    *slog.Logger
 	settings  Settings
+	catalog   SnapshotCatalog
 	ownBackup func(domain.Container) string
 	stopped   []string
 }
@@ -173,8 +174,12 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := s.runDump(ctx, plan, container, spec, mode, snapshotDir); err != nil {
+		dump, err := s.runDump(ctx, plan, container, spec, mode, snapshotDir)
+		if err != nil {
 			return "", err
+		}
+		if dump.File != "" {
+			manifest.Dumps = append(manifest.Dumps, dump)
 		}
 		mounts, skipped, err := planMounts(ctx, s.engine, s.hostFS, s.labels, storePath, container, spec, outsiders)
 		if err != nil {
@@ -229,44 +234,12 @@ func (s *Snapshotter) Validate(ctx context.Context, snapshot string) error {
 	return validateSnapshot(ctx, s.store, root, snapshot, "", "", "")
 }
 
-func (s *Snapshotter) Restore(ctx context.Context, snapshot string) error {
-	root, err := s.store.Root(ctx)
-	if err != nil {
-		return err
-	}
-	if err := validateSnapshot(ctx, s.store, root, snapshot, "", "", ""); err != nil {
-		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
-	}
-	data, err := s.store.ReadFile(ctx, root, snapshot, "manifest.json")
-	if err != nil {
-		return err
-	}
-	manifest, err := decodeManifest(data)
-	if err != nil {
-		return err
-	}
-	for _, record := range manifest.Mounts {
-		archive, err := s.store.ReadFile(ctx, root, snapshot, record.File)
-		if err != nil {
-			return err
-		}
-		if err := validateArchive(archive); err != nil {
-			return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
-		}
-	}
-	return nil
-}
-
 func (s *Snapshotter) Discard(ctx context.Context, snapshot string) error {
 	root, err := s.store.Root(ctx)
 	if err != nil {
 		return err
 	}
 	return s.store.RemoveDir(ctx, root, snapshot)
-}
-
-func (s *Snapshotter) Retain(ctx context.Context, host, stack string, keep int) error {
-	return nil
 }
 
 func (s *Snapshotter) restartStopped(ctx context.Context) {
@@ -341,38 +314,38 @@ func sanitize(name string) string {
 	return b.String()
 }
 
-func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, container domain.Container, spec engine.Spec, mode, snapshotDir string) error {
+func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, container domain.Container, spec engine.Spec, mode, snapshotDir string) (DumpRecord, error) {
 	if mode == "none" {
-		return nil
+		return DumpRecord{}, nil
 	}
 	override, ok := s.labels.Value(container, "backup.dump")
 	if ok && override == "off" {
-		return nil
+		return DumpRecord{}, nil
 	}
 	var cmd []string
 	var env []string
-	if ok {
+	switch {
+	case ok:
 		cmd = []string{"sh", "-c", override}
-	} else if s.dumpCommand(container, spec, &cmd, &env) {
-	} else {
-		return nil
+	case s.dumpCommand(container, spec, &cmd, &env):
+	default:
+		return DumpRecord{}, nil
 	}
 	result, err := s.engine.Exec(ctx, container.ID, cmd, env, 10*time.Minute, 64<<20)
 	if err != nil {
-		return err
+		return DumpRecord{}, err
 	}
 	if result.ExitCode != 0 {
-		s.logger.Debug("dump stderr", "container", container.Name, "exit", result.ExitCode)
-		return fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
+		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", string(result.Output))
+		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
 	}
 	file := sanitize(container.Name) + ".dump"
 	path := filepath.Join(snapshotDir, file)
 	if err := os.WriteFile(path, result.Output, 0o600); err != nil {
-		return err
+		return DumpRecord{}, err
 	}
 	sum := sha256.Sum256(result.Output)
-	_ = sum
-	return nil
+	return DumpRecord{Container: container.Name, File: file, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(result.Output))}, nil
 }
 
 func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, cmd, env *[]string) bool {
@@ -432,39 +405,53 @@ func validateSnapshot(ctx context.Context, store *DockerStore, root storeRoot, s
 	if host != "" && manifest.Host != host || stack != "" && manifest.Stack != stack || transaction != "" && manifest.Transaction != transaction {
 		return errors.New("manifest mismatch")
 	}
-	for _, record := range append(filesFromMounts(manifest.Mounts), filesFromDumps(manifest.Dumps)...) {
-		if !safeFileName(record) {
+	expected := checksumIndex(manifest)
+	for name := range expected {
+		if !safeFileName(name) {
 			return errors.New("invalid file name")
 		}
-		info, err := store.Stat(ctx, root, snapshot, record)
+		info, err := store.Stat(ctx, root, snapshot, name)
 		if err != nil || !info.Regular || info.Symlink {
 			return errors.New("invalid archive")
 		}
-		bytes, err := store.ReadFile(ctx, root, snapshot, record)
+		bytes, err := store.ReadFile(ctx, root, snapshot, name)
 		if err != nil {
 			return err
 		}
-		if int64(len(bytes)) != info.Size {
-			return errors.New("size mismatch")
+		want := expected[name]
+		if int64(len(bytes)) != want.size || want.sha != sha256Hex(bytes) {
+			return errors.New("checksum mismatch")
 		}
 	}
 	return nil
 }
 
-func filesFromMounts(records []MountRecord) []string {
-	var names []string
-	for _, record := range records {
-		names = append(names, record.File)
+func checksumIndex(manifest Manifest) map[string]struct {
+	size int64
+	sha  string
+} {
+	index := map[string]struct {
+		size int64
+		sha  string
+	}{}
+	for _, record := range manifest.Mounts {
+		index[record.File] = struct {
+			size int64
+			sha  string
+		}{record.Size, record.SHA256}
 	}
-	return names
+	for _, record := range manifest.Dumps {
+		index[record.File] = struct {
+			size int64
+			sha  string
+		}{record.Size, record.SHA256}
+	}
+	return index
 }
 
-func filesFromDumps(records []DumpRecord) []string {
-	var names []string
-	for _, record := range records {
-		names = append(names, record.File)
-	}
-	return names
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func safeFileName(name string) bool {

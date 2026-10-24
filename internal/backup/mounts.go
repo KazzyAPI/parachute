@@ -90,15 +90,7 @@ func mountSource(ctx context.Context, engine Engine, hostFS HostFS, item mount.M
 		}
 		return volume.Mountpoint, false, nil
 	case mount.TypeBind:
-		info, err := filepath.EvalSymlinks(item.Source)
-		if err != nil {
-			return item.Source, true, nil
-		}
-		stat, err := os.Stat(info)
-		if err != nil || !(stat.IsDir() || stat.Mode().IsRegular()) {
-			return item.Source, true, nil
-		}
-		return item.Source, false, nil
+		return item.Source, !backable(item.Source), nil
 	default:
 		return "", true, nil
 	}
@@ -125,4 +117,13 @@ func outsiderVolumes(ctx context.Context, engine Engine, affected map[string]boo
 		}
 	}
 	return outsiders, nil
+}
+
+func backable(source string) bool {
+	info, err := filepath.EvalSymlinks(source)
+	if err != nil {
+		return false
+	}
+	stat, err := os.Stat(info)
+	return err == nil && (stat.IsDir() || stat.Mode().IsRegular())
 }

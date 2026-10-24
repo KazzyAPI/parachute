@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -87,10 +86,7 @@ func (a *App) dispatch(ctx context.Context, container *Container) error {
 	case config.CommandStatus:
 		return container.Status(ctx)
 	case config.CommandRestoreVerify:
-		if container.cfg.Backup.Helper == "" && !container.self().Contained() {
-			return configurationError(errors.New("helper-image is required for restore-verify when not containerised"))
-		}
-		return configurationError(errors.New("the restore-verify command is not implemented in this milestone"))
+		return container.RestoreVerify(ctx)
 	}
 	daemon, closeEngine, err := container.Daemon(ctx)
 	if err != nil {

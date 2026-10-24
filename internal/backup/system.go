@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-var systemRoots = []string{"/", "/etc", "/usr", "/boot", "/var", "/var/lib", "/proc", "/sys", "/dev", "/run", "/var/run", "/var/lib/docker", "/var/lib/containers"}
+func systemRoots() []string {
+	return []string{"/", "/etc", "/usr", "/boot", "/var", "/var/lib", "/proc", "/sys", "/dev", "/run", "/var/run", "/var/lib/docker", "/var/lib/containers"}
+}
 
 func systemMount(resolved, storePath string) bool {
 	clean := filepath.Clean(resolved)
@@ -18,7 +20,7 @@ func systemMount(resolved, storePath string) bool {
 			return true
 		}
 	}
-	for _, root := range systemRoots {
+	for _, root := range systemRoots() {
 		if clean == root || strings.HasPrefix(clean+string(filepath.Separator), root+string(filepath.Separator)) {
 			return true
 		}

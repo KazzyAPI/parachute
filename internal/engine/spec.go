@@ -15,6 +15,7 @@ type Spec struct {
 	HostConfig  *container.HostConfig
 	Networks    map[string]*network.EndpointSettings
 	ImageConfig *dockerspec.DockerOCIImageConfig
+	Mounts      []container.MountPoint
 }
 
 type RegistryAuth string
