@@ -16,6 +16,10 @@ func (e *Env) hostShell(script string) {
 	e.Docker(hostShellArgs(script)...)
 }
 
+func (e *Env) HostShell(script string) {
+	e.hostShell(script)
+}
+
 func hostShellArgs(script string) []string {
 	return []string{"run", "--rm", "--privileged", "--pid=host", "--entrypoint", "nsenter", suite.FixtureV2Image(), "-t", "1", "-m", "--", "sh", "-c", script}
 }
