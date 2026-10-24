@@ -9,15 +9,16 @@ import (
 )
 
 type TransactionRecord struct {
-	ID         string    `json:"id"`
-	Host       string    `json:"host"`
-	Stacks     []string  `json:"stacks"`
-	State      string    `json:"state"`
-	Snapshot   string    `json:"snapshot,omitempty"`
-	SelfUpdate bool      `json:"self_update,omitempty"`
-	Result     string    `json:"result,omitempty"`
-	Reason     string    `json:"reason,omitempty"`
-	Time       time.Time `json:"time"`
+	ID         string         `json:"id"`
+	Host       string         `json:"host"`
+	Stacks     []string       `json:"stacks"`
+	State      string         `json:"state"`
+	Snapshot   string         `json:"snapshot,omitempty"`
+	SelfUpdate bool           `json:"self_update,omitempty"`
+	Originals  []txn.Original `json:"originals,omitempty"`
+	Result     string         `json:"result,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	Time       time.Time      `json:"time"`
 }
 
 type SnapshotRecord struct {

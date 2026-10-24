@@ -42,7 +42,13 @@ func New(inspector Inspector, commander Commander, prober URLProber, labels Labe
 	}
 }
 
-func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string) (txn.Verdict, error) {
+func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string) (verdict txn.Verdict, err error) {
+	var deadline time.Duration
+	defer func() {
+		if err == nil && !verdict.Passed {
+			verdict.Deadline = deadline
+		}
+	}()
 	spec, err := v.inspector.Inspect(ctx, containerID)
 	if err != nil {
 		return txn.Verdict{}, err
@@ -58,7 +64,7 @@ func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string
 	timeout := v.labels.Duration(containerID, labels, "verify.timeout", v.settings.Timeout)
 	stable := v.labels.Duration(containerID, labels, "verify.stable", v.settings.Stable)
 	health := mergedHealth(spec)
-	deadline := EffectiveDeadline(timeout, health)
+	deadline = EffectiveDeadline(timeout, health)
 	deadlineAt := v.deadlineStart(runtime).Add(deadline)
 	if err := v.baseCheck(ctx, containerID, runtime, health, stable, deadlineAt); err != nil {
 		return failVerdict(err), nil

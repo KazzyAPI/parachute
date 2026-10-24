@@ -281,6 +281,10 @@ func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, snapshotDir 
 		Labels:  map[string]string{"parachute.helper": "true", "parachute.transaction": plan.ID},
 		CapAdd:  []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID"},
 	}
+	if ceiling := txn.CeilingFrom(ctx); ceiling != nil {
+		ceiling.Pause()
+		defer ceiling.Resume()
+	}
 	id, err := s.engine.RunHelper(ctx, spec)
 	if err != nil {
 		return MountRecord{}, err
