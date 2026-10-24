@@ -41,9 +41,10 @@ type Backup struct {
 }
 
 type Update struct {
-	StopTimeout   time.Duration
-	Cleanup       bool
-	RemoveVolumes bool
+	StopTimeout    time.Duration
+	Cleanup        bool
+	RemoveVolumes  bool
+	RollingRestart bool
 }
 
 type Relaxation struct {

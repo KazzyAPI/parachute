@@ -10,7 +10,7 @@ import (
 
 func armedOnce(env *harness.Env, args ...string) *harness.Result {
 	env.T.Helper()
-	base := []string{"--run-once", "--armed", "--delay-days", "0", "--protect-databases=false", "--porcelain", "v1"}
+	base := []string{"--run-once", "--armed", "--delay-days", "0", "--protect-databases=false", "--porcelain", "v1", "--helper-image", env.ParachuteImage()}
 	return env.Parachute(append(base, args...)...).Run(runTimeout)
 }
 

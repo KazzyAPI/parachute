@@ -19,6 +19,15 @@ func (l *Loader) policy(b *binder) Policy {
 	}
 }
 
+func (l *Loader) update(b *binder) Update {
+	return Update{
+		StopTimeout:    b.duration("stop-timeout"),
+		Cleanup:        b.boolean("cleanup"),
+		RemoveVolumes:  b.boolean("remove-volumes"),
+		RollingRestart: b.boolean("rolling-restart"),
+	}
+}
+
 func (l *Loader) api(b *binder) API {
 	return API{
 		Port:           b.integer("http-api-port"),

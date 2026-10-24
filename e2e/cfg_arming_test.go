@@ -27,7 +27,22 @@ func TestCFG_006_unarmed_reports_would_update_and_changes_nothing(t *testing.T) 
 	}
 }
 
-func TestCFG_006_armed_is_refused_in_this_milestone(t *testing.T) {
+func TestCFG_006_armed_updates_container(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	id, image := env.ContainerState(a)
+	result := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--helper-image", env.ParachuteImage()).Run(runTimeout)
+	assertExit(t, result, 0)
+	assertState(t, result, a, "updated", "")
+	afterID, afterImage := env.ContainerState(a)
+	if afterID == id || afterImage == image {
+		t.Fatalf("container unchanged")
+	}
+}
+
+func TestCFG_006_armed_without_helper_image_is_refused(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once").Setenv("PARACHUTE_ARMED", "true").Run(runTimeout)
 	assertExit(t, result, 2)
@@ -40,12 +55,16 @@ func TestCFG_006_restart_without_armed_changes_nothing(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	id, image := env.ContainerState(a)
-	first := env.Parachute("--run-once", "--armed").Run(runTimeout)
-	assertExit(t, first, 2)
-	assertContains(t, first.Stderr, "helper-image")
-	result := runOnce(env)
-	assertState(t, result, a, "would_update", "")
-	assertUnchanged(env, a, id, image)
+	result := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--helper-image", env.ParachuteImage()).Run(runTimeout)
+	assertExit(t, result, 0)
+	assertState(t, result, a, "updated", "")
+	afterID, afterImage := env.ContainerState(a)
+	if afterID == id || afterImage == image {
+		t.Fatalf("container unchanged after armed run")
+	}
+	result = runOnce(env)
+	assertState(t, result, a, "fresh", "")
+	assertUnchanged(env, a, afterID, afterImage)
 }
 
 func TestCFG_006_copied_state_file_cannot_arm(t *testing.T) {

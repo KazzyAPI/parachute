@@ -154,14 +154,6 @@ func (l *Loader) backup(b *binder) Backup {
 	}
 }
 
-func (l *Loader) update(b *binder) Update {
-	return Update{
-		StopTimeout:   b.duration("stop-timeout"),
-		Cleanup:       b.boolean("cleanup"),
-		RemoveVolumes: b.boolean("remove-volumes"),
-	}
-}
-
 func (l *Loader) log(b *binder) Log {
 	level := b.raw("log-level")
 	if b.boolean("debug") {
