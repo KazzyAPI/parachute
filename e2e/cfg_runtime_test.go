@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -36,6 +37,34 @@ func TestCFG_008_json_logs(t *testing.T) {
 	}
 }
 
+func TestCFG_008_json_logs_carry_phase_and_transaction(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	result := armedParachute(env, "--log-format", "json").Run(runTimeout)
+	assertState(t, result, a, "updated", "")
+	verify := false
+	for _, entry := range result.Logs() {
+		if !entry.JSON() {
+			t.Errorf("log line is not JSON: %s", entry.Raw)
+			continue
+		}
+		phase := entry.Get("phase")
+		verify = verify || phase == "verify"
+		early := phase == "detect" || phase == "policy"
+		if phase != "" && !early && entry.Get("txn") == "" {
+			t.Errorf("phase %s line without txn: %s", phase, entry.Raw)
+		}
+		if early && entry.Get("txn") != "" {
+			t.Errorf("phase %s line with txn: %s", phase, entry.Raw)
+		}
+	}
+	if !verify {
+		t.Error("no log line with phase verify")
+	}
+}
+
 func TestCFG_008_no_color_removes_escape_codes(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once", "--log-format", "pretty").Setenv("NO_COLOR", "1").Run(runTimeout)
@@ -50,6 +79,14 @@ func TestCFG_009_failed_candidate_exits_1(t *testing.T) {
 	image := env.Tag(fixture(env), "127.0.0.1:1/"+env.ID+"/offline:1")
 	env.RunContainer("a", image, harness.ContainerOptions{})
 	assertExit(t, runOnce(env), 1)
+}
+
+func TestCFG_009_rolled_back_and_rollback_failed_exit_3(t *testing.T) {
+	env := harness.NewEnv(t)
+	result, rolledBack, rollbackFailed := rollbackFailedRun(env, "stuck", true)
+	assertExit(t, result, 3)
+	assertRollbackFailed(t, result, rollbackFailed)
+	assertRolledBack(t, result, rolledBack, "verify_failed")
 }
 
 func TestCFG_009_sigterm_while_idle_exits_0(t *testing.T) {
@@ -109,10 +146,10 @@ func TestCFG_010_state_file_survives_sigkill(t *testing.T) {
 	app := newUpdatable(env, "app")
 	env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	env.RunContainer("b", app.ref, harness.ContainerOptions{})
-	app.publishNewer()
 	path := filepath.Join(env.StateDir, "state.json")
 	for round := range 20 {
-		process := env.Parachute("--interval", "1").Start()
+		app.registry.Push("app", "1", strconv.Itoa(round+2))
+		process := env.Parachute("--interval", "1", "--armed", "--backup", "none", "--protect-databases=false", "--helper-image", env.ParachuteImage()).Start()
 		time.Sleep(time.Duration(300+round*97%900) * time.Millisecond)
 		process.Signal(syscall.SIGKILL)
 		process.Wait(10 * time.Second)

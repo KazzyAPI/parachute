@@ -105,6 +105,16 @@ func TestSTS_002_unarmed_daemon_reports_armed_false(t *testing.T) {
 	}
 }
 
+func TestSTS_002_status_process_computes_armed_from_its_own_environment(t *testing.T) {
+	env := harness.NewEnv(t)
+	env.RunContainer("a", fixture(env), harness.ContainerOptions{})
+	result := env.Parachute("status", "--json", "--helper-image", env.ParachuteImage()).Setenv("PARACHUTE_ARMED", "true").Run(runTimeout)
+	assertExit(t, result, 0)
+	if armed := parseStatusJSON(t, result.Stdout)["armed"]; armed != true {
+		t.Errorf("armed %v", armed)
+	}
+}
+
 func TestSTS_005_status_is_read_only(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()

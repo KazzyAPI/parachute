@@ -16,7 +16,7 @@ func TestREG_001_credentials_from_docker_config(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry, _, a := authUpdatable(env)
 	env.WriteFile("docker-config/config.json", dockerConfig(t, map[string]string{registry.Host: "user:s3cret-value"}), 0o600)
-	assertState(t, runOnce(env), a, "would_update", "")
+	assertState(t, armedParachute(env).Run(runTimeout), a, "updated", "")
 }
 
 func TestREG_001_missing_config_is_unauthorized(t *testing.T) {

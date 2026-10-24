@@ -27,8 +27,13 @@ func TestDET_001_changed_tag_is_detected(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	_, running, _ := strings.Cut(strings.TrimSpace(env.Docker("inspect", "--format", "{{index .RepoDigests 0}}", app.ref)), "@")
 	app.publishNewer()
-	assertState(t, runOnce(env), a, "would_update", "")
+	entry := assertState(t, armedParachute(env).Run(runTimeout), a, "updated", "")
+	candidate, _ := entry["candidate_digest"].(string)
+	if !strings.HasPrefix(candidate, "sha256:") || candidate == running {
+		t.Errorf("candidate digest %v, running digest %s", entry["candidate_digest"], running)
+	}
 }
 
 func TestDET_001_unchanged_image_is_fresh(t *testing.T) {
@@ -46,7 +51,7 @@ func TestDET_001_untagged_reference_uses_latest(t *testing.T) {
 	fresh := runOnce(env)
 	assertState(t, fresh, a, "fresh", "")
 	registry.Push("app", "latest", "2")
-	assertState(t, runOnce(env), a, "would_update", "")
+	assertState(t, armedParachute(env).Run(runTimeout), a, "updated", "")
 }
 
 func TestDET_002_unchanged_image_downloads_no_blobs(t *testing.T) {
@@ -135,7 +140,11 @@ func TestDET_004_no_pull_uses_local_image(t *testing.T) {
 	image := fixture(env)
 	a := env.RunContainer("a", image, harness.ContainerOptions{})
 	env.BuildImage(image, "local-2")
-	assertState(t, runOnce(env, "--no-pull"), a, "would_update", "")
+	_, before := env.ContainerState(a)
+	assertState(t, armedParachute(env, "--no-pull").Run(runTimeout), a, "updated", "")
+	if _, after := env.ContainerState(a); after == before {
+		t.Error("container still uses the old image")
+	}
 }
 
 func TestDET_004_no_pull_ignores_registry(t *testing.T) {
