@@ -26,6 +26,13 @@ type Approved struct {
 	Digest    string `json:"digest"`
 }
 
+type Released struct {
+	Host         string   `json:"host"`
+	Container    string   `json:"container,omitempty"`
+	Stack        string   `json:"stack,omitempty"`
+	Transactions []string `json:"transactions"`
+}
+
 type Failure struct {
 	Error string `json:"error"`
 }
@@ -70,7 +77,7 @@ func (s *Service) Approve(ctx context.Context, request ApproveRequest) (int, any
 		return http.StatusNotFound, Failure{Error: "unknown host"}, nil
 	}
 	if request.Stack != "" {
-		return http.StatusNotFound, Failure{Error: "no freeze for this stack"}, nil
+		return s.releaseStack(host, request.Stack)
 	}
 	containers, err := source.Containers(ctx)
 	if err != nil {
@@ -81,6 +88,10 @@ func (s *Service) Approve(ctx context.Context, request ApproveRequest) (int, any
 		return http.StatusNotFound, Failure{Error: "unknown container"}, nil
 	}
 	container := containers[index]
+	covering := s.freezes(func(freeze state.Freeze) bool { return freeze.Covers(host, container) })
+	if len(covering) > 0 {
+		return s.release(covering, Released{Host: host, Container: container.Name})
+	}
 	digest, held := s.heldDigest(host, container)
 	if !held {
 		return http.StatusNotFound, Failure{Error: "no update is held for approval"}, nil
@@ -105,4 +116,36 @@ func (s *Service) heldDigest(host string, container domain.Container) (string, b
 		}
 	}
 	return "", false
+}
+
+func (s *Service) freezes(match func(state.Freeze) bool) []state.Freeze {
+	return slices.DeleteFunc(s.store.Current().ActiveFreezes(), func(freeze state.Freeze) bool { return !match(freeze) })
+}
+
+func (s *Service) releaseStack(host, stack string) (int, any, error) {
+	covering := s.freezes(func(freeze state.Freeze) bool { return freeze.HasStack(host, stack) })
+	if len(covering) == 0 {
+		return http.StatusNotFound, Failure{Error: "no freeze for this stack"}, nil
+	}
+	return s.release(covering, Released{Host: host, Stack: stack})
+}
+
+func (s *Service) release(freezes []state.Freeze, body Released) (int, any, error) {
+	now := s.clock.Now().UTC()
+	body.Transactions = []string{}
+	if err := s.store.Update(func(document *state.Document) error {
+		for _, freeze := range freezes {
+			document.Releases = append(document.Releases, state.Release{Transaction: freeze.Transaction, Keys: slices.Clone(freeze.Keys), Time: now})
+		}
+		return nil
+	}); err != nil {
+		return 0, nil, fmt.Errorf("store release: %w", err)
+	}
+	for _, freeze := range freezes {
+		if !slices.Contains(body.Transactions, freeze.Transaction) {
+			body.Transactions = append(body.Transactions, freeze.Transaction)
+		}
+	}
+	s.logger.Info("freeze released", "host", body.Host, "container", body.Container, "stack", body.Stack, "transactions", body.Transactions)
+	return http.StatusOK, body, nil
 }
