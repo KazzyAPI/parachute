@@ -155,6 +155,17 @@ func (e *Env) HTTPEngineProxy() *HTTPEngineProxy {
 	return proxy
 }
 
+func (e *Env) DistinctEngineProxy() *HTTPEngineProxy {
+	e.T.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "e2e-engine-"+randomID())
+	e.serveHTTP(listener, proxy)
+	return proxy
+}
+
 func newHTTPEngineProxy(endpoint, engineID string) *HTTPEngineProxy {
 	socket := strings.TrimPrefix(suite.dockerHost, "unix://")
 	proxy := &HTTPEngineProxy{Endpoint: endpoint, engineID: engineID}

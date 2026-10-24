@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/hosts"
 )
 
 type Sink interface {
@@ -40,6 +41,9 @@ func (s *ReportStage) Run(ctx context.Context, cycle *Cycle) error {
 			return cmp.Or(cmp.Compare(left.Stack, right.Stack), cmp.Compare(left.Service, right.Service), cmp.Compare(left.Container, right.Container))
 		})
 		report.Hosts = append(report.Hosts, hostReport)
+	}
+	if err := hosts.ValidateTransactions(report.Results()); err != nil {
+		s.logger.Error("inconsistent transaction IDs in report", "cycle", cycle.ID, "error", err.Error())
 	}
 	cycle.Report = report
 	counts := report.Counts()
