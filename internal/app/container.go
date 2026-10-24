@@ -45,7 +45,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter,
 }
 
 func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
-	store := state.NewStore(c.cfg.StateDir, c.deps.System)
+	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
 	if err := store.Open(); err != nil {
 		return nil, nil, configurationError(err)
 	}
@@ -92,7 +92,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 }
 
 func (c *Container) Status(ctx context.Context) (err error) {
-	saved, _, err := state.NewStore(c.cfg.StateDir, c.deps.System).Read()
+	saved, _, err := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger).Read()
 	if err != nil {
 		return configurationError(err)
 	}

@@ -21,6 +21,10 @@ func (s *failingSource) Containers(context.Context) ([]domain.Container, error) 
 	return nil, s.err
 }
 
+func (s *failingSource) Inspect(context.Context, string) (Spec, error) {
+	return Spec{}, s.err
+}
+
 func (s *failingSource) Image(context.Context, string) (Image, bool, error) {
 	s.calls++
 	return Image{}, false, s.err

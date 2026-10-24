@@ -76,9 +76,24 @@ M1 reports and never changes containers. Until update execution exists:
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: DMN-003, STS-002 (M2 updated SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012 and DET-004).
 
+### M3 armed transactions (integration branch `milestone/3`)
+
+Spine S0 lays shared foundations; parallel work lands in these packages: `internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
+
+| Package | Requirements |
+|---|---|
+| R recreate | UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-011, UPD-020 |
+| B snapshot | BKP-001–BKP-013 |
+| V verify | VER-001–VER-007, VER-012 |
+| G graph | DEP-003–DEP-010, UPD-013 |
+| K rollback + recovery | VER-008–VER-011, UPD-009, UPD-010, UPD-014–UPD-017, UPD-019 |
+| F failure policy | POL-010, POL-011 (release), API-007 (release), NTF-012, STS-004, STS-002 (`frozen`, `last_transaction`), POL-004, POL-005 |
+| H second engine | DMN-010 |
+| M1 rewrites | CFG-001, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SCH-005, SEL-008, SEL-010, SEL-011, DET-001, DET-004, REG-001, NTF-003 |
+
 ### Later milestones
 
-The later milestones are M2 policies, HTTP API, and hosts; M3 armed transactions; M4 hooks and self-update; M5 restore verification and Podman. Each gets its row in the coverage table when its tests exist, because `make trace` fails for a listed requirement without a test.
+M4 hooks and self-update; M5 restore verification and Podman. Each gets its row in the coverage table when its tests exist, because `make trace` fails for a listed requirement without a test.
 
 ### M2 deviations
 

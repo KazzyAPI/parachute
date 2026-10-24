@@ -3,7 +3,9 @@ package state
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -27,7 +29,7 @@ func (m memoryFiles) WriteAtomic(path string, data []byte) error {
 
 func TestRecorderKeepsFieldsItDoesNotOwn(t *testing.T) {
 	files := memoryFiles{}
-	store := NewStore("/s", files)
+	store := NewStore("/s", files, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := store.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestRecorderKeepsFieldsItDoesNotOwn(t *testing.T) {
 	if err := NewRecorder(store).Publish(context.Background(), domain.Report{CycleID: "cyc"}); err != nil {
 		t.Fatal(err)
 	}
-	reopened := NewStore("/s", files)
+	reopened := NewStore("/s", files, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := reopened.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +52,7 @@ func TestRecorderKeepsFieldsItDoesNotOwn(t *testing.T) {
 }
 
 func TestFailedUpdateLeavesCurrentUntouched(t *testing.T) {
-	store := NewStore("/s", memoryFiles{})
+	store := NewStore("/s", memoryFiles{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := store.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +75,7 @@ func TestFailedUpdateLeavesCurrentUntouched(t *testing.T) {
 
 func TestUnknownFieldsAreRejected(t *testing.T) {
 	files := memoryFiles{"/s/state.json": []byte(`{"format":"parachute.state/v1","armed":true}`)}
-	if err := NewStore("/s", files).Open(); err == nil || !strings.Contains(err.Error(), "/s/state.json") {
+	if err := NewStore("/s", files, slog.New(slog.NewTextHandler(io.Discard, nil))).Open(); err == nil || !strings.Contains(err.Error(), "/s/state.json") {
 		t.Fatalf("Open returned %v", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"sync"
 )
@@ -21,10 +22,11 @@ type Store struct {
 	files   FileSystem
 	lock    sync.Mutex
 	current Document
+	logger  *slog.Logger
 }
 
-func NewStore(directory string, files FileSystem) *Store {
-	return &Store{path: filepath.Join(directory, "state.json"), files: files}
+func NewStore(directory string, files FileSystem, logger *slog.Logger) *Store {
+	return &Store{path: filepath.Join(directory, "state.json"), files: files, logger: logger}
 }
 
 func (s *Store) Open() error {
@@ -66,7 +68,7 @@ func (s *Store) decode(contents []byte) (Document, error) {
 	if document.Format != Format {
 		return Document{}, fmt.Errorf("state file %s has format %q, expected %q", s.path, document.Format, Format)
 	}
-	return document, nil
+	return document.discardInvalid(s.logger), nil
 }
 
 func (s *Store) Current() Document {

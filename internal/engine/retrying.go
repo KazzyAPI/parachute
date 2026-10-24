@@ -17,6 +17,7 @@ import (
 type Source interface {
 	Containers(ctx context.Context) ([]domain.Container, error)
 	Image(ctx context.Context, reference string) (Image, bool, error)
+	Inspect(ctx context.Context, id string) (Spec, error)
 }
 
 type Clock interface {
@@ -63,6 +64,16 @@ func (r *Retrying) Image(ctx context.Context, reference string) (Image, bool, er
 		return err
 	})
 	return image, found, err
+}
+
+func (r *Retrying) Inspect(ctx context.Context, id string) (Spec, error) {
+	var spec Spec
+	err := r.do(ctx, "inspect container", func(attempt context.Context) error {
+		var err error
+		spec, err = r.source.Inspect(attempt, id)
+		return err
+	})
+	return spec, err
 }
 
 func (r *Retrying) MarkUnreachable() { r.down.Store(true) }
