@@ -18,12 +18,12 @@ func TestUPD_003_replacement_keeps_ports_env_mounts_and_name(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1", Env: map[string]string{"A": "1"}})
-	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"A": "1"}})
 	network := env.Docker("network", "create", env.Name("net"))
 	a := env.RunContainer("a", v1, harness.ContainerOptions{
 		Extra:  []string{"-p", "8080:3000", "-e", "A=1", "--mount", "type=bind,source=/tmp,destination=/data", "--mount", "type=volume,source=" + env.Name("vol") + ",destination=/var", "--memory", "64m", "--restart", "unless-stopped", "--network", network, "--network-alias", "web"},
 		Labels: map[string]string{"x": "y"},
 	})
+	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"A": "1"}})
 	id, _ := env.ContainerState(a)
 	result := armedOnce(env)
 	assertState(t, result, a, "updated", "")
@@ -35,7 +35,7 @@ func TestUPD_003_replacement_keeps_ports_env_mounts_and_name(t *testing.T) {
 	if !strings.Contains(inspect, newImage) {
 		t.Fatalf("replacement image not applied:\n%s", inspect)
 	}
-	if !strings.Contains(inspect, `"8080/tcp"`) || !strings.Contains(inspect, `"A=1"`) || !strings.Contains(inspect, `"x": "y"`) {
+	if !strings.Contains(inspect, `"HostPort": "8080"`) || !strings.Contains(inspect, `"A=1"`) || !strings.Contains(inspect, `"x": "y"`) {
 		t.Fatalf("missing preserved configuration:\n%s", inspect)
 	}
 }
@@ -44,8 +44,8 @@ func TestUPD_004_inherited_env_follows_new_image(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1", Env: map[string]string{"VERSION": "1"}})
-	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"VERSION": "2"}})
 	a := env.RunContainer("a", v1, harness.ContainerOptions{})
+	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"VERSION": "2"}})
 	assertState(t, armedOnce(env), a, "updated", "")
 	inspect := env.Docker("inspect", "--format", "{{json .Config.Env}}", a)
 	if !strings.Contains(inspect, "VERSION=2") {
@@ -57,8 +57,8 @@ func TestUPD_004_explicit_env_is_kept(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1", Env: map[string]string{"VERSION": "1"}})
-	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"VERSION": "2"}})
 	a := env.RunContainer("a", v1, harness.ContainerOptions{Extra: []string{"-e", "VERSION=custom"}})
+	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"VERSION": "2"}})
 	assertState(t, armedOnce(env), a, "updated", "")
 	inspect := env.Docker("inspect", "--format", "{{json .Config.Env}}", a)
 	if !strings.Contains(inspect, "VERSION=custom") {
@@ -128,12 +128,12 @@ func TestUPD_005_bookkeeping_labels_on_compose_service(t *testing.T) {
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	image := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1"})
-	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2"})
 	project := env.Name("shop")
 	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{
 		"com.docker.compose.project": project,
 		"com.docker.compose.service": "web",
 	}})
+	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2"})
 	assertState(t, armedOnce(env), a, "updated", "")
 	labels := map[string]string{}
 	raw := env.Docker("inspect", "--format", "{{json .Config.Labels}}", a)

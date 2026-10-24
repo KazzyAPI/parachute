@@ -34,6 +34,11 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(e.dockerfile(spec)), 0o644); err != nil {
 		e.T.Fatal(err)
 	}
+	if _, err := e.DockerMayFail("image", "inspect", ref); err == nil {
+		previous := ref + "-previous-" + randomID()
+		e.Docker("tag", ref, previous)
+		e.trackImage(previous)
+	}
 	args := []string{"build", "-q", "--provenance=false", "-t", ref}
 	for _, key := range slices.Sorted(maps.Keys(spec.BuildArgs)) {
 		args = append(args, "--build-arg", key+"="+spec.BuildArgs[key])
