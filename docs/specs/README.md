@@ -67,12 +67,9 @@ Requirements implemented by each milestone. `make trace` fails when a `MUST` or 
 
 ### M1 deviations
 
-M1 reports and never changes containers. Until update execution exists:
+M1 reported and never changed containers; update execution has since landed in M3. What remains of its deviations:
 
-- Arming (`--armed`, `PARACHUTE_ARMED=true`, `parachute.armed=true` on Parachute's own container, or the `convenient` profile without `--armed=false`) is a startup error, exit code 2, with the message `updates are not implemented in this milestone` (CFG-006, CFG-011). Unarmed, every applicable update is reported `would_update`.
 - Settings that turn on a feature M1 does not have fail at startup with `<setting> is not implemented in this milestone`: `--enable-lifecycle-hooks`, `--notification-report=false`, `--notification-log-stdout`, `--http-api-update`, `--http-api-metrics`, `--http-api-status`, `--hosts`, `--restore-verify-schedule`, and the `restore-verify` command.
-- Settings that only tune updates or policies (`--stop-timeout`, `--cleanup`, `--backup*`, `--verify-*`, `--delay-days`, `--protect-databases`, `--tag-follow`, `--maintenance-window*`, `--approval-reminder-days`, ...) are validated but have no effect. Policies are not evaluated, so no update is `held` except by monitor-only (SEL-007), and `held` entries are reported every cycle (NTF-011 is not implemented).
-- Criteria written for an armed Parachute are tested unarmed where the observable is the same: CFG-007, SEL-008 and DET-004 expect `would_update` instead of `updated`; NTF-003 uses `failed` instead of `rolled_back`.
 - STS-002 is produced by `parachute status --json`; `GET /v1/status` arrives with the HTTP API.
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: DMN-003, STS-002 (M2 updated SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012 and DET-004).
@@ -107,10 +104,10 @@ M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 - Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
 - API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
 - API-007, POL-011: the approval half in M2; the freeze-release half in M3.
-- DET-008: the digest criteria in M2; the pull-by-digest criterion in M3.
+- DET-008: the digest criteria in M2; the pull-by-digest criterion is tested armed in M3.
 - POL-001: its hooks criterion in M4; the others in M2.
-- STS-002 (listed in M1): its document-shape, `hold`, and unarmed `armed` criteria are retested in M2; its `PARACHUTE_ARMED=true`, `last_transaction`, and `frozen` criteria in M3.
-- Criteria meaningless unarmed are tested in M3: CFG-006's `PARACHUTE_ARMED=true` criterion (expects `updated`), DMN-005's stop-request and replacement-start criteria, UPD-019's paused-helper criterion, and BKP-010's armed startup criterion.
+- STS-002 (listed in M1): its document-shape, `hold`, and unarmed `armed` criteria are retested in M2; its `PARACHUTE_ARMED=true` criterion is tested in M3 (`last_transaction` and `frozen` follow with the failure-policy package).
+- Criteria meaningless unarmed are tested armed in M3: CFG-006's `PARACHUTE_ARMED=true` criterion, DMN-005's stop-request and replacement-start criteria, and BKP-010's armed startup criterion. UPD-019's paused-helper criterion follows with the rollback package.
 
 ## Index
 
