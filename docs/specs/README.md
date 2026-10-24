@@ -99,6 +99,8 @@ M4 hooks and self-update; M5 restore verification and Podman. Each gets its row 
 
 ### M2 deviations
 
+- `parachute_restore_verification_last_success_timestamp_seconds` is emitted only once restore verification exists (M5), so its absence is not an M2 gap.
+
 M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 
 - Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.

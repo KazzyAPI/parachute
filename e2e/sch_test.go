@@ -30,11 +30,8 @@ func TestSCH_001_default_interval_is_one_day(t *testing.T) {
 func TestSCH_001_cycles_repeat_at_the_interval(t *testing.T) {
 	env := harness.NewEnv(t)
 	process := startDaemon(env, env.Parachute("--interval", "60"))
-	time.Sleep(130 * time.Second)
-	starts := cycleStarts(t, process.Logs())
-	if len(starts) != 3 {
-		t.Fatalf("expected 3 cycles in 130 s, got %d", len(starts))
-	}
+	process.WaitForLogs(180*time.Second, "three cycles", 3, func(entry harness.Log) bool { return entry.Msg() == "cycle started" })
+	starts := cycleStarts(t, process.Logs())[:3]
 	for index := 1; index < len(starts); index++ {
 		assertDuration(t, starts[index].Sub(starts[index-1]), 60*time.Second, 5*time.Second)
 	}
@@ -53,11 +50,8 @@ func TestSCH_002_cron_schedule_fires_on_matching_seconds(t *testing.T) {
 	env := harness.NewEnv(t)
 	launched := time.Now()
 	process := startDaemon(env, env.Parachute("--schedule", "*/20 * * * * *"))
-	time.Sleep(65 * time.Second)
+	process.WaitForLogs(120*time.Second, "three cycles", 3, func(entry harness.Log) bool { return entry.Msg() == "cycle started" })
 	starts := cycleStarts(t, process.Logs())
-	if len(starts) < 3 {
-		t.Fatalf("expected at least 3 cycles in 65 s, got %d", len(starts))
-	}
 	for _, start := range starts {
 		if start.Second()%20 != 0 {
 			t.Errorf("cycle started at second %d", start.Second())

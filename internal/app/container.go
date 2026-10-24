@@ -65,7 +65,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	collector := metrics.NewCollector()
+	collector := metrics.NewCollector(hostNames(hosts))
 	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
@@ -114,4 +114,12 @@ func (c *Container) Status(ctx context.Context) (err error) {
 		return command.WriteJSON(document)
 	}
 	return command.WriteTable(document)
+}
+
+func hostNames(hosts []pipeline.Host) []string {
+	names := make([]string, len(hosts))
+	for i, host := range hosts {
+		names[i] = host.Name
+	}
+	return names
 }

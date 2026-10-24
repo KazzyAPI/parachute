@@ -93,3 +93,23 @@ func TestSEL_013_image_inspect_failure_fails_candidate(t *testing.T) {
 	result := env.Parachute("--run-once", "--porcelain", "v1", "--no-pull").Setenv("DOCKER_HOST", proxy.Endpoint()).Run(runTimeout)
 	assertState(t, result, a, "failed", "engine_error")
 }
+
+func TestSEL_013_removed_container_image_fails_only_that_candidate(t *testing.T) {
+	env := harness.NewEnv(t)
+	gone := env.Name("gone") + ":1"
+	env.BuildImage(gone, "gone")
+	a := env.CreateContainer("a", gone, harness.ContainerOptions{})
+	b := env.RunContainer("b", fixture(env), harness.ContainerOptions{})
+	_, imageID := env.ContainerState(a)
+	env.Docker("rmi", "-f", imageID)
+	result := env.Parachute("--run-once", "--porcelain", "v1", "--no-pull", "--include-stopped").Run(runTimeout)
+	assertExit(t, result, 1)
+	assertState(t, result, a, "failed", "engine_error")
+	assertState(t, result, b, "fresh", "")
+	named := findLogs(result.Logs(), func(entry harness.Log) bool {
+		return entry.Get("container") == a && strings.Contains(entry.Get("detail"), imageID)
+	})
+	if len(named) == 0 {
+		t.Errorf("no log line gives a detail naming the missing image %s", imageID)
+	}
+}

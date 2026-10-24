@@ -25,9 +25,13 @@ type Collector struct {
 	labelValueEscaper *strings.Replacer
 }
 
-func NewCollector() *Collector {
+func NewCollector(hosts []string) *Collector {
+	gauges := map[string]hostGauges{}
+	for _, host := range hosts {
+		gauges[host] = hostGauges{up: -1}
+	}
 	return &Collector{
-		gauges: map[string]hostGauges{}, rollbacks: map[string]int{}, rollbackFailures: map[string]int{},
+		hosts: hosts, gauges: gauges, rollbacks: map[string]int{}, rollbackFailures: map[string]int{},
 		labelValueEscaper: strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`),
 	}
 }
@@ -100,7 +104,9 @@ func (c *Collector) Write(out io.Writer) error {
 func (c *Collector) perHost(text *strings.Builder, name, kind, help string, value func(hostGauges, string) int) {
 	header(text, name, kind, help)
 	for _, host := range c.hosts {
-		fmt.Fprintf(text, "%s{host=\"%s\"} %d\n", name, c.labelValueEscaper.Replace(host), value(c.gauges[host], host))
+		if sample := value(c.gauges[host], host); sample >= 0 {
+			fmt.Fprintf(text, "%s{host=\"%s\"} %d\n", name, c.labelValueEscaper.Replace(host), sample)
+		}
 	}
 }
 
