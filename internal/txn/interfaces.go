@@ -9,7 +9,7 @@ import (
 type Outcome struct {
 	State  State
 	Result domain.State
-	Reason string
+	Reason Reason
 }
 
 type Journal interface {
@@ -28,11 +28,19 @@ type OpenRecord struct {
 	SelfUpdate bool
 }
 
+type Target struct {
+	Container string
+	Image     string
+	Digest    string
+}
+
+type Reason string
+
 type Plan struct {
 	ID         string
 	Host       string
 	Stacks     []string
-	Containers []string
+	Targets    []Target
 	SelfUpdate bool
 	Snapshot   string
 }
@@ -52,7 +60,7 @@ type Recreator interface {
 
 type Verdict struct {
 	Passed bool
-	Reason string
+	Reason Reason
 	Check  string
 	Output string
 }

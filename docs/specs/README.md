@@ -78,7 +78,7 @@ M1 reports and never changes containers. Until update execution exists:
 
 ### M3 armed transactions (integration branch `milestone/3`)
 
-Spine S0 lays shared foundations; parallel work lands in these packages:
+Spine S0 lays shared foundations; parallel work lands in these packages: `internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
 
 | Package | Requirements |
 |---|---|

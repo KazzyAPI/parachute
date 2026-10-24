@@ -20,8 +20,9 @@ type Spec struct {
 type RegistryAuth string
 
 type ExecResult struct {
-	ExitCode int
-	Output   []byte
+	ExitCode  int
+	Output    []byte
+	Truncated bool
 }
 
 type Event struct {

@@ -102,7 +102,7 @@ func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit t
 	if err != nil {
 		return ExecResult{}, writeError("inspect exec", err)
 	}
-	return ExecResult{ExitCode: inspected.ExitCode, Output: output.Bytes()}, nil
+	return ExecResult{ExitCode: inspected.ExitCode, Output: output.Bytes(), Truncated: output.truncated}, nil
 }
 
 func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string][]string) (<-chan Event, <-chan error) {
@@ -153,7 +153,7 @@ func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string
 }
 
 func (d *Docker) RemoveImage(ctx context.Context, reference string) error {
-	_, err := d.client.ImageRemove(ctx, reference, client.ImageRemoveOptions{PruneChildren: false})
+	_, err := d.client.ImageRemove(ctx, reference, client.ImageRemoveOptions{})
 	return writeError("remove image", err)
 }
 
@@ -164,12 +164,15 @@ func (d *Docker) RemoveVolume(ctx context.Context, name string) error {
 
 type cappedBuffer struct {
 	bytes.Buffer
-	limit int64
+	limit     int64
+	truncated bool
 }
 
 func (b *cappedBuffer) Write(p []byte) (int, error) {
-	if room := b.limit - int64(b.Len()); room > 0 {
-		b.Buffer.Write(p[:min(int64(len(p)), room)])
+	room := max(b.limit-int64(b.Len()), 0)
+	if int64(len(p)) > room {
+		b.truncated = true
 	}
+	b.Buffer.Write(p[:min(int64(len(p)), room)])
 	return len(p), nil
 }

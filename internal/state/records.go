@@ -1,6 +1,7 @@
 package state
 
 import (
+	"log/slog"
 	"slices"
 	"time"
 
@@ -51,18 +52,32 @@ type Release struct {
 	Time        time.Time   `json:"time"`
 }
 
-func (d Document) discardInvalid() Document {
-	d.Transactions = slices.DeleteFunc(d.Transactions, func(record TransactionRecord) bool {
-		return !txn.ValidID(record.ID) || !txn.State(record.State).Valid()
+func (d Document) discardInvalid(logger *slog.Logger) Document {
+	d.Transactions = discard(logger, "transaction", d.Transactions, func(record TransactionRecord) (string, bool) {
+		return record.ID, txn.ValidID(record.ID) && txn.State(record.State).Valid()
 	})
-	d.Snapshots = slices.DeleteFunc(d.Snapshots, func(record SnapshotRecord) bool {
-		return !txn.ValidID(record.ID) || !txn.ValidID(record.Transaction)
+	d.Snapshots = discard(logger, "snapshot", d.Snapshots, func(record SnapshotRecord) (string, bool) {
+		return record.ID, txn.ValidID(record.ID) && txn.ValidID(record.Transaction)
 	})
-	d.Freezes = slices.DeleteFunc(d.Freezes, func(record Freeze) bool {
-		return !txn.ValidID(record.Transaction) || !txn.ValidID(record.Snapshot)
+	d.Freezes = discard(logger, "freeze", d.Freezes, func(record Freeze) (string, bool) {
+		return record.Transaction, txn.ValidID(record.Transaction) && txn.ValidID(record.Snapshot) && validKeys(record.Keys)
 	})
-	d.Releases = slices.DeleteFunc(d.Releases, func(record Release) bool {
-		return !txn.ValidID(record.Transaction)
+	d.Releases = discard(logger, "release", d.Releases, func(record Release) (string, bool) {
+		return record.Transaction, txn.ValidID(record.Transaction) && validKeys(record.Keys)
 	})
 	return d
+}
+
+func discard[T any](logger *slog.Logger, kind string, records []T, check func(T) (string, bool)) []T {
+	return slices.DeleteFunc(records, func(record T) bool {
+		id, valid := check(record)
+		if !valid {
+			logger.Info("discarded invalid state record", "kind", kind, "id", id)
+		}
+		return !valid
+	})
+}
+
+func validKeys(keys []FreezeKey) bool {
+	return len(keys) > 0 && !slices.ContainsFunc(keys, func(key FreezeKey) bool { return key.Host == "" })
 }
