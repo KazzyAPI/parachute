@@ -10,6 +10,11 @@ type ContainerRun struct {
 	Detach bool
 }
 
+func (e *Env) FixtureV2Image() string {
+	e.T.Helper()
+	return suite.FixtureV2Image()
+}
+
 func (e *Env) ParachuteImage() string {
 	e.T.Helper()
 	image, err := suite.ParachuteImage()

@@ -31,7 +31,7 @@ func TestCFG_006_armed_is_refused_in_this_milestone(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once").Setenv("PARACHUTE_ARMED", "true").Run(runTimeout)
 	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
+	assertContains(t, result.Stderr, "helper-image")
 }
 
 func TestCFG_006_restart_without_armed_changes_nothing(t *testing.T) {
@@ -40,7 +40,9 @@ func TestCFG_006_restart_without_armed_changes_nothing(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	id, image := env.ContainerState(a)
-	assertExit(t, env.Parachute("--run-once", "--armed").Run(runTimeout), 2)
+	first := env.Parachute("--run-once", "--armed").Run(runTimeout)
+	assertExit(t, first, 2)
+	assertContains(t, first.Stderr, "helper-image")
 	result := runOnce(env)
 	assertState(t, result, a, "would_update", "")
 	assertUnchanged(env, a, id, image)
@@ -102,7 +104,7 @@ func TestCFG_011_convenient_profile_arms_and_is_refused(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once", "--profile", "convenient").Run(runTimeout)
 	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
+	assertContains(t, result.Stderr, "helper-image")
 }
 
 func TestCFG_011_explicit_setting_wins_over_profile(t *testing.T) {
@@ -134,12 +136,12 @@ func TestCFG_011_unknown_profile(t *testing.T) {
 	assertContains(t, result.Stderr, "profile", "fast")
 }
 
-func TestCFG_006_armed_label_on_own_container_is_refused(t *testing.T) {
+func TestCFG_006_armed_label_on_own_container_arms(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.RunParachuteContainer("parachute", harness.ContainerRun{
-		Args:   []string{"--run-once", "--scope", env.Scope()},
+		Args:   []string{"--run-once", "--scope", env.Scope(), "--delay-days", "0"},
 		Labels: map[string]string{"parachute.armed": "true"},
 	}, runTimeout)
-	assertExit(t, result, 2)
-	assertContains(t, result.Stderr, "updates are not implemented in this milestone")
+	assertExit(t, result, 0)
+	assertContains(t, result.Stderr, "armed: true")
 }

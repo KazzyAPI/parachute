@@ -10,8 +10,8 @@ func (c *Container) verifier(docker *engine.Docker) txn.Verifier {
 	settings := verify.Settings{Timeout: c.cfg.Verify.Timeout, Stable: c.cfg.Verify.Stable}
 	labels := verify.NewLabelAdapter(c.labels)
 	var prober verify.URLProber
-	if c.cfg.HelperImage != "" {
-		prober = &urlProber{docker: docker, helperImage: c.cfg.HelperImage}
+	if c.cfg.Backup.Helper != "" {
+		prober = &urlProber{docker: docker, helperImage: c.cfg.Backup.Helper}
 	}
 	return verify.New(docker, docker, prober, labels, settings, c.deps.Clock)
 }

@@ -28,6 +28,7 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	if details.NetworkSettings != nil {
 		spec.Networks = details.NetworkSettings.Networks
 	}
+	spec.Mounts = details.Mounts
 	if details.Config != nil && details.Config.Image != "" {
 		image, err := d.client.ImageInspect(ctx, details.Config.Image)
 		if err != nil && !cerrdefs.IsNotFound(err) {

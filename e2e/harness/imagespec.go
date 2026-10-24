@@ -11,6 +11,7 @@ import (
 )
 
 type ImageSpec struct {
+	Base                   string
 	Version                string
 	Verify                 bool
 	Labels                 map[string]string
@@ -52,11 +53,18 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 
 func (e *Env) dockerfile(spec ImageSpec) string {
 	var file strings.Builder
-	if spec.Verify {
-		fmt.Fprintf(&file, "FROM alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654\nCOPY fixture /fixture\nLABEL parachute-e2e.version=%s-%s\n", e.ID, spec.Version)
-	} else {
-		fmt.Fprintf(&file, "FROM %s\nLABEL parachute-e2e.version=%s-%s\n", suite.fixtureImage, e.ID, spec.Version)
+	base := spec.Base
+	switch {
+	case base == "" && spec.Verify:
+		base = "alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654"
+	case base == "":
+		base = suite.fixtureImage
 	}
+	fmt.Fprintf(&file, "FROM %s\n", base)
+	if spec.Verify {
+		fmt.Fprintln(&file, "COPY fixture /fixture")
+	}
+	fmt.Fprintf(&file, "LABEL parachute-e2e.version=%s-%s\n", e.ID, spec.Version)
 	for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
 		fmt.Fprintf(&file, "LABEL %q=%q\n", key, spec.Labels[key])
 	}

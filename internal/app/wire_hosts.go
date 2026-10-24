@@ -46,13 +46,13 @@ func (c *Container) endpoint(spec config.HostSpec) engine.Endpoint {
 	}
 }
 
-func (c *Container) hosts(ctx context.Context) ([]pipeline.Host, func() error, error) {
+func (c *Container) hosts(ctx context.Context) ([]pipeline.Host, []connectedHost, func() error, error) {
 	if len(c.cfg.Hosts) > 0 && c.cfg.Engine.HostSet {
 		c.logger.Warn("--hosts is set: DOCKER_HOST and --host are ignored")
 	}
 	specs := c.hostSpecs()
 	if err := c.checkEndpoints(specs); err != nil {
-		return nil, nil, configurationError(err)
+		return nil, nil, nil, configurationError(err)
 	}
 	connected := make([]connectedHost, 0, len(specs))
 	closeAll := func() error {
@@ -67,14 +67,14 @@ func (c *Container) hosts(ctx context.Context) ([]pipeline.Host, func() error, e
 	for _, spec := range specs {
 		host, err := c.connect(ctx, spec)
 		if err != nil {
-			return nil, nil, errors.Join(unreachableError(err), closeAll())
+			return nil, nil, nil, errors.Join(unreachableError(err), closeAll())
 		}
 		connected = append(connected, host)
 	}
 	if err := checkReachable(connected); err != nil {
-		return nil, nil, errors.Join(err, closeAll())
+		return nil, nil, nil, errors.Join(err, closeAll())
 	}
-	return c.pipelineHosts(connected), closeAll, nil
+	return c.pipelineHosts(connected), connected, closeAll, nil
 }
 
 func (c *Container) checkEndpoints(specs []config.HostSpec) error {

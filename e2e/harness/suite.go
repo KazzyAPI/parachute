@@ -11,16 +11,17 @@ import (
 )
 
 type Suite struct {
-	repoRoot     string
-	workDir      string
-	binary       string
-	dockerHost   string
-	desktop      bool
-	fixtureImage string
-	runID        string
-	imageOnce    sync.Once
-	image        string
-	imageErr     error
+	repoRoot       string
+	workDir        string
+	binary         string
+	dockerHost     string
+	desktop        bool
+	fixtureImage   string
+	fixtureV2Image string
+	runID          string
+	imageOnce      sync.Once
+	image          string
+	imageErr       error
 }
 
 var suite *Suite
@@ -78,6 +79,8 @@ func (s *Suite) prepare() error {
 	return s.buildFixture()
 }
 
+func (s *Suite) FixtureV2Image() string { return s.fixtureV2Image }
+
 func (s *Suite) buildFixture() error {
 	arch, err := s.serverArch()
 	if err != nil {
@@ -106,6 +109,21 @@ func (s *Suite) buildVerifyFixture(arch string) error {
 	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
 	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", s.verifyFixtureBinary(), "./fixturev2"); err != nil {
 		return fmt.Errorf("build verify fixture: %w: %s", err, out)
+	}
+	contextV2 := filepath.Join(s.workDir, "fixturev2")
+	if err := os.MkdirAll(contextV2, 0o755); err != nil {
+		return err
+	}
+	if err := copyFile(s.verifyFixtureBinary(), filepath.Join(contextV2, "fixturev2")); err != nil {
+		return err
+	}
+	dockerfileV2 := "FROM alpine:3.20\nRUN apk add --no-cache tar gzip coreutils findutils\nCOPY fixturev2 /fixturev2\nENTRYPOINT [\"/fixturev2\"]\n"
+	if err := os.WriteFile(filepath.Join(contextV2, "Dockerfile"), []byte(dockerfileV2), 0o644); err != nil {
+		return err
+	}
+	s.fixtureV2Image = "parachute-e2e-fixturev2:" + s.runID
+	if out, err := s.command(contextV2, nil, "docker", "build", "-q", "--label", "parachute-e2e.run="+s.runID, "-t", s.fixtureV2Image, "."); err != nil {
+		return fmt.Errorf("build fixturev2 image: %w: %s", err, out)
 	}
 	return nil
 }
