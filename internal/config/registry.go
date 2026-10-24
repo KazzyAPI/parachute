@@ -79,7 +79,7 @@ func DefaultSettings() []Setting {
 		{Name: "remove-volumes", Kind: KindBool, Default: "false"},
 		{Name: "no-restart", Kind: KindBool, Default: "false"},
 		{Name: "rolling-restart", Kind: KindBool, Default: "false"},
-		{Name: "transaction-timeout", Kind: KindDuration, Default: "30m"},
+		{Name: "transaction-timeout", Kind: KindPositiveDuration, Default: "30m"},
 		{Name: "enable-lifecycle-hooks", Kind: KindBool, Default: "false", Unimplemented: notInThisMilestone("--enable-lifecycle-hooks")},
 		{Name: "backup", Kind: KindEnum, Default: "stop", Choices: []string{"stop", "live", "none"}},
 		{Name: "backup-volume", Kind: KindString, Default: "parachute-snapshots"},
