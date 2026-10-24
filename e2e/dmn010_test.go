@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func parseStatusJSON(t *testing.T, text string) map[string]any {
 
 func twoDistinctEngineHosts(env *harness.Env) string {
 	a := env.DockerHost()
-	b := env.HTTPEngineProxy()
+	b := env.DistinctEngineProxy()
 	return "a=" + a + ",b=" + b.Endpoint
 }
 
@@ -134,15 +133,11 @@ func TestDMN_010_shop_entries_have_distinct_transaction_ids_per_host(t *testing.
 		}
 	}
 	txnA, txnB := transactionField(entries["a"]), transactionField(entries["b"])
-	if txnA != "" && txnB != "" && txnA == txnB {
+	if txnA == "" || txnB == "" {
+		t.Fatalf("entries must carry a transaction ID: a=%q b=%q", txnA, txnB)
+	}
+	if txnA == txnB {
 		t.Errorf("transaction IDs must differ per host, both %s", txnA)
-	}
-	armed := strings.Contains(result.Stdout, `"armed":true`) || strings.Contains(result.Stderr, `"armed":true`)
-	if armed && (txnA == "" || txnB == "") {
-		t.Errorf("armed cycle missing txn on a=%q b=%q", txnA, txnB)
-	}
-	if armed && txnA == txnB {
-		t.Errorf("armed cycle reused transaction ID %s across hosts", txnA)
 	}
 }
 
