@@ -17,7 +17,7 @@ func StackKeyOf(result domain.Result) StackKey {
 
 func ValidateTransactions(results []domain.Result) error {
 	byStack := map[StackKey]string{}
-	byTransaction := map[string]StackKey{}
+	hostOfTransaction := map[string]string{}
 	for _, result := range results {
 		if result.Transaction == "" {
 			continue
@@ -27,13 +27,10 @@ func ValidateTransactions(results []domain.Result) error {
 			return fmt.Errorf("host %s stack %s has conflicting transaction IDs", key.Host, key.Stack)
 		}
 		byStack[key] = result.Transaction
-		if other, ok := byTransaction[result.Transaction]; ok {
-			if other != key {
-				return fmt.Errorf("transaction %s spans hosts or stacks", result.Transaction)
-			}
-			continue
+		if host, ok := hostOfTransaction[result.Transaction]; ok && host != key.Host {
+			return fmt.Errorf("transaction %s spans hosts", result.Transaction)
 		}
-		byTransaction[result.Transaction] = key
+		hostOfTransaction[result.Transaction] = key.Host
 	}
 	return nil
 }

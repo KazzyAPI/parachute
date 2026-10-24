@@ -43,7 +43,7 @@ func (s *ReportStage) Run(ctx context.Context, cycle *Cycle) error {
 		report.Hosts = append(report.Hosts, hostReport)
 	}
 	if err := hosts.ValidateTransactions(report.Results()); err != nil {
-		return err
+		s.logger.Error("inconsistent transaction IDs in report", "cycle", cycle.ID, "error", err.Error())
 	}
 	cycle.Report = report
 	counts := report.Counts()

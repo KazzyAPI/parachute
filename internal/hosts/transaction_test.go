@@ -25,3 +25,13 @@ func TestValidateTransactionsAllowsDistinctHosts(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidateTransactionsAllowsOneTransactionAcrossStacks(t *testing.T) {
+	results := []domain.Result{
+		{Host: "a", Stack: "a", Transaction: "txn-20260101T000000Z-aaaaaa"},
+		{Host: "a", Stack: "cache", Transaction: "txn-20260101T000000Z-aaaaaa"},
+	}
+	if err := ValidateTransactions(results); err != nil {
+		t.Fatal(err)
+	}
+}
