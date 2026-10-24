@@ -11,13 +11,17 @@ import (
 )
 
 type ImageSpec struct {
-	Version     string
-	Labels      map[string]string
-	Env         map[string]string
-	Volumes     []string
-	Healthcheck []string
-	Cmd         []string
-	BuildArgs   map[string]string
+	Base                   string
+	Version                string
+	Verify                 bool
+	Labels                 map[string]string
+	Env                    map[string]string
+	Volumes                []string
+	Healthcheck            []string
+	HealthcheckInterval    string
+	HealthcheckStartPeriod string
+	Cmd                    []string
+	BuildArgs              map[string]string
 }
 
 func (e *Env) BuildImage(ref, version string) {
@@ -34,6 +38,16 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(e.dockerfile(spec)), 0o644); err != nil {
 		e.T.Fatal(err)
 	}
+	if spec.Verify {
+		if err := copyFile(suite.verifyFixtureBinary(), filepath.Join(context, "fixture")); err != nil {
+			e.T.Fatal(err)
+		}
+	}
+	if _, err := e.DockerMayFail("image", "inspect", ref); err == nil {
+		previous := ref + "-previous-" + randomID()
+		e.Docker("tag", ref, previous)
+		e.trackImage(previous)
+	}
 	args := []string{"build", "-q", "--provenance=false", "-t", ref}
 	for _, key := range slices.Sorted(maps.Keys(spec.BuildArgs)) {
 		args = append(args, "--build-arg", key+"="+spec.BuildArgs[key])
@@ -44,7 +58,18 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 
 func (e *Env) dockerfile(spec ImageSpec) string {
 	var file strings.Builder
-	fmt.Fprintf(&file, "FROM %s\nLABEL parachute-e2e.version=%s-%s\n", suite.fixtureImage, e.ID, spec.Version)
+	base := spec.Base
+	switch {
+	case base == "" && spec.Verify:
+		base = "alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654"
+	case base == "":
+		base = suite.fixtureImage
+	}
+	fmt.Fprintf(&file, "FROM %s\n", base)
+	if spec.Verify {
+		fmt.Fprintln(&file, "COPY fixture /fixture")
+	}
+	fmt.Fprintf(&file, "LABEL parachute-e2e.version=%s-%s\n", e.ID, spec.Version)
 	for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
 		fmt.Fprintf(&file, "LABEL %q=%q\n", key, spec.Labels[key])
 	}
@@ -55,10 +80,20 @@ func (e *Env) dockerfile(spec ImageSpec) string {
 		fmt.Fprintf(&file, "VOLUME %s\n", e.execForm(spec.Volumes))
 	}
 	if len(spec.Healthcheck) > 0 {
-		fmt.Fprintf(&file, "HEALTHCHECK --interval=1s --timeout=5s --retries=3 CMD %s\n", e.execForm(spec.Healthcheck))
+		interval := "1s"
+		if spec.HealthcheckInterval != "" {
+			interval = spec.HealthcheckInterval
+		}
+		startPeriod := ""
+		if spec.HealthcheckStartPeriod != "" {
+			startPeriod = " --start-period=" + spec.HealthcheckStartPeriod
+		}
+		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=5s --retries=3%s CMD %s\n", interval, startPeriod, e.execForm(spec.Healthcheck))
 	}
 	if len(spec.Cmd) > 0 {
 		fmt.Fprintf(&file, "CMD %s\n", e.execForm(spec.Cmd))
+	} else if spec.Verify {
+		fmt.Fprintf(&file, "ENTRYPOINT [\"/fixture\"]\n")
 	}
 	return file.String()
 }
@@ -69,6 +104,14 @@ func (e *Env) execForm(items []string) string {
 		e.T.Fatal(err)
 	}
 	return string(encoded)
+}
+
+func copyFile(source, target string) error {
+	data, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(target, data, 0o755)
 }
 
 func (r *Registry) PushSpec(repo, tag string, spec ImageSpec) string {

@@ -2,6 +2,7 @@ package txn
 
 import (
 	"context"
+	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 )
@@ -19,6 +20,12 @@ type Journal interface {
 	Open(ctx context.Context) ([]OpenRecord, error)
 }
 
+type Original struct {
+	ID      string `json:"id"`
+	Running bool   `json:"running"`
+	Updated bool   `json:"updated,omitempty"`
+}
+
 type OpenRecord struct {
 	ID         string
 	Host       string
@@ -26,6 +33,7 @@ type OpenRecord struct {
 	State      State
 	Snapshot   string
 	SelfUpdate bool
+	Originals  []Original
 }
 
 type Target struct {
@@ -37,12 +45,13 @@ type Target struct {
 type Reason string
 
 type Plan struct {
-	ID         string
-	Host       string
-	Stacks     []string
-	Targets    []Target
-	SelfUpdate bool
-	Snapshot   string
+	ID            string
+	Host          string
+	Stacks        []string
+	Targets       []Target
+	SelfUpdate    bool
+	Snapshot      string
+	RemoveVolumes bool
 }
 
 type Snapshotter interface {
@@ -55,6 +64,7 @@ type Snapshotter interface {
 }
 
 type Recreator interface {
+	Reproducible(ctx context.Context, container string) error
 	Replacement(ctx context.Context, plan Plan, container string) (string, error)
 }
 
@@ -63,6 +73,8 @@ type Verdict struct {
 	Reason Reason
 	Check  string
 	Output string
+
+	Deadline time.Duration
 }
 
 type Verifier interface {

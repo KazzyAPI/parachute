@@ -42,8 +42,11 @@ func (s *Syntax) Parse(setting Setting, raw string) (Value, error) {
 		if err == nil && setting.Kind == KindPositiveDecimal && value.Decimal <= 0 {
 			err = errSyntax
 		}
-	case KindDuration:
+	case KindDuration, KindPositiveDuration:
 		value.Duration, err = time.ParseDuration(raw)
+		if err == nil && setting.Kind == KindPositiveDuration && value.Duration <= 0 {
+			err = errSyntax
+		}
 	case KindEnum:
 		if raw != setting.Default && !slices.Contains(setting.Choices, raw) {
 			err = errSyntax

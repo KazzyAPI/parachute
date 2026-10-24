@@ -9,12 +9,15 @@ import (
 )
 
 type Spec struct {
-	ID          string
-	Name        string
-	Config      *container.Config
-	HostConfig  *container.HostConfig
-	Networks    map[string]*network.EndpointSettings
-	ImageConfig *dockerspec.DockerOCIImageConfig
+	ID           string
+	Name         string
+	ImageID      string
+	HealthStatus string
+	Config       *container.Config
+	HostConfig   *container.HostConfig
+	Networks     map[string]*network.EndpointSettings
+	Mounts       []container.MountPoint
+	ImageConfig  *dockerspec.DockerOCIImageConfig
 }
 
 type RegistryAuth string

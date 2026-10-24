@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +59,7 @@ func NewClient(httpClient *http.Client, auth *Authenticator, userAgent string, h
 }
 
 func (c *Client) Digest(ctx context.Context, ref Reference, credential *Credential) (string, error) {
-	head, err := c.request(ctx, http.MethodHead, ref, credential)
+	head, err := c.request(ctx, http.MethodHead, ref, ref.ManifestURL(), credential)
 	if err == nil && c.digest.MatchString(head.digest) {
 		return head.digest, nil
 	}
@@ -68,7 +69,7 @@ func (c *Client) Digest(ctx context.Context, ref Reference, credential *Credenti
 		return "", err
 	}
 	c.head.HeadFailed(ctx, ref, err)
-	get, err := c.request(ctx, http.MethodGet, ref, credential)
+	get, err := c.request(ctx, http.MethodGet, ref, ref.ManifestURL(), credential)
 	if err != nil {
 		return "", err
 	}
@@ -84,10 +85,11 @@ type reply struct {
 	challenge string
 	digest    string
 	body      string
+	content   []byte
 }
 
-func (c *Client) request(ctx context.Context, method string, ref Reference, credential *Credential) (reply, error) {
-	answer, err := c.exchange(ctx, method, ref, "")
+func (c *Client) request(ctx context.Context, method string, ref Reference, target string, credential *Credential) (reply, error) {
+	answer, err := c.exchange(ctx, method, ref, target, "")
 	if err != nil {
 		return reply{}, err
 	}
@@ -99,15 +101,15 @@ func (c *Client) request(ctx context.Context, method string, ref Reference, cred
 		if authorization == "" {
 			return reply{}, &Error{Reason: ReasonUnauthorized, Err: fmt.Errorf("%s %s: authentication required", method, ref.APIHost())}
 		}
-		if answer, err = c.exchange(ctx, method, ref, authorization); err != nil {
+		if answer, err = c.exchange(ctx, method, ref, target, authorization); err != nil {
 			return reply{}, err
 		}
 	}
 	return answer, c.interpret(method, ref, answer)
 }
 
-func (c *Client) exchange(ctx context.Context, method string, ref Reference, authorization string) (answer reply, err error) {
-	request, err := http.NewRequestWithContext(ctx, method, ref.ManifestURL(), nil)
+func (c *Client) exchange(ctx context.Context, method string, ref Reference, target, authorization string) (answer reply, err error) {
+	request, err := http.NewRequestWithContext(ctx, method, target, nil)
 	if err != nil {
 		return reply{}, &Error{Reason: ReasonUnreachable, Err: err}
 	}
@@ -129,15 +131,15 @@ func (c *Client) exchange(ctx context.Context, method string, ref Reference, aut
 	if method != http.MethodGet || answer.status != http.StatusOK {
 		return answer, nil
 	}
-	hash := sha256.New()
-	size, err := io.Copy(hash, io.LimitReader(response.Body, maxManifestBytes+1))
+	content, err := io.ReadAll(io.LimitReader(response.Body, maxManifestBytes+1))
 	if err != nil {
 		return reply{}, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: %w", method, ref.APIHost(), err)}
 	}
-	if size > maxManifestBytes {
+	if len(content) > maxManifestBytes {
 		return reply{}, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("%s %s: manifest larger than %d bytes", method, ref.APIHost(), maxManifestBytes)}
 	}
-	answer.body = "sha256:" + hex.EncodeToString(hash.Sum(nil))
+	sum := sha256.Sum256(content)
+	answer.body, answer.content = "sha256:"+hex.EncodeToString(sum[:]), content
 	return answer, nil
 }
 
@@ -152,4 +154,18 @@ func (c *Client) interpret(method string, ref Reference, answer reply) error {
 		return &Error{Reason: ReasonUnreachable, Err: status}
 	}
 	return nil
+}
+
+func (c *Client) Tags(ctx context.Context, ref Reference, credential *Credential) ([]string, error) {
+	answer, err := c.request(ctx, http.MethodGet, ref, ref.TagsURL(), credential)
+	if err != nil {
+		return nil, err
+	}
+	var list struct {
+		Tags []string `json:"tags"`
+	}
+	if err := json.Unmarshal(answer.content, &list); err != nil {
+		return nil, &Error{Reason: ReasonUnreachable, Err: fmt.Errorf("GET %s: invalid tag list: %w", ref.APIHost(), err)}
+	}
+	return list.Tags, nil
 }

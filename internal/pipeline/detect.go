@@ -20,6 +20,10 @@ type LabelSwitch interface {
 	Switch(container domain.Container, name string, global, labelWins bool) bool
 }
 
+type TargetResolver interface {
+	Target(ctx context.Context, container domain.Container, credentials registry.Credentials) (string, error)
+}
+
 type SwitchSettings struct {
 	Global    bool
 	LabelWins bool
@@ -29,11 +33,12 @@ type DetectStage struct {
 	credentials CredentialLoader
 	labels      LabelSwitch
 	noPull      SwitchSettings
+	targets     TargetResolver
 	logger      *slog.Logger
 }
 
-func NewDetectStage(credentials CredentialLoader, labels LabelSwitch, noPull SwitchSettings, logger *slog.Logger) *DetectStage {
-	return &DetectStage{credentials: credentials, labels: labels, noPull: noPull, logger: logger}
+func NewDetectStage(credentials CredentialLoader, labels LabelSwitch, noPull SwitchSettings, targets TargetResolver, logger *slog.Logger) *DetectStage {
+	return &DetectStage{credentials: credentials, labels: labels, noPull: noPull, targets: targets, logger: logger}
 }
 
 func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
@@ -48,7 +53,16 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 				continue
 			}
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)
-			result, helper, err := host.Host.Detector.Detect(ctx, candidate.Result, credentials, noPull)
+			target := s.target(ctx, cycle.ID, candidate.Container, credentials, noPull)
+			detected := candidate.Result
+			if target != "" {
+				detected.Image = target
+			}
+			result, helper, err := host.Host.Detector.Detect(ctx, detected, credentials, noPull)
+			result.Image = candidate.Result.Image
+			if target != "" && result.State == domain.StateWouldUpdate {
+				result.TargetImage = target
+			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -69,4 +83,15 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 		}
 	}
 	return nil
+}
+
+func (s *DetectStage) target(ctx context.Context, cycleID string, container domain.Container, credentials registry.Credentials, noPull bool) string {
+	if noPull {
+		return ""
+	}
+	target, err := s.targets.Target(ctx, container, credentials)
+	if err != nil {
+		s.logger.Debug("cannot list tags to follow", "cycle", cycleID, "container", container.Name, "error", err.Error())
+	}
+	return target
 }

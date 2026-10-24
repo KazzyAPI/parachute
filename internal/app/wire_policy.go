@@ -22,6 +22,7 @@ func (c *Container) policyStage(store *state.Store) (pipeline.Stage, error) {
 		policy.NewMonitorRule(c.labels, c.cfg.Selection.MonitorOnly, c.cfg.Selection.LabelTakePrecedence),
 		policy.NewSelfRule(),
 		policy.NewApprovalRule(databases, settings.ProtectDatabases),
+		policy.NewFailureRule(store),
 		policy.NewDelayRule(store, settings.DelayDays),
 		window,
 	)

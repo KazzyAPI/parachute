@@ -45,6 +45,10 @@ func (c *Command) WriteTable(document Document) error {
 	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\tDRIFT\n", document.Armed)
 	for _, host := range document.Hosts {
 		for _, stack := range host.Stacks {
+			name := stack.Name
+			if len(stack.Frozen) > 0 {
+				name += " (frozen)"
+			}
 			for _, service := range stack.Services {
 				update, hold, drift := "no", "-", "-"
 				if service.UpdateAvailable && service.CandidateDigest != nil {
@@ -59,7 +63,7 @@ func (c *Command) WriteTable(document Document) error {
 				if service.Drift != nil {
 					drift = *service.Drift
 				}
-				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, stack.Name, service.Name, service.Container, service.Image, update, hold, drift)
+				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, name, service.Name, service.Container, service.Image, update, hold, drift)
 			}
 		}
 	}

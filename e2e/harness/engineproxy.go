@@ -141,6 +141,7 @@ type HTTPEngineProxy struct {
 	forward  *httputil.ReverseProxy
 	lock     sync.Mutex
 	failing  []string
+	failOnce []string
 	requests []string
 }
 
@@ -151,6 +152,17 @@ func (e *Env) HTTPEngineProxy() *HTTPEngineProxy {
 		e.T.Fatal(err)
 	}
 	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "")
+	e.serveHTTP(listener, proxy)
+	return proxy
+}
+
+func (e *Env) DistinctEngineProxy() *HTTPEngineProxy {
+	e.T.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "e2e-engine-"+randomID())
 	e.serveHTTP(listener, proxy)
 	return proxy
 }
@@ -183,6 +195,12 @@ func (p *HTTPEngineProxy) Fail(pathPart string) {
 	p.failing = append(p.failing, pathPart)
 }
 
+func (p *HTTPEngineProxy) FailFirst(pathPart string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.failOnce = append(p.failOnce, pathPart)
+}
+
 func (p *HTTPEngineProxy) Requests() []string {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -193,6 +211,10 @@ func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.
 	p.lock.Lock()
 	p.requests = append(p.requests, request.Method+" "+request.URL.Path)
 	failing := slices.ContainsFunc(p.failing, func(part string) bool { return strings.Contains(request.URL.Path, part) })
+	if index := slices.IndexFunc(p.failOnce, func(part string) bool { return strings.Contains(request.URL.Path, part) }); index >= 0 {
+		p.failOnce = slices.Delete(p.failOnce, index, index+1)
+		failing = true
+	}
 	p.lock.Unlock()
 	if !failing {
 		p.forward.ServeHTTP(response, request)

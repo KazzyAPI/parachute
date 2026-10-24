@@ -9,15 +9,16 @@ import (
 )
 
 type TransactionRecord struct {
-	ID         string    `json:"id"`
-	Host       string    `json:"host"`
-	Stacks     []string  `json:"stacks"`
-	State      string    `json:"state"`
-	Snapshot   string    `json:"snapshot,omitempty"`
-	SelfUpdate bool      `json:"self_update,omitempty"`
-	Result     string    `json:"result,omitempty"`
-	Reason     string    `json:"reason,omitempty"`
-	Time       time.Time `json:"time"`
+	ID         string         `json:"id"`
+	Host       string         `json:"host"`
+	Stacks     []string       `json:"stacks"`
+	State      string         `json:"state"`
+	Snapshot   string         `json:"snapshot,omitempty"`
+	SelfUpdate bool           `json:"self_update,omitempty"`
+	Originals  []txn.Original `json:"originals,omitempty"`
+	Result     string         `json:"result,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	Time       time.Time      `json:"time"`
 }
 
 type SnapshotRecord struct {
@@ -27,6 +28,8 @@ type SnapshotRecord struct {
 	Transaction string    `json:"transaction"`
 	Time        time.Time `json:"time"`
 }
+
+const NoSnapshot = "none"
 
 type FailedDigest struct {
 	Host      string `json:"host"`
@@ -60,7 +63,7 @@ func (d Document) discardInvalid(logger *slog.Logger) Document {
 		return record.ID, txn.ValidID(record.ID) && txn.ValidID(record.Transaction)
 	})
 	d.Freezes = discard(logger, "freeze", d.Freezes, func(record Freeze) (string, bool) {
-		return record.Transaction, txn.ValidID(record.Transaction) && txn.ValidID(record.Snapshot) && validKeys(record.Keys)
+		return record.Transaction, txn.ValidID(record.Transaction) && (record.Snapshot == NoSnapshot || txn.ValidID(record.Snapshot)) && validKeys(record.Keys)
 	})
 	d.Releases = discard(logger, "release", d.Releases, func(record Release) (string, bool) {
 		return record.Transaction, txn.ValidID(record.Transaction) && validKeys(record.Keys)

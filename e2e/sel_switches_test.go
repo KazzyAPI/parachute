@@ -40,8 +40,8 @@ func TestSEL_008_label_takes_precedence_over_global_monitor_only(t *testing.T) {
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.monitor-only": "false"}})
 	app.publishNewer()
-	result := runOnce(env, "--monitor-only", "--label-take-precedence")
-	assertState(t, result, a, "would_update", "")
+	result := armedParachute(env, "--monitor-only", "--label-take-precedence").Run(runTimeout)
+	assertState(t, result, a, "updated", "")
 }
 
 func TestSEL_008_global_monitor_only_wins_without_precedence(t *testing.T) {
@@ -102,6 +102,63 @@ func TestSEL_010_revive_stopped_requires_include_stopped(t *testing.T) {
 	result := runOnce(env, "--revive-stopped")
 	assertExit(t, result, 2)
 	assertContains(t, result.Stderr, "revive-stopped", "include-stopped")
+}
+
+func stoppedUpdatable(env *harness.Env) string {
+	env.T.Helper()
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	env.Docker("stop", a)
+	app.publishNewer()
+	return a
+}
+
+func containerStatus(env *harness.Env, container string) string {
+	env.T.Helper()
+	return strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Status}}", container))
+}
+
+func TestSEL_010_stopped_container_stays_stopped_after_update(t *testing.T) {
+	env := harness.NewEnv(t)
+	a := stoppedUpdatable(env)
+	_, image := env.ContainerState(a)
+	result := armedParachute(env, "--include-stopped").Run(runTimeout)
+	assertState(t, result, a, "updated", "")
+	if _, after := env.ContainerState(a); after == image {
+		t.Error("container still uses the old image")
+	}
+	if status := containerStatus(env, a); status != "created" && status != "exited" {
+		t.Errorf("replacement is %s, want created or exited", status)
+	}
+}
+
+func TestSEL_010_revive_stopped_starts_replacement(t *testing.T) {
+	env := harness.NewEnv(t)
+	a := stoppedUpdatable(env)
+	result := armedParachute(env, "--include-stopped", "--revive-stopped").Run(runTimeout)
+	assertState(t, result, a, "updated", "")
+	if status := containerStatus(env, a); status != "running" {
+		t.Errorf("replacement is %s, want running", status)
+	}
+}
+
+func TestSEL_011_two_instances_update_each_container_once(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	prod, dev := env.Name("prod"), env.Name("dev")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Unscoped: true, Labels: map[string]string{"parachute.scope": prod}})
+	b := env.RunContainer("b", app.ref, harness.ContainerOptions{Unscoped: true, Labels: map[string]string{"parachute.scope": dev}})
+	app.publishNewer()
+	idB, imageB := env.ContainerState(b)
+	first := armedParachute(env, "--scope", prod).Run(runTimeout)
+	assertState(t, first, a, "updated", "")
+	assertCandidates(t, first, []string{a}, []string{b})
+	assertUnchanged(env, b, idB, imageB)
+	idA, imageA := env.ContainerState(a)
+	second := armedParachute(env, "--scope", dev).Run(runTimeout)
+	assertState(t, second, b, "updated", "")
+	assertCandidates(t, second, []string{b}, []string{a})
+	assertUnchanged(env, a, idA, imageA)
 }
 
 func TestSEL_011_scope_selects_matching_label(t *testing.T) {
