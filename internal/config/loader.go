@@ -89,6 +89,9 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 		return Config{}, err
 	}
 	cfg.Notify = notify
+	cfg.Verify = Verify{Timeout: b.duration("verify-timeout"), Stable: b.duration("verify-stable")}
+	cfg.HelperImage = b.raw("helper-image")
+	cfg.NoRestart = b.boolean("no-restart")
 	return cfg, nil
 }
 

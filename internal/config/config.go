@@ -22,6 +22,14 @@ type Config struct {
 	Hosts          []HostSpec
 	Log            Log
 	StartupMessage bool
+	Verify         Verify
+	HelperImage    string
+	NoRestart      bool
+}
+
+type Verify struct {
+	Timeout time.Duration
+	Stable  time.Duration
 }
 
 type Relaxation struct {
