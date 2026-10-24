@@ -64,6 +64,8 @@ With `--http-api-periodic-polls` on, scheduled cycles (SCH-001, SCH-002) MUST al
 ### API-008 Metrics
 `GET /v1/metrics` MUST return the Prometheus text exposition format with these metrics. Gauges describe the last completed cycle; counters cover the process lifetime. Every metric except the two scan counters has a `host` label.
 
+From startup, before any cycle has run, every metric MUST be present with a sample of `0` for each configured host (`parachute_scans_total` and `parachute_scans_skipped` once, without a label), except `parachute_host_up`, which has no sample for a host until a cycle has probed it.
+
 | Metric | Type | Meaning |
 |---|---|---|
 | `parachute_containers_scanned` | gauge | Candidates checked |
