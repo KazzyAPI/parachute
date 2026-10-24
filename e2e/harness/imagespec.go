@@ -12,6 +12,7 @@ import (
 
 type ImageSpec struct {
 	Version                string
+	Verify                 bool
 	Labels                 map[string]string
 	Env                    map[string]string
 	Volumes                []string
@@ -36,8 +37,10 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(e.dockerfile(spec)), 0o644); err != nil {
 		e.T.Fatal(err)
 	}
-	if err := copyFile(suite.fixtureBinary(), filepath.Join(context, "fixture")); err != nil {
-		e.T.Fatal(err)
+	if spec.Verify {
+		if err := copyFile(suite.verifyFixtureBinary(), filepath.Join(context, "fixture")); err != nil {
+			e.T.Fatal(err)
+		}
 	}
 	args := []string{"build", "-q", "--provenance=false", "-t", ref}
 	for _, key := range slices.Sorted(maps.Keys(spec.BuildArgs)) {
@@ -49,7 +52,11 @@ func (e *Env) BuildImageSpec(ref string, spec ImageSpec) {
 
 func (e *Env) dockerfile(spec ImageSpec) string {
 	var file strings.Builder
-	fmt.Fprintf(&file, "FROM alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654\nCOPY fixture /fixture\nLABEL parachute-e2e.version=%s-%s\n", e.ID, spec.Version)
+	if spec.Verify {
+		fmt.Fprintf(&file, "FROM alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654\nCOPY fixture /fixture\nLABEL parachute-e2e.version=%s-%s\n", e.ID, spec.Version)
+	} else {
+		fmt.Fprintf(&file, "FROM %s\nLABEL parachute-e2e.version=%s-%s\n", suite.fixtureImage, e.ID, spec.Version)
+	}
 	for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
 		fmt.Fprintf(&file, "LABEL %q=%q\n", key, spec.Labels[key])
 	}
@@ -72,7 +79,7 @@ func (e *Env) dockerfile(spec ImageSpec) string {
 	}
 	if len(spec.Cmd) > 0 {
 		fmt.Fprintf(&file, "CMD %s\n", e.execForm(spec.Cmd))
-	} else {
+	} else if spec.Verify {
 		fmt.Fprintf(&file, "ENTRYPOINT [\"/fixture\"]\n")
 	}
 	return file.String()

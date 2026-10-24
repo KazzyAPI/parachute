@@ -88,7 +88,7 @@ func (s *Suite) buildFixture() error {
 		return err
 	}
 	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
-	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixture"), "./fixturev2"); err != nil {
+	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixture"), "./fixture"); err != nil {
 		return fmt.Errorf("build fixture: %w: %s", err, out)
 	}
 	dockerfile := "FROM scratch\nCOPY fixture /fixture\nARG VERSION=base\nLABEL parachute-e2e.version=$VERSION\nENTRYPOINT [\"/fixture\"]\n"
@@ -98,6 +98,14 @@ func (s *Suite) buildFixture() error {
 	s.fixtureImage = "parachute-e2e-fixture:" + s.runID
 	if out, err := s.command(context, nil, "docker", "build", "-q", "--label", "parachute-e2e.run="+s.runID, "-t", s.fixtureImage, "."); err != nil {
 		return fmt.Errorf("build fixture image: %w: %s", err, out)
+	}
+	return s.buildVerifyFixture(arch)
+}
+
+func (s *Suite) buildVerifyFixture(arch string) error {
+	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
+	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", s.verifyFixtureBinary(), "./fixturev2"); err != nil {
+		return fmt.Errorf("build verify fixture: %w: %s", err, out)
 	}
 	return nil
 }
@@ -134,8 +142,8 @@ func (s *Suite) removeRunResources() {
 	}
 }
 
-func (s *Suite) fixtureBinary() string {
-	return filepath.Join(s.workDir, "fixture", "fixture")
+func (s *Suite) verifyFixtureBinary() string {
+	return filepath.Join(s.workDir, "fixture-verify")
 }
 
 func (s *Suite) command(dir string, env []string, name string, args ...string) (string, error) {
