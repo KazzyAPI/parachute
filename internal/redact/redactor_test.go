@@ -2,6 +2,7 @@ package redact
 
 import (
 	"encoding/base64"
+	"strings"
 	"testing"
 )
 
@@ -41,3 +42,41 @@ func TestRedactorReadsSourcesOnEveryCall(t *testing.T) {
 type growing struct{ values []string }
 
 func (g *growing) Secrets() []string { return g.values }
+
+func TestURLSecretsCoverNotificationURLParts(t *testing.T) {
+	redactor := New(URLSecrets([]string{
+		"generic://bob:hunt%40er2@127.0.0.1:1/secret-path/Ab12cd34ef?token=q5%2Bcret&disabletls=true&port=8080&template=json&pin=1234567&scheme=https&proto=https",
+		"ifttt://KeyOfIfttt/?events=doorbell",
+		"telegram://telegram/webhook",
+	}))
+	for input, want := range map[string]string{
+		"password hunt@er2 hunt%40er2":                        "password [REDACTED] [REDACTED]",
+		"value q5+cret q5%2Bcret":                             "value [REDACTED] [REDACTED]",
+		"Post http://127.0.0.1:1/secret-path/Ab12cd34ef: EOF": "Post http://[REDACTED]: EOF",
+		"segment secret-path Ab12cd34ef, key KeyOfIfttt":      "segment secret-path [REDACTED], key [REDACTED]",
+		"pull https://bob:regpass99@registry.example/v2":      "pull [REDACTED]://[REDACTED]@registry.example/v2",
+		"telegram webhook services":                           "telegram webhook services",
+		"pin 1234567 event doorbell":                          "pin [REDACTED] event [REDACTED]",
+		"host 127.0.0.1:1 true 8080 json":                     "host 127.0.0.1:1 true 8080 json",
+	} {
+		if got := redactor.Redact(input); got != want {
+			t.Errorf("Redact(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestWriterRedactsWholeLines(t *testing.T) {
+	var out strings.Builder
+	writer := NewWriter(&out, New(Static("hunter22")))
+	for _, part := range []string{"a hun", "ter22 b\nc ", "hunter22\n"} {
+		if _, err := writer.Write([]byte(part)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := writer.Write([]byte("tail hunter22")); err != nil || writer.Flush() != nil {
+		t.Fatal("tail not written")
+	}
+	if want := "a [REDACTED] b\nc [REDACTED]\ntail [REDACTED]"; out.String() != want {
+		t.Errorf("wrote %q, want %q", out.String(), want)
+	}
+}

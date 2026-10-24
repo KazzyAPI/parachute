@@ -10,6 +10,7 @@ const (
 	KindPositiveInt
 	KindNonNegativeInt
 	KindDecimal
+	KindPositiveDecimal
 	KindDuration
 	KindList
 	KindEnum

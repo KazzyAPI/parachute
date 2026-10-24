@@ -33,6 +33,7 @@ func (c *Command) Document(ctx context.Context, saved state.Document) (Document,
 func (c *Command) WriteJSON(document Document) error {
 	encoder := json.NewEncoder(c.out)
 	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(document); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}

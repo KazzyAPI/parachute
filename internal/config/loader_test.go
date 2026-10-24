@@ -79,6 +79,7 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		want    []string
 	}{
 		{args: []string{"--intervall", "5"}, want: []string{"--intervall", "--interval"}},
+		{args: []string{"--approval-reminder-days", "0"}, want: []string{"approval-reminder-days"}},
 		{environ: []string{"PARACHUTE_CLEANUP=yes"}, want: []string{"cleanup", "yes"}},
 		{environ: []string{"PARACHUTE_NOTIFICATION_SLACK_HOOK_URL=x"}, want: []string{"--notification-url", "slack://"}},
 		{args: []string{"--revive-stopped"}, want: []string{"revive-stopped", "include-stopped"}},

@@ -44,12 +44,13 @@ func New(sources ...Source) *Redactor {
 }
 
 func (r *Redactor) Redact(text string) string {
+	text = r.url.ReplaceAllStringFunc(text, r.redactURL)
+	text = r.credential.ReplaceAllStringFunc(text, r.redactCredential)
+	text = r.authorization.ReplaceAllString(text, "${1}"+placeholder)
 	for _, secret := range r.literals() {
 		text = strings.ReplaceAll(text, secret, placeholder)
 	}
-	text = r.url.ReplaceAllStringFunc(text, r.redactURL)
-	text = r.credential.ReplaceAllStringFunc(text, r.redactCredential)
-	return r.authorization.ReplaceAllString(text, "${1}"+placeholder)
+	return text
 }
 
 func (r *Redactor) redactCredential(match string) string {
