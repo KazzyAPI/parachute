@@ -106,4 +106,10 @@ func TestSEL_013_removed_container_image_fails_only_that_candidate(t *testing.T)
 	assertExit(t, result, 1)
 	assertState(t, result, a, "failed", "engine_error")
 	assertState(t, result, b, "fresh", "")
+	named := findLogs(result.Logs(), func(entry harness.Log) bool {
+		return entry.Get("container") == a && strings.Contains(entry.Get("detail"), imageID)
+	})
+	if len(named) == 0 {
+		t.Errorf("no log line gives a detail naming the missing image %s", imageID)
+	}
 }
