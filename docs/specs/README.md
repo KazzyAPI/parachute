@@ -78,7 +78,7 @@ M1 reports and never changes containers. Until update execution exists:
 
 ### M3 armed transactions (integration branch `milestone/3`)
 
-Spine S0 lays shared foundations; parallel work lands in these packages: `internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
+Spine S0 lays shared foundations; parallel work lands in these packages:
 
 | Package | Requirements |
 |---|---|
@@ -90,6 +90,8 @@ Spine S0 lays shared foundations; parallel work lands in these packages: `intern
 | F failure policy | POL-010, POL-011 (release), API-007 (release), NTF-012, STS-004, STS-002 (`frozen`, `last_transaction`), POL-004, POL-005 |
 | H second engine | DMN-010 |
 | M1 rewrites | CFG-001, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SCH-005, SEL-008, SEL-010, SEL-011, DET-001, DET-004, REG-001, NTF-003 |
+
+`internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
 
 ### Later milestones
 
