@@ -12,6 +12,13 @@ import (
 
 func main() {
 	if path := os.Getenv("WRITE"); path != "" {
+		if value := os.Getenv("WRITE_AFTER"); value != "" {
+			seconds, err := strconv.Atoi(value)
+			if err != nil {
+				os.Exit(3)
+			}
+			time.Sleep(time.Duration(seconds) * time.Second)
+		}
 		if err := os.WriteFile(path, []byte(os.Getenv("WRITE_DATA")), 0o644); err != nil {
 			os.Exit(2)
 		}
@@ -19,6 +26,13 @@ func main() {
 	if port := os.Getenv("HTTP"); port != "" {
 		go func() {
 			_ = http.ListenAndServe(":"+port, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				code := http.StatusOK
+				if value := os.Getenv("HTTP_CODE"); value != "" {
+					if parsed, err := strconv.Atoi(value); err == nil {
+						code = parsed
+					}
+				}
+				w.WriteHeader(code)
 				_, _ = w.Write([]byte("ok"))
 			}))
 		}()

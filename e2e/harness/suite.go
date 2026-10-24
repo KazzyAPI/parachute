@@ -88,7 +88,7 @@ func (s *Suite) buildFixture() error {
 		return err
 	}
 	env := []string{"GOOS=linux", "GOARCH=" + arch, "CGO_ENABLED=0"}
-	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixture"), "./fixture"); err != nil {
+	if out, err := s.command(filepath.Join(s.repoRoot, "e2e"), env, "go", "build", "-o", filepath.Join(context, "fixture"), "./fixturev2"); err != nil {
 		return fmt.Errorf("build fixture: %w: %s", err, out)
 	}
 	dockerfile := "FROM scratch\nCOPY fixture /fixture\nARG VERSION=base\nLABEL parachute-e2e.version=$VERSION\nENTRYPOINT [\"/fixture\"]\n"
@@ -132,6 +132,10 @@ func (s *Suite) removeRunResources() {
 			fmt.Fprintln(os.Stderr, "cleanup:", err, out)
 		}
 	}
+}
+
+func (s *Suite) fixtureBinary() string {
+	return filepath.Join(s.workDir, "fixture", "fixture")
 }
 
 func (s *Suite) command(dir string, env []string, name string, args ...string) (string, error) {
