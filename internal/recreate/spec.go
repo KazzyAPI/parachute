@@ -2,6 +2,7 @@ package recreate
 
 import (
 	"context"
+	"encoding/hex"
 	"maps"
 	"slices"
 	"strings"
@@ -264,7 +265,7 @@ func applyVolumeMounts(host *container.HostConfig, original engine.Spec, oldImag
 		}
 	}
 	for _, item := range original.Mounts {
-		if item.Type != mount.TypeVolume || item.Name != "" {
+		if item.Type != mount.TypeVolume || !anonymousVolumeName(item.Name) {
 			continue
 		}
 		if _, ok := kept[item.Destination]; ok {
@@ -285,6 +286,14 @@ func applyVolumeMounts(host *container.HostConfig, original engine.Spec, oldImag
 		}
 		host.Mounts = append(host.Mounts, mount.Mount{Type: mount.TypeVolume, Target: path})
 	}
+}
+
+func anonymousVolumeName(name string) bool {
+	if len(name) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(name)
+	return err == nil
 }
 
 func withoutAnonymous(mounts []mount.Mount) []mount.Mount {
