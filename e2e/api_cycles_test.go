@@ -78,3 +78,15 @@ func TestAPI_008_unreachable_host_is_reported_down(t *testing.T) {
 	response := api.Do(harness.APIRequest{Path: "/v1/metrics", Authorization: harness.Bearer(apiToken)})
 	assertContains(t, response.Body, "parachute_host_up{host=\"remote\"} 0\n")
 }
+
+func TestAPI_008_metrics_exist_at_zero_before_the_first_cycle(t *testing.T) {
+	env := harness.NewEnv(t)
+	_, api := startAPI(env, "--http-api-update", "--http-api-metrics")
+	response := api.Do(harness.APIRequest{Path: "/v1/metrics", Authorization: harness.Bearer(apiToken)})
+	assertResponse(t, response, http.StatusOK)
+	assertContains(t, response.Body,
+		"parachute_containers_scanned{host=\"local\"} 0\n",
+		"parachute_containers_failed{host=\"local\"} 0\n",
+		"parachute_rollbacks_total{host=\"local\"} 0\n",
+		"parachute_scans_total 0\n")
+}
