@@ -88,7 +88,11 @@ func (e *Env) dockerfile(spec ImageSpec) string {
 		if spec.HealthcheckStartPeriod != "" {
 			startPeriod = " --start-period=" + spec.HealthcheckStartPeriod
 		}
-		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=5s --retries=3%s CMD %s\n", interval, startPeriod, e.execForm(spec.Healthcheck))
+		command := spec.Healthcheck
+		if command[0] == "CMD" {
+			command = command[1:]
+		}
+		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=5s --retries=3%s CMD %s\n", interval, startPeriod, e.execForm(command))
 	}
 	if len(spec.Cmd) > 0 {
 		fmt.Fprintf(&file, "CMD %s\n", e.execForm(spec.Cmd))
