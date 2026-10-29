@@ -20,7 +20,7 @@ func TestUPD_003_replacement_keeps_ports_env_mounts_and_name(t *testing.T) {
 	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Version: "1", Env: map[string]string{"A": "1"}})
 	network := env.Docker("network", "create", env.Name("net"))
 	a := env.RunContainer("a", v1, harness.ContainerOptions{
-		Extra:  []string{"-p", "8080:3000", "-e", "A=1", "--mount", "type=bind,source=/tmp,destination=/data", "--mount", "type=volume,source=" + env.Name("vol") + ",destination=/var", "--memory", "64m", "--restart", "unless-stopped", "--network", network, "--network-alias", "web"},
+		Extra:  []string{"-p", "8080:3000", "-e", "A=1", "--mount", "type=bind,source=" + t.TempDir() + ",destination=/data", "--mount", "type=volume,source=" + env.Name("vol") + ",destination=/var", "--memory", "64m", "--restart", "unless-stopped", "--network", network, "--network-alias", "web"},
 		Labels: map[string]string{"x": "y"},
 	})
 	registry.PushSpec("app", "1", harness.ImageSpec{Version: "2", Env: map[string]string{"A": "1"}})
