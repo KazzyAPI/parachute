@@ -142,6 +142,7 @@ type HTTPEngineProxy struct {
 	lock     sync.Mutex
 	failing  []string
 	failOnce []string
+	deferred []deferredFailure
 	requests []string
 }
 
@@ -195,6 +196,14 @@ func (p *HTTPEngineProxy) Fail(pathPart string) {
 	p.failing = append(p.failing, pathPart)
 }
 
+type deferredFailure struct{ trigger, part string }
+
+func (p *HTTPEngineProxy) FailFirstAfter(trigger, pathPart string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.deferred = append(p.deferred, deferredFailure{trigger: trigger, part: pathPart})
+}
+
 func (p *HTTPEngineProxy) FailFirst(pathPart string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -210,6 +219,10 @@ func (p *HTTPEngineProxy) Requests() []string {
 func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	p.lock.Lock()
 	p.requests = append(p.requests, request.Method+" "+request.URL.Path)
+	if index := slices.IndexFunc(p.deferred, func(item deferredFailure) bool { return strings.Contains(request.URL.RequestURI(), item.trigger) }); index >= 0 {
+		p.failOnce = append(p.failOnce, p.deferred[index].part)
+		p.deferred = slices.Delete(p.deferred, index, index+1)
+	}
 	failing := slices.ContainsFunc(p.failing, func(part string) bool { return strings.Contains(request.URL.Path, part) })
 	if index := slices.IndexFunc(p.failOnce, func(part string) bool { return strings.Contains(request.URL.Path, part) }); index >= 0 {
 		p.failOnce = slices.Delete(p.failOnce, index, index+1)

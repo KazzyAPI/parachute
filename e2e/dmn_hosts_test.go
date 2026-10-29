@@ -66,7 +66,7 @@ func TestDMN_005_failed_replacement_start_rolls_back(t *testing.T) {
 	app.publishNewer()
 	id, image := env.ContainerState(a)
 	proxy := env.HTTPEngineProxy()
-	proxy.FailFirst("/start")
+	proxy.FailFirstAfter("/containers/create?name="+a, "/start")
 	result := armedParachute(env, "--backup", "none", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
 	assertState(t, result, a, "rolled_back", "engine_error")
 	replacementStarts := 0
