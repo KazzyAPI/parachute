@@ -66,6 +66,7 @@ func TestVER_003_exit_with_restart_rolls_back(t *testing.T) {
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"EXIT_AFTER": "10"}}
 	ref := app.registry.PushSpec("ver003b", "1", spec)
 	container := env.RunContainer("ver003b", ref, harness.ContainerOptions{Extra: []string{"--restart", "always"}})
+	spec.Version = "2"
 	app.registry.PushSpec("ver003b", "1", spec)
 	result := armedRunOnce(env)
 	assertRolledBack(t, result, container, "verify_failed")
@@ -113,7 +114,7 @@ func TestVER_005_url_200_commits(t *testing.T) {
 	ref := app.registry.PushSpec("ver005", "1", spec)
 	container := env.RunContainer("ver005", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver005", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"HTTP": "8080"}})
-	result := armedRunOnce(env, "--helper-image", env.ParachuteImage())
+	result := armedRunOnce(env)
 	assertUpdated(t, result, container)
 }
 
@@ -130,7 +131,7 @@ func TestVER_005_url_500_rolls_back(t *testing.T) {
 	container := env.RunContainer("ver005b", ref, harness.ContainerOptions{})
 	bad := harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"HTTP": "8080", "HTTP_CODE": "500"}}
 	app.registry.PushSpec("ver005b", "1", bad)
-	result := armedRunOnce(env, "--helper-image", env.ParachuteImage())
+	result := armedRunOnce(env)
 	assertRolledBack(t, result, container, "verify_failed")
 	entry := result.Entry(container)
 	if entry == nil {
