@@ -3,8 +3,6 @@ package backup
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/moby/moby/api/types/mount"
@@ -14,7 +12,7 @@ func (s *Snapshotter) Restore(ctx context.Context, snapshot string) error {
 	return s.restore(ctx, snapshot, restoreOptions{rollback: true})
 }
 
-func (s *Snapshotter) RestoreToPath(ctx context.Context, snapshot, archive, targetPath string) error {
+func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, volume string) error {
 	root, err := s.store.Root(ctx)
 	if err != nil {
 		return err
@@ -29,7 +27,8 @@ func (s *Snapshotter) RestoreToPath(ctx context.Context, snapshot, archive, targ
 	if err := validateArchive(data); err != nil {
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
-	return s.extractArchive(ctx, snapshot, archive, targetPath, data)
+	target := mount.Mount{Type: mount.TypeVolume, Source: volume, Target: "/target"}
+	return s.extractArchive(ctx, root, snapshot, snapshot, archive, target, data)
 }
 
 type restoreOptions struct {
@@ -52,7 +51,6 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 	if err != nil {
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
-	snapshotDir := filepath.Join(s.hostStorePath(root), snapshot)
 	for _, record := range manifest.Mounts {
 		archive, err := s.store.ReadFile(ctx, root, snapshot, record.File)
 		if err != nil {
@@ -65,14 +63,13 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		if err != nil {
 			return err
 		}
-		target, err := hostPathForDestination(ctx, s.engine, spec, record.Destination)
+		target, err := mountForDestination(spec, record.Destination)
 		if err != nil {
 			return err
 		}
-		if err := s.extractArchive(ctx, manifest.Transaction, record.File, target, archive); err != nil {
+		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, target, archive); err != nil {
 			return err
 		}
-		_ = snapshotDir
 	}
 	return nil
 }
@@ -91,55 +88,19 @@ func (s *Snapshotter) containerSpec(ctx context.Context, name string) (engine.Sp
 	return engine.Spec{}, fmt.Errorf("container %s not found", name)
 }
 
-func (s *Snapshotter) extractArchive(ctx context.Context, transaction, file, targetPath string, archive []byte) error {
+func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount, archive []byte) error {
 	if err := validateArchive(archive); err != nil {
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
-	tmp, err := os.CreateTemp("", "parachute-restore-*.tar.gz")
-	if err != nil {
+	if err := entryPath(snapshot, file); err != nil {
 		return err
 	}
-	path := tmp.Name()
-	defer func() { _ = os.Remove(path) }()
-	if _, err := tmp.Write(archive); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	mounts := []mount.Mount{
-		{Type: mount.TypeBind, Source: targetPath, Target: "/target", ReadOnly: false},
-		{Type: mount.TypeBind, Source: path, Target: "/archive.tar.gz", ReadOnly: true},
-	}
-	spec := engine.HelperSpec{
-		Image:   s.settings.Helper,
-		Command: []string{"sh", "-c", "gzip -dc /archive.tar.gz | tar -x -C /target"},
-		Mounts:  mounts,
-		Labels:  map[string]string{"parachute.helper": "true", "parachute.transaction": transaction},
-		CapAdd:  []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID"},
-	}
-	id, err := s.engine.RunHelper(ctx, spec)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = s.engine.Remove(ctx, id, false, true) }()
-	code, err := s.engine.Wait(ctx, id)
-	if err != nil || code != 0 {
-		return fmt.Errorf("restore extract exit %d", code)
+	s.run.txn = transaction
+	if _, err := s.run.run(ctx, []mount.Mount{root.mount(true), target}, smallOutput,
+		`gzip -dc "/snap/$1/$2" | tar -x -C /target`, snapshot, file); err != nil {
+		return fmt.Errorf("restore extract: %w", err)
 	}
 	return nil
-}
-
-func (s *Snapshotter) hostStorePath(root storeRoot) string {
-	if root.HostPath != "" {
-		return root.HostPath
-	}
-	volume, err := s.engine.Volume(context.Background(), root.VolumeName)
-	if err != nil {
-		return ""
-	}
-	return volume.Mountpoint
 }
 
 func (s *Snapshotter) SkippedFromSnapshot(ctx context.Context, snapshot string) ([]SkippedRecord, error) {

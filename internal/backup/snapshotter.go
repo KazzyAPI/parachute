@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -37,6 +35,7 @@ type Settings struct {
 
 type Snapshotter struct {
 	engine    Engine
+	run       *runner
 	store     *DockerStore
 	hostFS    HostFS
 	labels    LabelReader
@@ -51,9 +50,9 @@ type Snapshotter struct {
 }
 
 func NewSnapshotter(engine Engine, settings Settings, labels LabelReader, ids *txn.IDGenerator, clock Clock, logger *slog.Logger) *Snapshotter {
-	hostFS := HostFS(LocalFS{})
+	run := &runner{engine: engine, image: settings.Helper}
 	return &Snapshotter{
-		engine: engine, store: NewDockerStore(engine, hostFS, settings.Volume), hostFS: hostFS,
+		engine: engine, run: run, store: NewDockerStore(engine, run, settings.Volume), hostFS: HelperFS{r: run},
 		labels: labels, databases: policy.NewDatabases(), ids: ids, clock: clock, logger: logger, settings: settings,
 		ownBackup: func(c domain.Container) string {
 			if c.Own {
@@ -68,18 +67,7 @@ func NewSnapshotter(engine Engine, settings Settings, labels LabelReader, ids *t
 }
 
 func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error) {
-	root, err := s.store.Root(ctx)
-	if err != nil {
-		return 0, err
-	}
-	storePath := root.HostPath
-	if storePath == "" {
-		volume, err := s.engine.Volume(ctx, root.VolumeName)
-		if err != nil {
-			return 0, err
-		}
-		storePath = volume.Mountpoint
-	}
+	s.run.txn = plan.ID
 	var total int64
 	for _, target := range plan.Targets {
 		container, spec, mode, err := s.loadTarget(ctx, plan.Host, target.Container)
@@ -93,12 +81,12 @@ func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error
 		if err != nil {
 			return 0, err
 		}
-		mounts, _, err := planMounts(ctx, s.engine, s.hostFS, s.labels, storePath, container, spec, outsiders)
+		mounts, _, err := planMounts(ctx, s.engine, s.hostFS, s.labels, s.settings.Volume, container, spec, outsiders)
 		if err != nil {
 			return 0, err
 		}
 		for _, item := range mounts {
-			size, err := s.hostFS.Size(ctx, item.HostSource)
+			size, err := s.hostFS.Size(ctx, item.SrcMount)
 			if err != nil {
 				return 0, fmt.Errorf("size of %s: %w", item.Destination, err)
 			}
@@ -118,20 +106,12 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	storePath := root.HostPath
-	if storePath == "" {
-		volume, err := s.engine.Volume(ctx, root.VolumeName)
-		if err != nil {
-			return "", err
-		}
-		storePath = volume.Mountpoint
-	}
 	estimate, err := s.Estimate(ctx, plan)
 	if err != nil {
 		return "", err
 	}
 	if estimate > 0 {
-		free, err := s.hostFS.FreeBytes(ctx, storePath)
+		free, err := s.store.FreeBytes(ctx, root)
 		if err != nil {
 			return "", fmt.Errorf("free space: %w", err)
 		}
@@ -140,15 +120,14 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 			return "", fmt.Errorf("%s: estimated %d free %d", reasonInsufficientSpace, estimate, free)
 		}
 	}
-	snapshotDir := filepath.Join(storePath, id)
-	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+	if err := s.store.MkDir(ctx, root, id); err != nil {
 		return "", err
 	}
 	cleanup := true
 	defer func() {
 		if cleanup {
-			_ = os.RemoveAll(snapshotDir)
-			s.restartStopped(ctx)
+			_ = s.store.RemoveDir(context.WithoutCancel(ctx), root, id)
+			s.restartStopped(context.WithoutCancel(ctx))
 		}
 	}()
 	manifest := Manifest{
@@ -174,14 +153,14 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		dump, err := s.runDump(ctx, plan, container, spec, mode, snapshotDir)
+		dump, err := s.runDump(ctx, plan, root, id, container, spec, mode)
 		if err != nil {
 			return "", err
 		}
 		if dump.File != "" {
 			manifest.Dumps = append(manifest.Dumps, dump)
 		}
-		mounts, skipped, err := planMounts(ctx, s.engine, s.hostFS, s.labels, storePath, container, spec, outsiders)
+		mounts, skipped, err := planMounts(ctx, s.engine, s.hostFS, s.labels, s.settings.Volume, container, spec, outsiders)
 		if err != nil {
 			return "", err
 		}
@@ -206,7 +185,7 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 		}
 	}
 	for index, item := range toCopy {
-		record, err := s.copyMount(ctx, plan, snapshotDir, item, index)
+		record, err := s.copyMount(ctx, plan, root, id, item, index)
 		if err != nil {
 			return "", err
 		}
@@ -267,41 +246,25 @@ func (s *Snapshotter) loadTarget(ctx context.Context, host, name string) (domain
 	return domain.Container{}, engine.Spec{}, "", fmt.Errorf("container %s not found", name)
 }
 
-func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, snapshotDir string, item plannedMount, index int) (MountRecord, error) {
+func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, root storeRoot, snapshot string, item plannedMount, index int) (MountRecord, error) {
 	file := fmt.Sprintf("%s-%d.tar.gz", sanitize(item.Container), index)
-	targetArchive := filepath.Join(snapshotDir, file)
-	mounts := []mount.Mount{
-		{Type: mount.TypeBind, Source: item.HostSource, Target: "/src", ReadOnly: true},
-		{Type: mount.TypeBind, Source: snapshotDir, Target: "/snap", ReadOnly: false},
-	}
-	spec := engine.HelperSpec{
-		Image:   s.settings.Helper,
-		Command: []string{"sh", "-c", fmt.Sprintf("tar -C /src -cf - . | gzip -1 > /snap/%s", shellQuote(file))},
-		Mounts:  mounts,
-		Labels:  map[string]string{"parachute.helper": "true", "parachute.transaction": plan.ID},
-		CapAdd:  []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID"},
-	}
 	if ceiling := txn.CeilingFrom(ctx); ceiling != nil {
 		ceiling.Pause()
 		defer ceiling.Resume()
 	}
-	id, err := s.engine.RunHelper(ctx, spec)
+	s.run.txn = plan.ID
+	_, err := s.run.run(ctx, []mount.Mount{item.SrcMount, root.mount(false)}, smallOutput,
+		`tar -C /src -cf - . | gzip -1 > "/snap/$1/$2"`, snapshot, file)
+	if err != nil {
+		return MountRecord{}, fmt.Errorf("copy mount %s: %w", item.Destination, err)
+	}
+	size, sum, err := s.store.Digest(ctx, root, snapshot, file)
 	if err != nil {
 		return MountRecord{}, err
 	}
-	defer func() { _ = s.engine.Remove(ctx, id, false, true) }()
-	code, err := s.engine.Wait(ctx, id)
-	if err != nil || code != 0 {
-		return MountRecord{}, fmt.Errorf("copy mount %s: exit %d", item.Destination, code)
-	}
-	data, err := os.ReadFile(targetArchive)
-	if err != nil {
-		return MountRecord{}, err
-	}
-	sum := sha256.Sum256(data)
 	return MountRecord{
 		Container: item.Container, Destination: item.Destination, Source: item.Source, File: file,
-		SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data)), Consistency: item.Consistency,
+		SHA256: sum, Size: size, Consistency: item.Consistency,
 	}, nil
 }
 
@@ -318,7 +281,7 @@ func sanitize(name string) string {
 	return b.String()
 }
 
-func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, container domain.Container, spec engine.Spec, mode, snapshotDir string) (DumpRecord, error) {
+func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot, snapshot string, container domain.Container, spec engine.Spec, mode string) (DumpRecord, error) {
 	if mode == "none" {
 		return DumpRecord{}, nil
 	}
@@ -344,12 +307,11 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, container doma
 		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
 	}
 	file := sanitize(container.Name) + ".dump"
-	path := filepath.Join(snapshotDir, file)
-	if err := os.WriteFile(path, result.Output, 0o600); err != nil {
+	size, sum, err := s.store.WriteFile(ctx, root, snapshot, file, bytes.NewReader(result.Output))
+	if err != nil {
 		return DumpRecord{}, err
 	}
-	sum := sha256.Sum256(result.Output)
-	return DumpRecord{Container: container.Name, File: file, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(result.Output))}, nil
+	return DumpRecord{Container: container.Name, File: file, SHA256: sum, Size: size}, nil
 }
 
 func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, cmd, env *[]string) bool {

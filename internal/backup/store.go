@@ -1,24 +1,34 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/moby/moby/api/types/mount"
 )
+
+const readLimit = 8 << 30
 
 type DockerStore struct {
 	engine Engine
-	hostFS HostFS
+	run    *runner
 	volume string
 }
 
-func NewDockerStore(engine Engine, hostFS HostFS, volume string) *DockerStore {
-	return &DockerStore{engine: engine, hostFS: hostFS, volume: volume}
+func NewDockerStore(engine Engine, run *runner, volume string) *DockerStore {
+	return &DockerStore{engine: engine, run: run, volume: volume}
+}
+
+func (r storeRoot) mount(readOnly bool) mount.Mount {
+	if r.HostPath != "" {
+		return mount.Mount{Type: mount.TypeBind, Source: r.HostPath, Target: "/snap", ReadOnly: readOnly, BindOptions: &mount.BindOptions{CreateMountpoint: true}}
+	}
+	return mount.Mount{Type: mount.TypeVolume, Source: r.VolumeName, Target: "/snap", ReadOnly: readOnly}
 }
 
 func (s *DockerStore) Root(ctx context.Context) (storeRoot, error) {
@@ -28,142 +38,116 @@ func (s *DockerStore) Root(ctx context.Context) (storeRoot, error) {
 	if err := s.engine.EnsureVolume(ctx, s.volume); err != nil {
 		return storeRoot{}, err
 	}
-	volume, err := s.engine.Volume(ctx, s.volume)
-	if err != nil {
-		return storeRoot{}, err
-	}
-	return storeRoot{VolumeName: s.volume, HostPath: volume.Mountpoint}, nil
+	return storeRoot{VolumeName: s.volume}, nil
 }
 
-func (s *DockerStore) snapshotPath(root storeRoot, snapshot string) string {
-	if root.HostPath != "" {
-		return filepath.Join(root.HostPath, snapshot)
+func (s *DockerStore) exec(ctx context.Context, root storeRoot, readOnly bool, script string, args ...string) ([]byte, error) {
+	return s.run.run(ctx, []mount.Mount{root.mount(readOnly)}, smallOutput, script, args...)
+}
+
+func entryPath(snapshot, name string) error {
+	if !safeFileName(snapshot) || name != "" && !safeFileName(name) {
+		return fmt.Errorf("invalid snapshot path %q/%q", snapshot, name)
 	}
-	return snapshot
+	return nil
+}
+
+func (s *DockerStore) MkDir(ctx context.Context, root storeRoot, snapshot string) error {
+	if err := entryPath(snapshot, ""); err != nil {
+		return err
+	}
+	_, err := s.exec(ctx, root, false, `mkdir -p "/snap/$1"`, snapshot)
+	return err
 }
 
 func (s *DockerStore) WriteFile(ctx context.Context, root storeRoot, snapshot, name string, data io.Reader) (int64, string, error) {
-	if root.HostPath != "" {
-		dir := filepath.Join(root.HostPath, snapshot)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return 0, "", err
-		}
-		path := filepath.Join(dir, name)
-		file, err := os.Create(path)
-		if err != nil {
-			return 0, "", err
-		}
-		hasher := sha256.New()
-		written, err := io.Copy(io.MultiWriter(file, hasher), data)
-		closeErr := file.Close()
-		if err != nil {
-			return 0, "", err
-		}
-		if closeErr != nil {
-			return 0, "", closeErr
-		}
-		return written, hex.EncodeToString(hasher.Sum(nil)), nil
+	if err := entryPath(snapshot, name); err != nil {
+		return 0, "", err
 	}
-	helper, err := s.runStoreHelper(ctx, root, snapshot, []string{"sh", "-c", fmt.Sprintf("cat > /snap/%s", shellQuote(name))}, data)
+	var buf bytes.Buffer
+	hasher := sha256.New()
+	written, err := io.Copy(io.MultiWriter(&buf, hasher), data)
 	if err != nil {
 		return 0, "", err
 	}
-	info, err := s.Stat(ctx, root, snapshot, name)
+	helper, err := s.engine.CreateHelper(ctx, s.run.spec([]mount.Mount{root.mount(false)}, []string{"true"}))
 	if err != nil {
-		_ = s.engine.Remove(ctx, helper, false, true)
 		return 0, "", err
 	}
-	path := filepath.Join(s.snapshotPath(root, snapshot), name)
-	sum, err := s.hashHostFile(ctx, path)
-	_ = s.engine.Remove(ctx, helper, false, true)
-	return info.Size, sum, err
+	defer func() { _ = s.engine.Remove(context.WithoutCancel(ctx), helper, false, true) }()
+	if err := s.engine.WriteFile(ctx, helper, "/snap/"+snapshot, name, buf.Bytes()); err != nil {
+		return 0, "", err
+	}
+	return written, hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func (s *DockerStore) ReadFile(ctx context.Context, root storeRoot, snapshot, name string) ([]byte, error) {
-	if root.HostPath != "" {
-		return os.ReadFile(filepath.Join(root.HostPath, snapshot, name))
+	if err := entryPath(snapshot, name); err != nil {
+		return nil, err
 	}
-	path := filepath.Join(s.snapshotPath(root, snapshot), name)
-	return s.readHostFile(ctx, path)
+	return s.run.run(ctx, []mount.Mount{root.mount(true)}, readLimit, `cat "/snap/$1/$2"`, snapshot, name)
+}
+
+func (s *DockerStore) Digest(ctx context.Context, root storeRoot, snapshot, name string) (int64, string, error) {
+	if err := entryPath(snapshot, name); err != nil {
+		return 0, "", err
+	}
+	out, err := s.exec(ctx, root, true, `p="/snap/$1/$2"; echo "$(wc -c < "$p") $(sha256sum "$p" | cut -d' ' -f1)"`, snapshot, name)
+	if err != nil {
+		return 0, "", err
+	}
+	var size int64
+	var sum string
+	if _, err := fmt.Sscan(string(out), &size, &sum); err != nil {
+		return 0, "", fmt.Errorf("digest %s: %w", name, err)
+	}
+	return size, sum, nil
 }
 
 func (s *DockerStore) RemoveDir(ctx context.Context, root storeRoot, snapshot string) error {
-	target := filepath.Join(s.hostRoot(root), snapshot)
-	if target == "" || target == snapshot {
-		volume, err := s.engine.Volume(ctx, root.VolumeName)
-		if err != nil {
-			return err
-		}
-		target = filepath.Join(volume.Mountpoint, snapshot)
+	if err := entryPath(snapshot, ""); err != nil {
+		return err
 	}
-	return os.RemoveAll(target)
+	_, err := s.exec(ctx, root, false, `rm -rf -- "/snap/$1"`, snapshot)
+	return err
 }
 
 func (s *DockerStore) ListDirs(ctx context.Context, root storeRoot) ([]string, error) {
-	base := root.HostPath
-	if base == "" {
-		volume, err := s.engine.Volume(ctx, root.VolumeName)
-		if err != nil {
-			return nil, err
-		}
-		base = volume.Mountpoint
-	}
-	entries, err := os.ReadDir(base)
+	out, err := s.exec(ctx, root, true, `cd /snap && for d in *; do if [ -d "$d" ] && [ ! -L "$d" ]; then echo "$d"; fi; done`)
 	if err != nil {
 		return nil, err
 	}
-	var names []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			names = append(names, entry.Name())
-		}
-	}
-	return names, nil
+	return strings.Fields(string(out)), nil
 }
 
 func (s *DockerStore) Stat(ctx context.Context, root storeRoot, snapshot, name string) (fileInfo, error) {
-	path := filepath.Join(s.hostRoot(root), snapshot, name)
-	stat, err := os.Lstat(path)
+	if err := entryPath(snapshot, name); err != nil {
+		return fileInfo{}, err
+	}
+	out, err := s.exec(ctx, root, true, `p="/snap/$1/$2"
+if [ -L "$p" ]; then echo link 0
+elif [ -f "$p" ]; then echo file $(wc -c < "$p")
+elif [ -e "$p" ]; then echo other 0
+else exit 3; fi`, snapshot, name)
 	if err != nil {
 		return fileInfo{}, err
 	}
-	mode := stat.Mode()
-	return fileInfo{Size: stat.Size(), Regular: mode.IsRegular(), Symlink: mode&os.ModeSymlink != 0}, nil
+	var kind string
+	var size int64
+	if _, err := fmt.Sscan(string(out), &kind, &size); err != nil {
+		return fileInfo{}, err
+	}
+	return fileInfo{Size: size, Regular: kind == "file", Symlink: kind == "link"}, nil
 }
 
-func (s *DockerStore) hostRoot(root storeRoot) string {
-	if root.HostPath != "" {
-		return root.HostPath
-	}
-	volume, err := s.engine.Volume(context.Background(), root.VolumeName)
+func (s *DockerStore) FreeBytes(ctx context.Context, root storeRoot) (int64, error) {
+	out, err := s.exec(ctx, root, true, `df -P -k /snap | tail -n 1 | awk '{print $4}'`)
 	if err != nil {
-		return ""
+		return 0, err
 	}
-	return volume.Mountpoint
-}
-
-func (s *DockerStore) runStoreHelper(ctx context.Context, root storeRoot, snapshot string, cmd []string, stdin io.Reader) (string, error) {
-	_ = ctx
-	_ = root
-	_ = snapshot
-	_ = cmd
-	_ = stdin
-	return "", fmt.Errorf("not implemented")
-}
-
-func (s *DockerStore) hashHostFile(ctx context.Context, path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
+	var kib int64
+	if _, err := fmt.Sscan(string(out), &kib); err != nil {
+		return 0, fmt.Errorf("parse free space: %w", err)
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func (s *DockerStore) readHostFile(ctx context.Context, path string) ([]byte, error) {
-	return os.ReadFile(path)
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+	return kib * 1024, nil
 }

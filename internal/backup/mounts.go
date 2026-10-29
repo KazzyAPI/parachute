@@ -2,8 +2,6 @@ package backup
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -25,23 +23,12 @@ func planMounts(ctx context.Context, engine Engine, hostFS HostFS, labels LabelR
 		if excludes[item.Target] {
 			continue
 		}
-		source, skip, err := mountSource(ctx, engine, hostFS, item)
+		source, src, skip, err := mountSource(ctx, engine, hostFS, storePath, item)
 		if err != nil {
 			return nil, nil, err
 		}
 		if skip {
 			skipped = append(skipped, SkippedRecord{Container: container.Name, Destination: item.Target, Source: source})
-			continue
-		}
-		resolved := source
-		if hostFS != nil {
-			resolved, err = hostFS.Resolve(ctx, source)
-			if err != nil {
-				resolved = source
-			}
-		}
-		if systemMount(resolved, storePath) {
-			skipped = append(skipped, SkippedRecord{Container: container.Name, Destination: item.Target, Source: resolved})
 			continue
 		}
 		consistency := "stopped"
@@ -50,7 +37,7 @@ func planMounts(ctx context.Context, engine Engine, hostFS HostFS, labels LabelR
 		}
 		planned = append(planned, plannedMount{
 			Container: container.Name, Destination: item.Target, Source: source, Kind: item.Type,
-			VolumeName: item.Source, Consistency: consistency, HostSource: resolved,
+			VolumeName: item.Source, Consistency: consistency, SrcMount: src,
 		})
 	}
 	return planned, skipped, nil
@@ -71,28 +58,40 @@ func excludeSet(labels LabelReader, container domain.Container) map[string]bool 
 	return set
 }
 
-func mountSource(ctx context.Context, engine Engine, hostFS HostFS, item mount.Mount) (string, bool, error) {
+func mountSource(ctx context.Context, engine Engine, hostFS HostFS, storePath string, item mount.Mount) (string, mount.Mount, bool, error) {
 	switch item.Type {
 	case mount.TypeVolume:
+		if item.Source == storePath {
+			return item.Source, mount.Mount{}, true, nil
+		}
 		volume, err := engine.Volume(ctx, item.Source)
 		if err != nil {
-			return "", false, err
+			return "", mount.Mount{}, false, err
 		}
-		device := volume.Options["device"]
-		if device != "" {
-			resolved := device
-			if hostFS != nil {
-				resolved, _ = hostFS.Resolve(ctx, device)
+		if device := volume.Options["device"]; device != "" {
+			resolved, err := hostFS.Resolve(ctx, device)
+			if err != nil {
+				return "", mount.Mount{}, false, err
 			}
-			if systemMount(resolved, "") {
-				return resolved, true, nil
+			if systemMount(resolved.Path, storePath) {
+				return resolved.Path, mount.Mount{}, true, nil
 			}
 		}
-		return volume.Mountpoint, false, nil
+		return volume.Mountpoint, mount.Mount{Type: mount.TypeVolume, Source: item.Source, Target: "/src", ReadOnly: true}, false, nil
 	case mount.TypeBind:
-		return item.Source, !backable(item.Source), nil
+		resolved, err := hostFS.Resolve(ctx, item.Source)
+		if err != nil {
+			return "", mount.Mount{}, false, err
+		}
+		if !resolved.Backable {
+			return item.Source, mount.Mount{}, true, nil
+		}
+		if systemMount(resolved.Path, storePath) {
+			return resolved.Path, mount.Mount{}, true, nil
+		}
+		return item.Source, mount.Mount{Type: mount.TypeBind, Source: item.Source, Target: "/src", ReadOnly: true}, false, nil
 	default:
-		return "", true, nil
+		return "", mount.Mount{}, true, nil
 	}
 }
 
@@ -117,13 +116,4 @@ func outsiderVolumes(ctx context.Context, engine Engine, affected map[string]boo
 		}
 	}
 	return outsiders, nil
-}
-
-func backable(source string) bool {
-	info, err := filepath.EvalSymlinks(source)
-	if err != nil {
-		return false
-	}
-	stat, err := os.Stat(info)
-	return err == nil && (stat.IsDir() || stat.Mode().IsRegular())
 }

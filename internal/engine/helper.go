@@ -20,6 +20,18 @@ type HelperSpec struct {
 }
 
 func (d *Docker) RunHelper(ctx context.Context, spec HelperSpec) (string, error) {
+	id, err := d.CreateHelper(ctx, spec)
+	if err != nil {
+		return "", err
+	}
+	if err := d.Start(ctx, id); err != nil {
+		_ = d.Remove(ctx, id, false, true)
+		return "", err
+	}
+	return id, nil
+}
+
+func (d *Docker) CreateHelper(ctx context.Context, spec HelperSpec) (string, error) {
 	hostConfig := &container.HostConfig{
 		Mounts:         spec.Mounts,
 		ReadonlyRootfs: true,
@@ -46,10 +58,6 @@ func (d *Docker) RunHelper(ctx context.Context, spec HelperSpec) (string, error)
 	})
 	if err != nil {
 		return "", writeError("create helper", err)
-	}
-	if err := d.Start(ctx, created.ID); err != nil {
-		_ = d.Remove(ctx, created.ID, false, true)
-		return "", err
 	}
 	return created.ID, nil
 }

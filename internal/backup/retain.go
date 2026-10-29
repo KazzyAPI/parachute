@@ -2,8 +2,6 @@ package backup
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
@@ -25,10 +23,6 @@ func (s *Snapshotter) Retain(ctx context.Context, host, stack string, keep int) 
 	root, err := s.store.Root(ctx)
 	if err != nil {
 		return err
-	}
-	base := s.hostStorePath(root)
-	if base == "" {
-		return nil
 	}
 	recorded := map[string]RecordedSnapshot{}
 	if s.catalog != nil {
@@ -55,21 +49,12 @@ func (s *Snapshotter) Retain(ctx context.Context, host, stack string, keep int) 
 			allowed[item.ID] = true
 		}
 	}
-	entries, err := os.ReadDir(base)
+	names, err := s.store.ListDirs(ctx, root)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if !txn.ValidID(name) {
-			continue
-		}
-		path := filepath.Join(base, name)
-		info, err := os.Lstat(path)
-		if err != nil || info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if allowed[name] {
+	for _, name := range names {
+		if !txn.ValidID(name) || allowed[name] {
 			continue
 		}
 		item, ok := recorded[name]
@@ -79,7 +64,7 @@ func (s *Snapshotter) Retain(ctx context.Context, host, stack string, keep int) 
 		if !s.validForRetention(ctx, root, item) {
 			continue
 		}
-		_ = os.RemoveAll(path)
+		_ = s.store.RemoveDir(ctx, root, name)
 	}
 	return nil
 }

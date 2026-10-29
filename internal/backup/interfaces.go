@@ -30,6 +30,9 @@ type Engine interface {
 	EnsureVolume(ctx context.Context, name string) error
 	Volume(ctx context.Context, name string) (engine.Volume, error)
 	RunHelper(ctx context.Context, spec engine.HelperSpec) (string, error)
+	CreateHelper(ctx context.Context, spec engine.HelperSpec) (string, error)
+	WriteFile(ctx context.Context, id, dir, name string, content []byte) error
+	Logs(ctx context.Context, id string, maxOutput int64) ([]byte, error)
 	Wait(ctx context.Context, id string) (int64, error)
 	Remove(ctx context.Context, id string, anonymousVolumes, force bool) error
 	Containers(ctx context.Context) ([]domain.Container, error)
@@ -37,9 +40,13 @@ type Engine interface {
 }
 
 type HostFS interface {
-	Resolve(ctx context.Context, path string) (string, error)
-	Size(ctx context.Context, path string) (int64, error)
-	FreeBytes(ctx context.Context, path string) (int64, error)
+	Resolve(ctx context.Context, path string) (Resolved, error)
+	Size(ctx context.Context, source mount.Mount) (int64, error)
+}
+
+type Resolved struct {
+	Path     string
+	Backable bool
 }
 
 type Store interface {
@@ -69,5 +76,5 @@ type plannedMount struct {
 	Kind        mount.Type
 	VolumeName  string
 	Consistency string
-	HostSource  string
+	SrcMount    mount.Mount
 }

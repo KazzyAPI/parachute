@@ -48,18 +48,11 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		return nil
 	}
 	record := manifest.Mounts[0]
-	root, err := snap.Manifest(ctx, latest.ID)
-	if err != nil {
-		return err
-	}
-	_ = root
 	volumeName := "parachute-rv-" + latest.ID
-	_ = host.docker.EnsureVolume(ctx, volumeName)
-	volumeInfo, err := host.docker.Volume(ctx, volumeName)
-	if err != nil {
+	if err := host.docker.EnsureVolume(ctx, volumeName); err != nil {
 		return err
 	}
-	if err := snap.RestoreToPath(ctx, latest.ID, record.File, volumeInfo.Mountpoint); err != nil {
+	if err := snap.RestoreToVolume(ctx, latest.ID, record.File, volumeName); err != nil {
 		return &ExitError{Code: domain.ExitFailures, Err: fmt.Errorf("restore verification failed: %w", err)}
 	}
 	return nil
