@@ -3,6 +3,7 @@ package backup
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"testing"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -67,8 +68,10 @@ func TestStoreUsesVolumeNotHostPath(t *testing.T) {
 	if err != nil || !info.Regular || info.Size != 42 {
 		t.Fatalf("stat: %+v %v", info, err)
 	}
-	if _, err := store.ReadFile(ctx, root, "snap-1", "manifest.json"); err != nil {
-		t.Fatal(err)
+	fake.output = base64.StdEncoding.EncodeToString([]byte{0x1f, 0x8b, 0xff, 0x00}) + "\n"
+	data, err := store.ReadFile(ctx, root, "snap-1", "manifest.json")
+	if err != nil || !bytes.Equal(data, []byte{0x1f, 0x8b, 0xff, 0x00}) {
+		t.Fatalf("read: %x %v", data, err)
 	}
 	if _, _, err := store.WriteFile(ctx, root, "snap-1", "x.dump", bytesReader("abc")); err != nil {
 		t.Fatal(err)
@@ -96,13 +99,14 @@ func TestPlanMountsUsesHelperMounts(t *testing.T) {
 		"/srv/link": {Path: "/etc", Backable: true},
 		"/run/sock": {Path: "/run/sock"},
 	}
-	spec := engine.Spec{HostConfig: &container.HostConfig{Mounts: []mount.Mount{
-		{Type: mount.TypeVolume, Source: "data", Target: "/data"},
-		{Type: mount.TypeBind, Source: "/srv/app", Target: "/app"},
-		{Type: mount.TypeBind, Source: "/srv/link", Target: "/cfg"},
-		{Type: mount.TypeBind, Source: "/run/sock", Target: "/sock"},
-		{Type: mount.TypeVolume, Source: "parachute-snapshots", Target: "/store"},
-	}}}
+	spec := engine.Spec{Mounts: []container.MountPoint{
+		{Type: mount.TypeVolume, Name: "data", Source: "/var/lib/docker/volumes/data/_data", Destination: "/data", RW: true},
+		{Type: mount.TypeBind, Source: "/srv/app", Destination: "/app", RW: true},
+		{Type: mount.TypeBind, Source: "/srv/link", Destination: "/cfg", RW: true},
+		{Type: mount.TypeBind, Source: "/run/sock", Destination: "/sock", RW: true},
+		{Type: mount.TypeVolume, Name: "parachute-snapshots", Destination: "/store", RW: true},
+		{Type: mount.TypeBind, Source: "/srv/ro", Destination: "/ro"},
+	}}
 	planned, skipped, err := planMounts(context.Background(), fake, hostFS, noLabels{}, "parachute-snapshots", domain.Container{Name: "a"}, spec, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -59,7 +59,7 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		if err := validateArchive(archive); err != nil {
 			return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 		}
-		spec, err := s.containerSpec(ctx, record.Container)
+		spec, err := s.containerSpec(ctx, record.Container, manifest.Transaction)
 		if err != nil {
 			return err
 		}
@@ -74,13 +74,20 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 	return nil
 }
 
-func (s *Snapshotter) containerSpec(ctx context.Context, name string) (engine.Spec, error) {
+func renamedOriginal(name, transaction string) string {
+	if len(transaction) < 6 {
+		return name
+	}
+	return name + "-parachute-" + transaction[len(transaction)-6:]
+}
+
+func (s *Snapshotter) containerSpec(ctx context.Context, name, transaction string) (engine.Spec, error) {
 	containers, err := s.engine.Containers(ctx)
 	if err != nil {
 		return engine.Spec{}, err
 	}
 	for _, container := range containers {
-		if container.Name != name {
+		if container.Name != name && container.Name != renamedOriginal(name, transaction) {
 			continue
 		}
 		return s.engine.Inspect(ctx, container.ID)

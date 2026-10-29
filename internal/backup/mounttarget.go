@@ -8,10 +8,7 @@ import (
 )
 
 func mountForDestination(spec engine.Spec, destination string) (mount.Mount, error) {
-	if spec.HostConfig == nil {
-		return mount.Mount{}, fmt.Errorf("no mounts for %s", destination)
-	}
-	for _, item := range spec.HostConfig.Mounts {
+	for _, item := range specMounts(spec) {
 		if item.Target != destination {
 			continue
 		}

@@ -23,6 +23,7 @@ const (
 	reasonSnapshotFailed    = "snapshot_failed"
 	reasonInsufficientSpace = "insufficient_space"
 	reasonDumpFailed        = "dump_failed"
+	dumpLimit               = 64 << 20
 	reasonSnapshotInvalid   = "snapshot_invalid"
 )
 
@@ -298,13 +299,16 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 	default:
 		return DumpRecord{}, nil
 	}
-	result, err := s.engine.Exec(ctx, container.ID, cmd, env, 10*time.Minute, 64<<20)
+	result, err := s.engine.Exec(ctx, container.ID, cmd, env, 10*time.Minute, dumpLimit)
 	if err != nil {
 		return DumpRecord{}, err
 	}
 	if result.ExitCode != 0 {
 		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", string(result.Output))
 		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
+	}
+	if result.Truncated {
+		return DumpRecord{}, fmt.Errorf("%s: dump of %s exceeds %d bytes", reasonSnapshotFailed, container.Name, dumpLimit)
 	}
 	file := sanitize(container.Name) + ".dump"
 	size, sum, err := s.store.WriteFile(ctx, root, snapshot, file, bytes.NewReader(result.Output))

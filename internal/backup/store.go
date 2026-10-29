@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 	"github.com/moby/moby/api/types/mount"
 )
 
-const readLimit = 8 << 30
+const readLimit = 11 << 30
 
 type DockerStore struct {
 	engine Engine
@@ -85,7 +86,15 @@ func (s *DockerStore) ReadFile(ctx context.Context, root storeRoot, snapshot, na
 	if err := entryPath(snapshot, name); err != nil {
 		return nil, err
 	}
-	return s.run.run(ctx, []mount.Mount{root.mount(true)}, readLimit, `cat "/snap/$1/$2"`, snapshot, name)
+	encoded, err := s.run.run(ctx, []mount.Mount{root.mount(true)}, readLimit, `base64 "/snap/$1/$2"`, snapshot, name)
+	if err != nil {
+		return nil, err
+	}
+	data, err := base64.StdEncoding.DecodeString(string(encoded))
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", name, err)
+	}
+	return data, nil
 }
 
 func (s *DockerStore) Digest(ctx context.Context, root storeRoot, snapshot, name string) (int64, string, error) {

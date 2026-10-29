@@ -13,10 +13,7 @@ func planMounts(ctx context.Context, engine Engine, hostFS HostFS, labels LabelR
 	excludes := excludeSet(labels, container)
 	var planned []plannedMount
 	var skipped []SkippedRecord
-	if spec.HostConfig == nil {
-		return planned, skipped, nil
-	}
-	for _, item := range spec.HostConfig.Mounts {
+	for _, item := range specMounts(spec) {
 		if item.ReadOnly || item.Type == mount.TypeTmpfs {
 			continue
 		}
@@ -106,14 +103,26 @@ func outsiderVolumes(ctx context.Context, engine Engine, affected map[string]boo
 			continue
 		}
 		spec, err := engine.Inspect(ctx, container.ID)
-		if err != nil || spec.HostConfig == nil {
+		if err != nil {
 			continue
 		}
-		for _, item := range spec.HostConfig.Mounts {
+		for _, item := range specMounts(spec) {
 			if item.Type == mount.TypeVolume {
 				outsiders[item.Source] = true
 			}
 		}
 	}
 	return outsiders, nil
+}
+
+func specMounts(spec engine.Spec) []mount.Mount {
+	mounts := make([]mount.Mount, 0, len(spec.Mounts))
+	for _, point := range spec.Mounts {
+		item := mount.Mount{Type: point.Type, Source: point.Source, Target: point.Destination, ReadOnly: !point.RW}
+		if point.Type == mount.TypeVolume {
+			item.Source = point.Name
+		}
+		mounts = append(mounts, item)
+	}
+	return mounts
 }
