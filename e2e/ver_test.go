@@ -210,10 +210,9 @@ func TestVER_012_no_restart_commits_without_health_wait(t *testing.T) {
 	ref := app.registry.PushSpec("ver012", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: health})
 	container := env.RunContainer("ver012", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver012", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Healthcheck: health})
-	start := time.Now()
 	result := armedRunOnce(env, "--no-restart")
 	assertUpdated(t, result, container)
-	if elapsed := time.Since(start); elapsed > 10*time.Second {
-		t.Fatalf("no-restart took %s", elapsed)
+	if result.Duration > 10*time.Second {
+		t.Fatalf("no-restart took %s", result.Duration)
 	}
 }

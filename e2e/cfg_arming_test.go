@@ -144,9 +144,10 @@ func TestCFG_011_convenient_profile_arms_and_needs_helper_image(t *testing.T) {
 
 func TestCFG_011_convenient_profile_updates_database_without_approval(t *testing.T) {
 	env := harness.NewEnv(t)
-	db := newUpdatable(env, "postgres")
-	name := env.RunContainer("db", db.ref, harness.ContainerOptions{})
-	db.publishNewer()
+	labels := map[string]string{"parachute.backup.dump": "echo dump"}
+	ref := pushV2(env, "postgres", "1", harness.ImageSpec{Version: "1", Labels: labels})
+	name := env.RunContainer("db", ref, harness.ContainerOptions{})
+	pushV2(env, "postgres", "1", harness.ImageSpec{Version: "2", Labels: labels})
 	result := env.Parachute("--run-once", "--porcelain", "v1", "--profile", "convenient", "--helper-image", env.ParachuteImage(),
 		"--verify-stable", "1s").Run(runTimeout)
 	assertExit(t, result, 0)
@@ -189,5 +190,7 @@ func TestCFG_006_armed_label_on_own_container_arms(t *testing.T) {
 		Labels: map[string]string{"parachute.armed": "true"},
 	}, runTimeout)
 	assertExit(t, result, 0)
-	assertContains(t, result.Stderr, "armed: true")
+	if got := startupLog(t, result.Logs()).Get("armed"); got != "true" {
+		t.Errorf("startup armed %q, want true", got)
+	}
 }
