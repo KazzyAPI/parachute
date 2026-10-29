@@ -42,6 +42,28 @@ func readManifest(env *harness.Env, dir, snapshotID string) map[string]any {
 	return document
 }
 
+func firstMount(env *harness.Env, manifest map[string]any) map[string]any {
+	env.T.Helper()
+	mounts, _ := manifest["mounts"].([]any)
+	if len(mounts) == 0 {
+		env.T.Fatalf("snapshot manifest has no mounts: %v", manifest)
+	}
+	record, _ := mounts[0].(map[string]any)
+	if record == nil {
+		env.T.Fatalf("snapshot manifest mount is not an object: %v", mounts[0])
+	}
+	return record
+}
+
+func firstSnapshotDir(env *harness.Env, storeDir string) string {
+	env.T.Helper()
+	snaps := listSnapshotDirs(env, storeDir)
+	if len(snaps) == 0 {
+		env.T.Fatalf("no snapshot in %s", storeDir)
+	}
+	return snaps[0]
+}
+
 func backupVolumePath(env *harness.Env, volume string) string {
 	env.T.Helper()
 	return strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
@@ -215,12 +237,9 @@ func replaceArchive(env *harness.Env, storeDir, snapID, file string, shellScript
 	data := []byte(env.ReadHostPath(filepath.Join(snapDir, file)))
 	sum := sha256.Sum256(data)
 	manifest := readManifest(env, storeDir, snapID)
-	raw, _ := manifest["mounts"].([]any)
-	record, _ := raw[0].(map[string]any)
+	record := firstMount(env, manifest)
 	record["sha256"] = hex.EncodeToString(sum[:])
 	record["size"] = float64(len(data))
-	raw[0] = record
-	manifest["mounts"] = raw
 	encoded, _ := json.Marshal(manifest)
 	env.WriteHostPath(filepath.Join(snapDir, "manifest.json"), string(encoded))
 }

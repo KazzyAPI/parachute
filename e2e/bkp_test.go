@@ -332,11 +332,7 @@ func TestBKP_007_truncated_archive_invalid_on_rollback(t *testing.T) {
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
-		mounts, _ := manifest["mounts"].([]any)
-		if len(mounts) == 0 {
-			t.Fatal("no mounts in snapshot")
-		}
-		record, _ := mounts[0].(map[string]any)
+		record := firstMount(env, manifest)
 		file, _ := record["file"].(string)
 		path := filepath.Join(store, snapID, file)
 		env.WriteHostPath(path, "truncated")
@@ -368,8 +364,7 @@ func TestBKP_007_manifest_path_traversal_rejected(t *testing.T) {
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
-		mounts, _ := manifest["mounts"].([]any)
-		record, _ := mounts[0].(map[string]any)
+		record := firstMount(env, manifest)
 		file, _ := record["file"].(string)
 		data := []byte(env.ReadHostPath(filepath.Join(store, snapID, file)))
 		if err := os.WriteFile(outside, data, 0o644); err != nil {
@@ -379,8 +374,6 @@ func TestBKP_007_manifest_path_traversal_rejected(t *testing.T) {
 		record["file"] = "../../outside.tar.gz"
 		record["sha256"] = hex.EncodeToString(sum[:])
 		record["size"] = float64(len(data))
-		mounts[0] = record
-		manifest["mounts"] = mounts
 		encoded, _ := json.Marshal(manifest)
 		env.WriteHostPath(filepath.Join(store, snapID, "manifest.json"), string(encoded))
 	})
@@ -400,8 +393,7 @@ func TestBKP_007_symlink_archive_invalid_on_restore_verify(t *testing.T) {
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
-	mounts, _ := manifest["mounts"].([]any)
-	record, _ := mounts[0].(map[string]any)
+	record := firstMount(env, manifest)
 	file, _ := record["file"].(string)
 	archivePath := filepath.Join(store, snap, file)
 	real := archivePath + ".real"
@@ -478,7 +470,7 @@ func TestBKP_008_retention_ignores_untracked_snapshot_dirs(t *testing.T) {
 	env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	runArmed(env, "--backup-volume", store)
-	snap := listSnapshotDirs(env, store)[0]
+	snap := firstSnapshotDir(env, store)
 	fakeID := "snap-20990101T000000Z-abcdef"
 	manifest := readManifest(env, store, snap)
 	manifest["id"] = fakeID
@@ -511,7 +503,7 @@ func TestBKP_008_retention_does_not_follow_symlinks(t *testing.T) {
 	env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	runArmed(env, "--backup-volume", store)
-	oldest := listSnapshotDirs(env, store)[0]
+	oldest := firstSnapshotDir(env, store)
 	env.HostShell("rm -rf " + filepath.Join(store, oldest) + " && ln -s " + keep + " " + filepath.Join(store, oldest))
 	for range 3 {
 		app.publishNewer()
@@ -804,8 +796,7 @@ func TestBKP_013_archive_escape_rejected(t *testing.T) {
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
-		mounts, _ := manifest["mounts"].([]any)
-		record, _ := mounts[0].(map[string]any)
+		record := firstMount(env, manifest)
 		file, _ := record["file"].(string)
 		replaceArchive(env, store, snapID, file, "mkdir -p /t && echo bad > /t/x && tar -czf - -C /t --transform 's/x/..\\/escape/' x")
 	})
@@ -828,8 +819,7 @@ func TestBKP_013_symlink_outside_target_rejected(t *testing.T) {
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
-	mounts, _ := manifest["mounts"].([]any)
-	record, _ := mounts[0].(map[string]any)
+	record := firstMount(env, manifest)
 	file, _ := record["file"].(string)
 	replaceArchive(env, store, snap, file, "mkdir -p /t && ln -s /etc /t/link && tar -czf - -C /t link")
 	before := env.ReadHostPath("/etc/passwd")
@@ -873,11 +863,8 @@ func TestBKP_013_manifest_source_not_used_as_target(t *testing.T) {
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
-		mounts, _ := manifest["mounts"].([]any)
-		record, _ := mounts[0].(map[string]any)
+		record := firstMount(env, manifest)
 		record["source"] = victim
-		mounts[0] = record
-		manifest["mounts"] = mounts
 		encoded, _ := json.Marshal(manifest)
 		env.WriteHostPath(filepath.Join(store, snapID, "manifest.json"), string(encoded))
 		env.WriteHostPath(filepath.Join(mountpoint, "marker"), "replaced")

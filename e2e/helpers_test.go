@@ -131,7 +131,8 @@ func startDaemon(env *harness.Env, parachute *harness.Parachute) *harness.Proces
 
 func cycleStart(t *testing.T, cycleID string) time.Time {
 	t.Helper()
-	started, err := time.Parse("20060102T150405Z", strings.Split(cycleID, "-")[1])
+	_, stamp, _ := strings.Cut(cycleID, "-")
+	started, err := time.Parse("20060102T150405Z", strings.SplitN(stamp, "-", 2)[0])
 	if err != nil {
 		t.Fatalf("cycle ID %q: %v", cycleID, err)
 	}

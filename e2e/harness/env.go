@@ -75,6 +75,9 @@ func (e *Env) cleanup() {
 			e.T.Logf("cleanup: remove containers: %v %s", err, out)
 		}
 	}
+	if out, err := e.DockerMayFail("run", "--rm", "--label", "parachute-e2e="+e.ID, "--entrypoint", "chmod", "-v", e.Dir+":"+e.Dir, suite.FixtureV2Image(), "-R", "a+rwX", e.Dir); err != nil {
+		e.T.Logf("cleanup: open test directory: %v %s", err, out)
+	}
 	networks, err := e.DockerMayFail("network", "ls", "-q", "--filter", "name="+e.ID)
 	if err != nil {
 		e.T.Logf("cleanup: list networks: %v", err)
