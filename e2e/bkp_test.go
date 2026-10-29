@@ -17,7 +17,7 @@ func TestBKP_001_snapshot_failure_leaves_container_unchanged(t *testing.T) {
 	env := harness.NewEnv(t)
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data", "--mount", "type=volume,source=" + env.ID + "-data,target=/data"}})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", env.ID+"-data:/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
 	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	id, image := env.ContainerState(a)
