@@ -79,4 +79,5 @@ type Verdict struct {
 
 type Verifier interface {
 	Verify(ctx context.Context, plan Plan, container string) (Verdict, error)
+	VerifyBase(ctx context.Context, plan Plan, container string) (Verdict, error)
 }

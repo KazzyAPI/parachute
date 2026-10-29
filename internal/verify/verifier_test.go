@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/moby/api/types/container"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -142,5 +144,39 @@ func TestVerifier_cmd_must_exit_zero(t *testing.T) {
 	verdict, err := verifier.Verify(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
 	if err != nil || verdict.Passed || verdict.Reason != ReasonFailed {
 		t.Fatalf("verdict %+v err %v", verdict, err)
+	}
+}
+
+func TestVerifier_base_only_skips_cmd(t *testing.T) {
+	start := time.Unix(0, 0)
+	inspector := &fakeInspector{
+		spec: engine.Spec{Config: &container.Config{}},
+		runtime: engine.Runtime{
+			Status: "running", Running: true, StartedAt: start,
+		},
+	}
+	labels := &fakeLabels{values: map[string]string{"verify.cmd": "exit 1", "verify.stable": "0s"}}
+	verifier := New(inspector, &fakeCommander{exit: 1}, nil, labels, Settings{Timeout: time.Minute, Stable: 0}, &fakeClock{now: start})
+	verdict, err := verifier.VerifyBase(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
+	if err != nil || !verdict.Passed {
+		t.Fatalf("verdict %+v err %v", verdict, err)
+	}
+}
+
+func TestOperatorLabels_drops_labels_inherited_from_the_image(t *testing.T) {
+	spec := engine.Spec{
+		Config: &container.Config{Labels: map[string]string{
+			"parachute.verify.cmd": "exit 1", "parachute.verify.url": "http://x", "other": "same",
+		}},
+		ImageConfig: &dockerspec.DockerOCIImageConfig{ImageConfig: ocispec.ImageConfig{Labels: map[string]string{
+			"parachute.verify.cmd": "exit 1", "parachute.verify.url": "http://y", "other": "same",
+		}}},
+	}
+	got := operatorLabels(spec)
+	if _, ok := got["parachute.verify.cmd"]; ok {
+		t.Fatalf("inherited label kept: %v", got)
+	}
+	if got["parachute.verify.url"] != "http://x" || got["other"] != "same" {
+		t.Fatalf("labels %v", got)
 	}
 }

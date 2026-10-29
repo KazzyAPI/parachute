@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/engine"
@@ -42,7 +43,15 @@ func New(inspector Inspector, commander Commander, prober URLProber, labels Labe
 	}
 }
 
-func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string) (verdict txn.Verdict, err error) {
+func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string) (txn.Verdict, error) {
+	return v.verify(ctx, plan, containerID, false)
+}
+
+func (v *Verifier) VerifyBase(ctx context.Context, plan txn.Plan, containerID string) (txn.Verdict, error) {
+	return v.verify(ctx, plan, containerID, true)
+}
+
+func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string, baseOnly bool) (verdict txn.Verdict, err error) {
 	var deadline time.Duration
 	defer func() {
 		if err == nil && !verdict.Passed {
@@ -53,7 +62,7 @@ func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string
 	if err != nil {
 		return txn.Verdict{}, err
 	}
-	labels := labelMap(spec)
+	labels := operatorLabels(spec)
 	runtime, err := v.inspector.Runtime(ctx, containerID)
 	if err != nil {
 		return txn.Verdict{}, err
@@ -68,6 +77,9 @@ func (v *Verifier) Verify(ctx context.Context, plan txn.Plan, containerID string
 	deadlineAt := v.deadlineStart(runtime).Add(deadline)
 	if err := v.baseCheck(ctx, containerID, runtime, health, stable, deadlineAt); err != nil {
 		return failVerdict(err), nil
+	}
+	if baseOnly {
+		return txn.Verdict{Passed: true}, nil
 	}
 	if cmd, ok := v.labels.String(containerID, labels, "verify.cmd"); ok {
 		if verdict := v.retryCheck(ctx, containerID, deadlineAt, checkCmd, func(ctx context.Context) (bool, string) {
@@ -202,11 +214,20 @@ func (v *Verifier) retryCheck(ctx context.Context, containerID string, deadlineA
 	}
 }
 
-func labelMap(spec engine.Spec) map[string]string {
-	if spec.Config != nil && spec.Config.Labels != nil {
-		return spec.Config.Labels
+func operatorLabels(spec engine.Spec) map[string]string {
+	labels := map[string]string{}
+	if spec.Config == nil {
+		return labels
 	}
-	return map[string]string{}
+	for key, value := range spec.Config.Labels {
+		if spec.ImageConfig != nil && strings.HasPrefix(key, "parachute.") {
+			if inherited, ok := spec.ImageConfig.Labels[key]; ok && inherited == value {
+				continue
+			}
+		}
+		labels[key] = value
+	}
+	return labels
 }
 
 func mergedHealth(spec engine.Spec) *dockerspec.HealthcheckConfig {

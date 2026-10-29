@@ -182,7 +182,7 @@ func (x *RollbackFinisher) verifyOriginals(ctx context.Context, plan txn.Plan, o
 		if !original.Running {
 			continue
 		}
-		verdict, err := x.verifier.Verify(ctx, plan, original.ID)
+		verdict, err := x.verifier.VerifyBase(ctx, plan, original.ID)
 		if err != nil {
 			return err
 		}

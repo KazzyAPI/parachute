@@ -35,13 +35,20 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 	if details.State != nil && details.State.Health != nil {
 		spec.HealthStatus = string(details.State.Health.Status)
 	}
-	if details.Config != nil && details.Config.Image != "" {
-		image, err := d.client.ImageInspect(ctx, details.Config.Image)
-		if err != nil && !cerrdefs.IsNotFound(err) {
-			return Spec{}, fmt.Errorf("inspect image %s: %w", details.Config.Image, err)
-		}
-		if err == nil && image.Config != nil {
+	if details.Config != nil {
+		for _, reference := range []string{details.Image, details.Config.Image} {
+			if reference == "" {
+				continue
+			}
+			image, err := d.client.ImageInspect(ctx, reference)
+			if cerrdefs.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return Spec{}, fmt.Errorf("inspect image %s: %w", reference, err)
+			}
 			spec.ImageConfig = image.Config
+			break
 		}
 	}
 	return spec, nil
