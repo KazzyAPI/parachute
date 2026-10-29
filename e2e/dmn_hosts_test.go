@@ -70,8 +70,14 @@ func TestDMN_005_failed_replacement_start_rolls_back(t *testing.T) {
 	result := armedParachute(env, "--backup", "none", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
 	assertState(t, result, a, "rolled_back", "engine_error")
 	replacementStarts := 0
-	for _, request := range requestsMatching(proxy.Requests(), "/start") {
-		if !strings.Contains(request, id) {
+	phase := 0
+	for _, request := range proxy.Requests() {
+		switch {
+		case strings.Contains(request, "/rename"):
+			phase++
+		case phase == 1 && strings.Contains(request, "/containers/create"):
+			phase = 2
+		case phase == 2 && strings.Contains(request, "/start"):
 			replacementStarts++
 		}
 	}

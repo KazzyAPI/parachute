@@ -19,6 +19,7 @@ type ImageSpec struct {
 	Volumes                []string
 	Healthcheck            []string
 	HealthcheckInterval    string
+	HealthcheckTimeout     string
 	HealthcheckStartPeriod string
 	Cmd                    []string
 	BuildArgs              map[string]string
@@ -92,7 +93,11 @@ func (e *Env) dockerfile(spec ImageSpec) string {
 		if command[0] == "CMD" {
 			command = command[1:]
 		}
-		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=5s --retries=3%s CMD %s\n", interval, startPeriod, e.execForm(command))
+		timeout := "5s"
+		if spec.HealthcheckTimeout != "" {
+			timeout = spec.HealthcheckTimeout
+		}
+		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=%s --retries=3%s CMD %s\n", interval, timeout, startPeriod, e.execForm(command))
 	}
 	if len(spec.Cmd) > 0 {
 		fmt.Fprintf(&file, "CMD %s\n", e.execForm(spec.Cmd))

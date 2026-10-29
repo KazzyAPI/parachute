@@ -20,8 +20,8 @@ func gatedFailure(t *testing.T, env *harness.Env, name string) (container, signa
 		t.Fatal(err)
 	}
 	app = newUpdatable(env, "app")
-	container = env.RunContainer(name, app.ref, harness.ContainerOptions{Extra: []string{"-v", signalDir + ":" + signalDir}})
-	verifyFailUpdate(env, "app", &app, signalDir)
+	container = env.RunContainer(name, app.ref, harness.ContainerOptions{Extra: []string{"-v", signalDir + ":" + signalDir}, Labels: verifyFailLabels(signalDir)})
+	verifyFailUpdate(env, "app")
 	return container, filepath.Join(signalDir, "go"), app
 }
 
@@ -122,8 +122,8 @@ func TestVER_011_verify_timeout_names_deadline_and_label(t *testing.T) {
 	env := harness.NewEnv(t)
 	webhook := env.Webhook()
 	app := newUpdatable(env, "app")
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
-	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: map[string]string{"parachute.verify.timeout": "5s"}, Healthcheck: []string{"CMD", "/fixture", "exit", "1"}, HealthcheckInterval: "1s"})
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "5s"}})
+	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture", "exit", "1"}, HealthcheckInterval: "1s"})
 	result := armedOnce(env, "--no-startup-message", "--notification-url", webhook.URL())
 	entry := assertState(t, result, a, "rolled_back", "verify_timeout")
 	assertReasonDetail(t, entry, "5s", "parachute.verify.timeout")
@@ -169,9 +169,9 @@ func TestUPD_010_cleanup_keeps_previous_image_after_rollback(t *testing.T) {
 func TestUPD_014_snapshot_failure_keeps_container(t *testing.T) {
 	env := harness.NewEnv(t)
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}, Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "snapshot_failed")

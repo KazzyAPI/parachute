@@ -145,9 +145,9 @@ func TestCFG_011_convenient_profile_arms_and_needs_helper_image(t *testing.T) {
 func TestCFG_011_convenient_profile_updates_database_without_approval(t *testing.T) {
 	env := harness.NewEnv(t)
 	labels := map[string]string{"parachute.backup.dump": "echo dump"}
-	ref := pushV2(env, "postgres", "1", harness.ImageSpec{Version: "1", Labels: labels})
-	name := env.RunContainer("db", ref, harness.ContainerOptions{})
-	pushV2(env, "postgres", "1", harness.ImageSpec{Version: "2", Labels: labels})
+	ref := pushV2(env, "postgres", "1", harness.ImageSpec{Version: "1"})
+	name := env.RunContainer("db", ref, harness.ContainerOptions{Labels: labels})
+	pushV2(env, "postgres", "1", harness.ImageSpec{Version: "2"})
 	result := env.Parachute("--run-once", "--porcelain", "v1", "--profile", "convenient", "--helper-image", env.ParachuteImage(),
 		"--verify-stable", "1s").Run(runTimeout)
 	assertExit(t, result, 0)

@@ -32,9 +32,9 @@ func freezeShop(t *testing.T, env *harness.Env, extra ...string) frozenShop {
 	app := newUpdatable(env, "app")
 	failed := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  []string{"-v", signalDir + ":" + signalDir},
-		Labels: map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": "a"},
+		Labels: map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": "a", "parachute.verify.cmd": verifyFailLabels(signalDir)["parachute.verify.cmd"]},
 	})
-	verifyFailUpdate(env, "app", &app, signalDir)
+	verifyFailUpdate(env, "app")
 	other := newUpdatable(env, "other")
 	sibling := env.RunContainer("b", other.ref, harness.ContainerOptions{
 		Labels: map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": "b"},

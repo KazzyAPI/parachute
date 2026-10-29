@@ -134,15 +134,14 @@ func countStackSnapshots(env *harness.Env, storeDir, stack string) int {
 	return count
 }
 
-func verifyFailUpdate(env *harness.Env, repo string, app *updatable, signalDir string) string {
+func verifyFailLabels(signalDir string) map[string]string {
+	cmd := fmt.Sprintf("while [ ! -f %s ]; do sleep 0.1; done; exit 1", filepath.Join(signalDir, "go"))
+	return map[string]string{"parachute.verify.cmd": cmd}
+}
+
+func verifyFailUpdate(env *harness.Env, repo string) string {
 	env.T.Helper()
-	signalFile := filepath.Join(signalDir, "go")
-	cmd := fmt.Sprintf("while [ ! -f %s ]; do sleep 0.1; done; exit 1", signalFile)
-	ref := pushV2(env, repo, "1", harness.ImageSpec{
-		Version: "2",
-		Labels:  map[string]string{"parachute.verify.cmd": cmd},
-	})
-	return ref
+	return pushV2(env, repo, "1", harness.ImageSpec{Version: "2"})
 }
 
 func waitSnapshotDuringVerify(env *harness.Env, container, signalFile string, tamper func(snapID string)) {

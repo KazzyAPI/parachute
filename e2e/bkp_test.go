@@ -16,10 +16,10 @@ import (
 func TestBKP_001_snapshot_failure_leaves_container_unchanged(t *testing.T) {
 	env := harness.NewEnv(t)
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}, Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", env.ID+"-data:/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "snapshot_failed")
@@ -28,9 +28,9 @@ func TestBKP_001_snapshot_failure_leaves_container_unchanged(t *testing.T) {
 
 func TestBKP_001_backup_none_skips_snapshot_data(t *testing.T) {
 	env := harness.NewEnv(t)
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env)
 	assertState(t, result, a, "rolled_back", "verify_failed")
 	if label := snapshotLabel(env, a); label != "none" {
@@ -89,9 +89,9 @@ func TestBKP_002_exclude_label_omits_mount(t *testing.T) {
 	if err := os.MkdirAll(media, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.exclude": "/media"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", media + ":/media"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.exclude": "/media"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", media + ":/media"}, Labels: map[string]string{"parachute.backup.exclude": "/media"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
@@ -117,10 +117,10 @@ func TestBKP_003_stop_mode_stops_before_helper(t *testing.T) {
 func TestBKP_003_live_mode_copies_before_stop(t *testing.T) {
 	env := harness.NewEnv(t)
 	rec := env.StartRawEventRecorder()
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "live"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
 	name := env.Name("a")
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "live"}})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}, Labels: map[string]string{"parachute.backup": "live"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env)
 	events := rec.Events()
 	dieIndex, startIndex := -1, -1
@@ -140,9 +140,9 @@ func TestBKP_003_live_mode_copies_before_stop(t *testing.T) {
 
 func TestBKP_003_none_mode_rollback_reports_no_data(t *testing.T) {
 	env := harness.NewEnv(t)
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env)
 	entry := assertState(t, result, a, "rolled_back", "verify_failed")
 	assertReasonDetail(t, entry, "data not restored: backup=none")
@@ -213,9 +213,9 @@ func TestBKP_004_mysql_password_not_in_events(t *testing.T) {
 
 func TestBKP_004_custom_dump_failure(t *testing.T) {
 	env := harness.NewEnv(t)
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	id, image := env.ContainerState(a)
 	result := runArmed(env)
 	assertState(t, result, a, "failed", "dump_failed")
@@ -225,14 +225,15 @@ func TestBKP_004_custom_dump_failure(t *testing.T) {
 func TestBKP_004_dump_stderr_redacted(t *testing.T) {
 	env := harness.NewEnv(t)
 	webhook := env.Webhook()
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{
-		"parachute.database": "true",
-	}, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "s3cr3t-pw"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-e", "MYSQL_ROOT_PASSWORD=s3cr3t-pw"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{
-		"parachute.database":    "true",
-		"parachute.backup.dump": `echo "$MYSQL_ROOT_PASSWORD" >&2; exit 1`,
-	}, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "s3cr3t-pw"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{
+		Extra: []string{"-e", "MYSQL_ROOT_PASSWORD=s3cr3t-pw"},
+		Labels: map[string]string{
+			"parachute.database":    "true",
+			"parachute.backup.dump": `echo "$MYSQL_ROOT_PASSWORD" >&2; exit 1`,
+		},
+	})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := notify(env, webhook, "--log-level", "debug")
 	assertState(t, result, a, "failed", "dump_failed")
 	assertNoSecrets(t, "stderr", result.Stderr, "s3cr3t-pw")
@@ -248,10 +249,10 @@ func TestBKP_004_dump_off_skips_file(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := env.Registry()
-	ref := registry.PushSpec("library/postgres", "16", harness.ImageSpec{Version: "1", Base: "postgres:16-alpine", Labels: map[string]string{"parachute.backup.dump": "off"}})
-	db := env.RunContainer("db", ref, harness.ContainerOptions{Extra: []string{"-e", "POSTGRES_PASSWORD=postgres", "-v", env.ID + "-pg:/var/lib/postgresql/data"}})
+	ref := registry.PushSpec("library/postgres", "16", harness.ImageSpec{Version: "1", Base: "postgres:16-alpine"})
+	db := env.RunContainer("db", ref, harness.ContainerOptions{Extra: []string{"-e", "POSTGRES_PASSWORD=postgres", "-v", env.ID + "-pg:/var/lib/postgresql/data"}, Labels: map[string]string{"parachute.backup.dump": "off"}})
 	postgresReady(env, db)
-	registry.PushSpec("library/postgres", "16", harness.ImageSpec{Version: "2", Base: "postgres:16-alpine", Labels: map[string]string{"parachute.backup.dump": "off"}})
+	registry.PushSpec("library/postgres", "16", harness.ImageSpec{Version: "2", Base: "postgres:16-alpine"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, db)
 	manifest := readManifest(env, store, snap)
@@ -327,8 +328,8 @@ func TestBKP_007_truncated_archive_invalid_on_rollback(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
 		"-v", env.ID + "-data:/data",
 		"-v", signalDir + ":" + signalDir,
-	}})
-	verifyFailUpdate(env, "app", &app, signalDir)
+	}, Labels: verifyFailLabels(signalDir)})
+	verifyFailUpdate(env, "app")
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
@@ -359,8 +360,8 @@ func TestBKP_007_manifest_path_traversal_rejected(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
 		"-v", env.ID + "-data:/data",
 		"-v", signalDir + ":" + signalDir,
-	}})
-	verifyFailUpdate(env, "app", &app, signalDir)
+	}, Labels: verifyFailLabels(signalDir)})
+	verifyFailUpdate(env, "app")
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
@@ -431,9 +432,9 @@ func TestBKP_008_retention_after_rollbacks(t *testing.T) {
 	}
 	stack := env.Name("a")
 	for range 5 {
-		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
-		a := env.RunContainer("a", ref, harness.ContainerOptions{})
-		pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+		a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+		pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 		runArmed(env, "--backup-volume", store)
 		env.Docker("rm", "-f", a)
 	}
@@ -657,9 +658,9 @@ func TestBKP_011_small_volume_proceeds(t *testing.T) {
 func TestBKP_011_backup_none_skips_space_check(t *testing.T) {
 	env := harness.NewEnv(t)
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.backup": "none"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "updated", "")
 	_ = a
@@ -766,9 +767,9 @@ func TestBKP_012_rollback_reports_system_mount(t *testing.T) {
 	if err := os.MkdirAll(etc, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", etc + ":/host-etc"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", etc + ":/host-etc"}, Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env)
 	entry := assertState(t, result, a, "rolled_back", "verify_failed")
 	assertReasonDetail(t, entry, "data not restored: system mount /host-etc")
@@ -790,8 +791,8 @@ func TestBKP_013_archive_escape_rejected(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
 		"-v", volume + ":/data",
 		"-v", signalDir + ":" + signalDir,
-	}})
-	verifyFailUpdate(env, "app", &app, signalDir)
+	}, Labels: verifyFailLabels(signalDir)})
+	verifyFailUpdate(env, "app")
 	mountpoint := strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
@@ -856,9 +857,9 @@ func TestBKP_013_manifest_source_not_used_as_target(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
 		"-v", volume + ":/data",
 		"-v", signalDir + ":" + signalDir,
-	}})
+	}, Labels: verifyFailLabels(signalDir)})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "echo original > /data/marker")
-	verifyFailUpdate(env, "app", &app, signalDir)
+	verifyFailUpdate(env, "app")
 	mountpoint := strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
