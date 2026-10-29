@@ -31,7 +31,7 @@ func (d *Docker) RunHelper(ctx context.Context, spec HelperSpec) (string, error)
 	return id, nil
 }
 
-func (d *Docker) CreateHelper(ctx context.Context, spec HelperSpec) (string, error) {
+func helperConfig(spec HelperSpec) (*container.Config, *container.HostConfig) {
 	hostConfig := &container.HostConfig{
 		Mounts:         spec.Mounts,
 		ReadonlyRootfs: true,
@@ -48,11 +48,17 @@ func (d *Docker) CreateHelper(ctx context.Context, spec HelperSpec) (string, err
 	}
 	config := &container.Config{
 		Image:      spec.Image,
+		Entrypoint: []string{""},
 		Cmd:        spec.Command,
 		Labels:     spec.Labels,
 		Env:        []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
 		WorkingDir: "/",
 	}
+	return config, hostConfig
+}
+
+func (d *Docker) CreateHelper(ctx context.Context, spec HelperSpec) (string, error) {
+	config, hostConfig := helperConfig(spec)
 	created, err := d.client.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config: config, HostConfig: hostConfig, NetworkingConfig: nil,
 	})
