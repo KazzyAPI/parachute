@@ -16,7 +16,10 @@ import (
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
 
-type fakeEngine struct{ stops, removes int }
+type fakeEngine struct {
+	stops, removes, pulls int
+	local                 engine.Image
+}
 
 func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) { return engine.Spec{}, nil }
 func (f *fakeEngine) Stop(context.Context, string, string, time.Duration) error {
@@ -30,7 +33,11 @@ func (f *fakeEngine) Remove(context.Context, string, bool, bool) error {
 	return nil
 }
 func (f *fakeEngine) RemoveImage(context.Context, string) error { return nil }
+func (f *fakeEngine) Image(context.Context, string) (engine.Image, bool, error) {
+	return f.local, f.local.ID != "", nil
+}
 func (f *fakeEngine) Pull(context.Context, string, string, engine.RegistryAuth) error {
+	f.pulls++
 	return nil
 }
 func (f *fakeEngine) Tag(context.Context, string, string) error { return nil }
@@ -194,4 +201,23 @@ func contains(text, part string) bool {
 		}
 	}
 	return false
+}
+
+func TestDET_004_local_image_is_not_pulled(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	h.engine.local = engine.Image{ID: "sha256:new"}
+	h.candidates[0].Result = domain.NewResult("local", h.containers[0]).Available("sha256:new")
+	h.run(t)
+	if h.engine.pulls != 0 {
+		t.Fatalf("pulls %d", h.engine.pulls)
+	}
+}
+
+func TestUPD_020_registry_digest_is_pulled(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	h.engine.local = engine.Image{ID: "sha256:old"}
+	h.run(t)
+	if h.engine.pulls != 1 {
+		t.Fatalf("pulls %d", h.engine.pulls)
+	}
 }

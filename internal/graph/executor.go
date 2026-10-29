@@ -22,6 +22,7 @@ type Engine interface {
 	Rename(ctx context.Context, id, name string) error
 	Remove(ctx context.Context, id string, anonymousVolumes, force bool) error
 	RemoveImage(ctx context.Context, reference string) error
+	Image(ctx context.Context, reference string) (engine.Image, bool, error)
 	Pull(ctx context.Context, repository, digest string, auth engine.RegistryAuth) error
 	Tag(ctx context.Context, source, target string) error
 	Events(ctx context.Context, since time.Time, filters map[string][]string) (<-chan engine.Event, <-chan error)
@@ -386,6 +387,9 @@ func (e *Executor) pull(ctx context.Context, container domain.Container, targets
 			continue
 		}
 		reference := strings.Split(target.Image, "@")[0]
+		if local, found, err := e.engine.Image(ctx, reference); err == nil && found && local.ID == target.Digest {
+			return nil
+		}
 		parsed, err := registry.ParseReference(reference)
 		if err != nil {
 			return err
