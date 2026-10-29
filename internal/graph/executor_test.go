@@ -12,6 +12,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/recreate"
+	"github.com/KazzyAPI/parachute/internal/registry"
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
 
@@ -111,7 +112,7 @@ func newHarness(snapshots fakeSnapshots, recreator fakeRecreator, verifier fakeV
 	result := domain.NewResult("local", web).Available("sha256:new")
 	h.candidates = []*pipeline.Candidate{{Container: web, Result: result}}
 	h.executor = NewExecutor(NewBuilder(), h.engine, h.journal, snapshots, recreator, verifier, h.rollbacker,
-		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{}, "")
+		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{}, func(registry.Reference) engine.RegistryAuth { return "" })
 	return h
 }
 

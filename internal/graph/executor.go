@@ -47,7 +47,7 @@ type Executor struct {
 	clock      Clock
 	logger     *slog.Logger
 	options    Options
-	auth       engine.RegistryAuth
+	auth       func(registry.Reference) engine.RegistryAuth
 }
 
 type Options struct {
@@ -71,7 +71,7 @@ func NewExecutor(
 	clock Clock,
 	logger *slog.Logger,
 	options Options,
-	auth engine.RegistryAuth,
+	auth func(registry.Reference) engine.RegistryAuth,
 ) *Executor {
 	return &Executor{
 		builder: builder, engine: engine, journal: journal, snapshot: snapshot, recreator: recreator,
@@ -394,7 +394,7 @@ func (e *Executor) pull(ctx context.Context, container domain.Container, targets
 		if parsed.Domain != "" && parsed.Domain != "docker.io" {
 			repository = parsed.Domain + "/" + parsed.Repository
 		}
-		if err := e.engine.Pull(ctx, repository, target.Digest, e.auth); err != nil {
+		if err := e.engine.Pull(ctx, repository, target.Digest, e.auth(parsed)); err != nil {
 			return err
 		}
 		return e.engine.Tag(ctx, repository+"@"+target.Digest, reference)

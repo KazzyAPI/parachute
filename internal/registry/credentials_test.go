@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/base64"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -40,5 +41,21 @@ func TestSecretsFollowConfigChangesAndKeepLastGoodOnParseError(t *testing.T) {
 	write(`not json`, start.Add(2*time.Second))
 	if got := store.Secrets(); !slices.Contains(got, "second") {
 		t.Fatalf("secrets after parse error %v", got)
+	}
+}
+
+func TestPullAuthEncodesStoredCredential(t *testing.T) {
+	credentials := Credentials{byHost: map[string]Credential{"127.0.0.1:5000": {Username: "user", Password: "pw"}}, helpers: map[string]string{}}
+	ref := Reference{Domain: "127.0.0.1:5000", Repository: "app"}
+	raw, err := base64.URLEncoding.DecodeString(credentials.PullAuth(ref))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"password":"pw","serveraddress":"127.0.0.1:5000","username":"user"}`
+	if string(raw) != want {
+		t.Fatalf("got %s", raw)
+	}
+	if credentials.PullAuth(Reference{Domain: "other", Repository: "app"}) != "" {
+		t.Fatal("expected empty auth for unknown registry")
 	}
 }

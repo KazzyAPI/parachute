@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"github.com/KazzyAPI/parachute/internal/backup"
+	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/graph"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/recreate"
+	"github.com/KazzyAPI/parachute/internal/registry"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
@@ -72,7 +74,7 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 			c.deps.Clock,
 			c.logger,
 			options,
-			"",
+			c.pullAuth,
 		)
 	}
 	return graph.NewStage(executors, "")
@@ -88,4 +90,12 @@ func (c *Container) recovery(connected []connectedHost, journal *state.Journal, 
 		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Finisher: c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))}
 	}
 	return NewRecovery(hosts, journal, c.logger)
+}
+
+func (c *Container) pullAuth(ref registry.Reference) engine.RegistryAuth {
+	credentials, err := registry.NewCredentialStore(c.cfg.Detection.DockerConfigDir, c.deps.System).Load()
+	if err != nil {
+		return ""
+	}
+	return engine.RegistryAuth(credentials.PullAuth(ref))
 }
