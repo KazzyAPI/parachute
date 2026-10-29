@@ -116,7 +116,7 @@ func verifyFailUpdate(env *harness.Env, repo string, app *updatable, signalDir s
 	env.T.Helper()
 	signalFile := filepath.Join(signalDir, "go")
 	cmd := fmt.Sprintf("while [ ! -f %s ]; do sleep 0.1; done; exit 1", signalFile)
-	ref := pushV2(env, repo, "2", harness.ImageSpec{
+	ref := pushV2(env, repo, "1", harness.ImageSpec{
 		Version: "2",
 		Labels:  map[string]string{"parachute.verify.cmd": cmd},
 	})

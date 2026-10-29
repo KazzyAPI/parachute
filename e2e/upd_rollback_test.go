@@ -171,7 +171,7 @@ func TestUPD_014_snapshot_failure_keeps_container(t *testing.T) {
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "snapshot_failed")

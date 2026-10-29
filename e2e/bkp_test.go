@@ -19,7 +19,7 @@ func TestBKP_001_snapshot_failure_leaves_container_unchanged(t *testing.T) {
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", env.ID+"-data:/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "head -c 3221225472 /dev/zero"}})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "snapshot_failed")
@@ -30,7 +30,7 @@ func TestBKP_001_backup_none_skips_snapshot_data(t *testing.T) {
 	env := harness.NewEnv(t)
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
 	result := runArmed(env)
 	assertState(t, result, a, "rolled_back", "verify_failed")
 	if label := snapshotLabel(env, a); label != "none" {
@@ -91,7 +91,7 @@ func TestBKP_002_exclude_label_omits_mount(t *testing.T) {
 	}
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.exclude": "/media"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", media + ":/media"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.exclude": "/media"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.exclude": "/media"}})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
@@ -120,7 +120,7 @@ func TestBKP_003_live_mode_copies_before_stop(t *testing.T) {
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "live"}})
 	name := env.Name("a")
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "live"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "live"}})
 	runArmed(env)
 	events := rec.Events()
 	dieIndex, startIndex := -1, -1
@@ -142,7 +142,7 @@ func TestBKP_003_none_mode_rollback_reports_no_data(t *testing.T) {
 	env := harness.NewEnv(t)
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
 	result := runArmed(env)
 	entry := assertState(t, result, a, "rolled_back", "verify_failed")
 	assertReasonDetail(t, entry, "data not restored: backup=none")
@@ -215,7 +215,7 @@ func TestBKP_004_custom_dump_failure(t *testing.T) {
 	env := harness.NewEnv(t)
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup.dump": "exit 1"}})
 	id, image := env.ContainerState(a)
 	result := runArmed(env)
 	assertState(t, result, a, "failed", "dump_failed")
@@ -229,7 +229,7 @@ func TestBKP_004_dump_stderr_redacted(t *testing.T) {
 		"parachute.database": "true",
 	}, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "s3cr3t-pw"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-e", "MYSQL_ROOT_PASSWORD=s3cr3t-pw"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{
 		"parachute.database":    "true",
 		"parachute.backup.dump": `echo "$MYSQL_ROOT_PASSWORD" >&2; exit 1`,
 	}, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "s3cr3t-pw"}})
@@ -441,7 +441,7 @@ func TestBKP_008_retention_after_rollbacks(t *testing.T) {
 	for range 5 {
 		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
 		a := env.RunContainer("a", ref, harness.ContainerOptions{})
-		pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+		pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
 		runArmed(env, "--backup-volume", store)
 		env.Docker("rm", "-f", a)
 	}
@@ -530,7 +530,7 @@ func TestBKP_009_partial_snapshot_removed(t *testing.T) {
 		Extra: []string{"-v", volume + ":/data"},
 	})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 10485760 /dev/zero > /data/fill")
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	done := runArmedAsync(env, "--backup-volume", store)
 	env.Eventually(2*time.Minute, "container stopped for snapshot", func() bool {
 		state := env.Docker("inspect", "--format", "{{.State.Running}}", a)
@@ -643,7 +643,7 @@ func TestBKP_011_insufficient_space_refuses_update(t *testing.T) {
 		Extra: []string{"-v", volume + ":/data"},
 	})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 1610612736 /dev/zero > /data/fill")
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	id, image := env.ContainerState(a)
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "insufficient_space")
@@ -667,7 +667,7 @@ func TestBKP_011_backup_none_skips_space_check(t *testing.T) {
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.backup": "none"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.backup": "none"}})
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "updated", "")
 	_ = a
@@ -690,7 +690,7 @@ func TestBKP_012_system_mounts_skipped(t *testing.T) {
 		"-v", proc + ":/host-proc",
 		"-v", data + ":/data",
 	}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
@@ -722,7 +722,7 @@ func TestBKP_012_resolved_symlink_skipped(t *testing.T) {
 	env.HostShell("ln -sf /etc " + link)
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", link + ":/cfg"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	skipped := manifestStrings(readManifest(env, store, snap), "skipped", "destination")
@@ -743,7 +743,7 @@ func TestBKP_012_backup_store_mount_skipped(t *testing.T) {
 	}
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", srv + ":/srv"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	skipped := manifestStrings(readManifest(env, store, snap), "skipped", "destination")
@@ -759,7 +759,7 @@ func TestBKP_012_local_volume_device_skipped(t *testing.T) {
 	env.Docker("volume", "create", "--driver", "local", "--opt", "type=none", "--opt", "o=bind", "--opt", "device=/etc", volume)
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", volume + ":/conf"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2"})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	skipped := manifestStrings(readManifest(env, store, snap), "skipped", "destination")
@@ -776,7 +776,7 @@ func TestBKP_012_rollback_reports_system_mount(t *testing.T) {
 	}
 	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", etc + ":/host-etc"}})
-	pushV2(env, "app", "2", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
 	result := runArmed(env)
 	entry := assertState(t, result, a, "rolled_back", "verify_failed")
 	assertReasonDetail(t, entry, "data not restored: system mount /host-etc")
