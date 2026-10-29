@@ -67,6 +67,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	c.armFromOwnLabel(ctx, connected)
 	helper, err := c.requireHelperImage(ctx, connected)
 	if err != nil {
 		return nil, nil, errors.Join(closeHosts(), configurationError(err))
@@ -107,10 +108,11 @@ func (c *Container) Status(ctx context.Context) (err error) {
 	if err != nil {
 		return configurationError(err)
 	}
-	hosts, _, closeHosts, err := c.hosts(ctx)
+	hosts, connected, closeHosts, err := c.hosts(ctx)
 	if err != nil {
 		return err
 	}
+	c.armFromOwnLabel(ctx, connected)
 	defer func() {
 		if closeErr := closeHosts(); closeErr != nil && err == nil {
 			err = fmt.Errorf("close Docker client: %w", closeErr)
