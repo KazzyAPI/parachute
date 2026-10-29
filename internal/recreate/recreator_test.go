@@ -72,3 +72,20 @@ func TestReplacementInspectsRenamedOriginalByIDAndKeepsName(t *testing.T) {
 		t.Fatalf("created name = %q, want app", fake.created.Name)
 	}
 }
+
+func TestFollowNetworkPeerPointsAtTheReplacement(t *testing.T) {
+	r := NewRecreator(nil, nil)
+	r.remember(engine.Spec{ID: "old-id", Name: "app"}, "new-id")
+	for _, peer := range []string{"old-id", "app"} {
+		host := &container.HostConfig{NetworkMode: container.NetworkMode("container:" + peer)}
+		r.followNetworkPeer(host)
+		if host.NetworkMode != "container:new-id" {
+			t.Fatalf("peer %s: network mode %s", peer, host.NetworkMode)
+		}
+	}
+	host := &container.HostConfig{NetworkMode: "container:other"}
+	r.followNetworkPeer(host)
+	if host.NetworkMode != "container:other" {
+		t.Fatalf("unrelated peer rewritten: %s", host.NetworkMode)
+	}
+}

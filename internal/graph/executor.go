@@ -192,7 +192,20 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 			e.markUpdated(candidates, member.Container.Name, id, snapshot)
 		}
 	}
+	for _, member := range group.Members {
+		if !member.Update && !member.Recreate {
+			e.joinTransaction(candidates, member.Container.Name, id)
+		}
+	}
 	return nil
+}
+
+func (e *Executor) joinTransaction(candidates []*pipeline.Candidate, name, id string) {
+	for _, candidate := range candidates {
+		if candidate.Container.Name == name {
+			candidate.Result.Transaction = id
+		}
+	}
 }
 
 func (e *Executor) prepare(ctx context.Context, plan txn.Plan, group Group) error {
@@ -322,8 +335,9 @@ func (e *Executor) batchUpdate(ctx context.Context, plan txn.Plan, group Group, 
 			}
 		}
 	}
-	for _, member := range group.Members {
-		if !member.Update && !member.Recreate {
+	for _, name := range StartSequence(names, edges) {
+		member := memberOf(group, name)
+		if member == nil || !member.Update && !member.Recreate {
 			continue
 		}
 		replacement, err := e.recreator.Replacement(ctx, plan, member.Container.ID, member.Container.Name)
@@ -352,7 +366,7 @@ func (e *Executor) rollingUpdate(ctx context.Context, plan txn.Plan, group Group
 				return err
 			}
 		}
-		for _, name := range batch {
+		for _, name := range StartSequence(batch, batchEdges) {
 			member := memberOf(group, name)
 			if member == nil || (!member.Update && !member.Recreate) {
 				continue

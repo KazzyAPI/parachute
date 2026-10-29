@@ -83,6 +83,10 @@ func (f fakeVerifier) Verify(context.Context, txn.Plan, string) (txn.Verdict, er
 	return f.verdict, nil
 }
 
+func (f fakeVerifier) VerifyBase(context.Context, txn.Plan, string) (txn.Verdict, error) {
+	return f.verdict, nil
+}
+
 type fakeRollbacker struct {
 	called    bool
 	final     domain.State
@@ -219,5 +223,20 @@ func TestUPD_020_registry_digest_is_pulled(t *testing.T) {
 	h.run(t)
 	if h.engine.pulls != 1 {
 		t.Fatalf("pulls %d", h.engine.pulls)
+	}
+}
+
+func TestDEP_003_restarted_dependent_shares_transaction(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	app := domain.Container{ID: "app-id", Name: "app", State: "running", ImageRef: "repo/app:1", Labels: map[string]string{"parachute.depends-on": "web"}}
+	h.containers = append(h.containers, app)
+	h.candidates = append(h.candidates, &pipeline.Candidate{Container: app, Result: domain.NewResult("local", app)})
+	h.run(t)
+	web, dependent := h.candidates[0].Result, h.candidates[1].Result
+	if web.Transaction == "" || dependent.Transaction != web.Transaction {
+		t.Fatalf("web %q dependent %q", web.Transaction, dependent.Transaction)
+	}
+	if dependent.State == domain.StateUpdated {
+		t.Fatalf("dependent marked updated")
 	}
 }

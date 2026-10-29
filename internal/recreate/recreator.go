@@ -3,6 +3,9 @@ package recreate
 import (
 	"context"
 	"fmt"
+	"sync"
+
+	"github.com/moby/moby/api/types/container"
 
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -11,10 +14,12 @@ import (
 type Recreator struct {
 	engine   Engine
 	settings func() Settings
+	lock     sync.Mutex
+	replaced map[string]string
 }
 
 func NewRecreator(engine Engine, settings func() Settings) *Recreator {
-	return &Recreator{engine: engine, settings: settings}
+	return &Recreator{engine: engine, settings: settings, replaced: map[string]string{}}
 }
 
 func (r *Recreator) Reproducible(ctx context.Context, container string) error {
@@ -59,6 +64,7 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 	}
 	replacement := buildReplacement(original, oldImage, newImage, plan.ID, plan.Snapshot, previousImage, settings)
 	replacement.Config.Image = target.Image
+	r.followNetworkPeer(replacement.HostConfig)
 	created, err := r.engine.Create(ctx, replacement)
 	if err != nil {
 		return "", err
@@ -80,7 +86,26 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 		}
 		return "", Failure{State: "rolled_back", Reason: "image_mismatch", Detail: fmt.Sprintf("%s %s", pulled.ID, createdSpec.ImageID)}
 	}
+	r.remember(original, created)
 	return created, nil
+}
+
+func (r *Recreator) remember(original engine.Spec, created string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.replaced[original.ID] = created
+	r.replaced[original.Name] = created
+}
+
+func (r *Recreator) followNetworkPeer(host *container.HostConfig) {
+	if host == nil || !host.NetworkMode.IsContainer() {
+		return
+	}
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if replacement, ok := r.replaced[host.NetworkMode.ConnectedContainer()]; ok {
+		host.NetworkMode = container.NetworkMode("container:" + replacement)
+	}
 }
 
 func targetFor(plan txn.Plan, container string) txn.Target {
