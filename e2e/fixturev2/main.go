@@ -73,5 +73,7 @@ func main() {
 		fmt.Println("exit")
 		os.Exit(0)
 	}
-	select {}
+	for {
+		time.Sleep(time.Hour)
+	}
 }
