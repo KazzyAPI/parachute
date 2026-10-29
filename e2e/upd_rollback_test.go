@@ -94,7 +94,7 @@ func TestVER_009_data_restored_when_replacement_started(t *testing.T) {
 func TestVER_010_missing_original_is_rollback_failed(t *testing.T) {
 	env := harness.NewEnv(t)
 	a, signalFile, _ := gatedFailure(t, env, "a")
-	done := runArmedAsync(env, "--backup", "none", "--verify-stable", "1s")
+	done := runArmedAsync(env, "--backup", "none")
 	original := waitRenamedOriginal(env, a)
 	env.Docker("rm", "-f", original)
 	if err := os.WriteFile(signalFile, []byte("1"), 0o644); err != nil {
@@ -284,7 +284,7 @@ func TestUPD_019_clock_pauses_while_helper_copies(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
 	env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 209715200 /dev/zero > /data/fill")
 	app.publishNewer()
-	done := runArmedAsync(env, "--backup", "live", "--transaction-timeout", "1m", "--verify-stable", "5s")
+	done := runArmedAsync(env, "--backup", "live", "--transaction-timeout", "1m")
 	var helper string
 	env.Eventually(2*time.Minute, "snapshot helper", func() bool {
 		helper = strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction"))
