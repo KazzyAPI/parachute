@@ -67,7 +67,7 @@ func TestPOL_010_rolled_back_digest_is_held_until_a_new_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
-	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
+	app.registry.PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
 	first := armedOnce(env, "--verify-stable", "3s")
 	failed := assertState(t, first, a, "rolled_back", "verify_failed")
 	second := armedOnce(env, "--verify-stable", "3s")
@@ -75,7 +75,7 @@ func TestPOL_010_rolled_back_digest_is_held_until_a_new_digest(t *testing.T) {
 	if held["candidate_digest"] != failed["candidate_digest"] {
 		t.Errorf("held digest %v, failed digest %v", held["candidate_digest"], failed["candidate_digest"])
 	}
-	env.Registry().Push("app", "1", "3")
+	app.registry.Push("app", "1", "3")
 	assertState(t, armedOnce(env, "--verify-stable", "3s"), a, "updated", "")
 }
 
@@ -83,7 +83,7 @@ func TestPOL_010_approval_retries_a_rolled_back_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
-	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
+	app.registry.PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
 	assertState(t, armedOnce(env, "--verify-stable", "3s"), a, "rolled_back", "verify_failed")
 	assertState(t, armedOnce(env, "--verify-stable", "3s"), a, "held", "previous_attempt_failed")
 	process, api := startAPI(env, "--http-api-update")
@@ -226,7 +226,7 @@ func TestSTS_002_last_transaction_reports_state_result_and_reason(t *testing.T) 
 			t.Errorf("%s has last_transaction %v before any transaction", name, last)
 		}
 	}
-	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
+	app.registry.PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
 	result := armedOnce(env, "--verify-stable", "3s")
 	entry := assertState(t, result, a, "rolled_back", "verify_failed")
 	last, _ := serviceStatus(t, env, a)["last_transaction"].(map[string]any)

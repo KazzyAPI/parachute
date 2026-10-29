@@ -13,7 +13,7 @@ func TestVER_001_process_exit_rolls_back(t *testing.T) {
 	app := newUpdatable(env, "ver001")
 	labels := map[string]string{"parachute.verify.stable": "2s"}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"EXIT_AFTER": "2"}}
-	ref := env.Registry().PushSpec("ver001", "1", spec)
+	ref := app.registry.PushSpec("ver001", "1", spec)
 	container := env.RunContainer("ver001", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver001", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"EXIT_AFTER": "2"}})
 	result := armedRunOnce(env)
@@ -25,7 +25,7 @@ func TestVER_002_health_succeeds_commits(t *testing.T) {
 	app := newUpdatable(env, "ver002")
 	labels := map[string]string{"parachute.verify.stable": "1s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}
-	ref := env.Registry().PushSpec("ver002", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: health})
+	ref := app.registry.PushSpec("ver002", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: health})
 	container := env.RunContainer("ver002", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver002", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Healthcheck: health, Env: map[string]string{"FIXTURE_HEALTH": "starting"}})
 	result := armedRunOnce(env)
@@ -37,7 +37,7 @@ func TestVER_002_health_fails_rolls_back(t *testing.T) {
 	app := newUpdatable(env, "ver002b")
 	labels := map[string]string{"parachute.verify.timeout": "30s"}
 	health := []string{"CMD", "/fixture", "exit", "1"}
-	ref := env.Registry().PushSpec("ver002b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
+	ref := app.registry.PushSpec("ver002b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
 	container := env.RunContainer("ver002b", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver002b", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Healthcheck: health})
 	result := armedRunOnce(env)
@@ -48,7 +48,7 @@ func TestVER_003_stable_running_commits(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "ver003")
 	labels := map[string]string{"parachute.verify.stable": "5s"}
-	ref := env.Registry().PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
+	ref := app.registry.PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
 	container := env.RunContainer("ver003", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels})
 	start := time.Now()
@@ -64,7 +64,7 @@ func TestVER_003_exit_with_restart_rolls_back(t *testing.T) {
 	app := newUpdatable(env, "ver003b")
 	labels := map[string]string{"parachute.verify.stable": "30s"}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"EXIT_AFTER": "10"}}
-	ref := env.Registry().PushSpec("ver003b", "1", spec)
+	ref := app.registry.PushSpec("ver003b", "1", spec)
 	container := env.RunContainer("ver003b", ref, harness.ContainerOptions{Extra: []string{"--restart", "always"}})
 	app.registry.PushSpec("ver003b", "1", spec)
 	result := armedRunOnce(env)
@@ -79,7 +79,7 @@ func TestVER_004_cmd_ready_commits(t *testing.T) {
 		"parachute.verify.cmd":    "test -f /ready",
 	}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"WRITE": "/ready", "WRITE_DATA": "ok"}}
-	ref := env.Registry().PushSpec("ver004", "1", spec)
+	ref := app.registry.PushSpec("ver004", "1", spec)
 	container := env.RunContainer("ver004", ref, harness.ContainerOptions{})
 	delayed := harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"WRITE": "/ready", "WRITE_DATA": "ok", "WRITE_AFTER": "10"}}
 	app.registry.PushSpec("ver004", "1", delayed)
@@ -95,7 +95,7 @@ func TestVER_004_cmd_exit1_rolls_back(t *testing.T) {
 		"parachute.verify.timeout": "10s",
 		"parachute.verify.cmd":     "exit 1",
 	}
-	ref := env.Registry().PushSpec("ver004b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
+	ref := app.registry.PushSpec("ver004b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
 	container := env.RunContainer("ver004b", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver004b", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels})
 	result := armedRunOnce(env)
@@ -110,7 +110,7 @@ func TestVER_005_url_200_commits(t *testing.T) {
 		"parachute.verify.url":    "http://localhost:8080/health",
 	}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Env: map[string]string{"HTTP": "8080"}}
-	ref := env.Registry().PushSpec("ver005", "1", spec)
+	ref := app.registry.PushSpec("ver005", "1", spec)
 	container := env.RunContainer("ver005", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver005", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"HTTP": "8080"}})
 	result := armedRunOnce(env, "--helper-image", env.ParachuteImage())
@@ -126,7 +126,7 @@ func TestVER_005_url_500_rolls_back(t *testing.T) {
 		"parachute.verify.url":     "http://localhost:8080/health",
 	}
 	spec := harness.ImageSpec{Verify: true, Version: "1", Labels: labels}
-	ref := env.Registry().PushSpec("ver005b", "1", spec)
+	ref := app.registry.PushSpec("ver005b", "1", spec)
 	container := env.RunContainer("ver005b", ref, harness.ContainerOptions{})
 	bad := harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Env: map[string]string{"HTTP": "8080", "HTTP_CODE": "500"}}
 	app.registry.PushSpec("ver005b", "1", bad)
@@ -147,7 +147,7 @@ func TestVER_006_short_timeout_health_starting_rolls_back(t *testing.T) {
 	app := newUpdatable(env, "ver006")
 	labels := map[string]string{"parachute.verify.timeout": "20s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}
-	ref := env.Registry().PushSpec("ver006", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: []string{"CMD", "/fixture", "exit", "0"}})
+	ref := app.registry.PushSpec("ver006", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: []string{"CMD", "/fixture", "exit", "0"}})
 	container := env.RunContainer("ver006", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver006", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Healthcheck: health, Env: map[string]string{"FIXTURE_HEALTH": "starting"}})
 	start := time.Now()
@@ -163,7 +163,7 @@ func TestVER_006_long_start_period_commits(t *testing.T) {
 	app := newUpdatable(env, "ver006b")
 	labels := map[string]string{}
 	health := []string{"CMD", "/fixture", "exit", "0"}
-	ref := env.Registry().PushSpec("ver006b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
+	ref := app.registry.PushSpec("ver006b", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels})
 	container := env.RunContainer("ver006b", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver006b", "1", harness.ImageSpec{Verify: true,
 		Version: "2", Labels: labels, Healthcheck: health,
@@ -206,7 +206,7 @@ func TestVER_012_no_restart_commits_without_health_wait(t *testing.T) {
 	app := newUpdatable(env, "ver012")
 	labels := map[string]string{"parachute.verify.stable": "30s"}
 	health := []string{"CMD", "/fixture", "exit", "0"}
-	ref := env.Registry().PushSpec("ver012", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: health})
+	ref := app.registry.PushSpec("ver012", "1", harness.ImageSpec{Verify: true, Version: "1", Labels: labels, Healthcheck: health})
 	container := env.RunContainer("ver012", ref, harness.ContainerOptions{})
 	app.registry.PushSpec("ver012", "1", harness.ImageSpec{Verify: true, Version: "2", Labels: labels, Healthcheck: health})
 	start := time.Now()

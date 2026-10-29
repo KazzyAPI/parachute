@@ -120,7 +120,8 @@ func TestDMN_010_shop_entries_have_distinct_transaction_ids_per_host(t *testing.
 	stack := shopStack(env)
 	container := env.RunContainer("web", app.ref, harness.ContainerOptions{Labels: composeLabels(stack, "web")})
 	app.publishNewer()
-	result := env.Parachute("--run-once", "--porcelain", "v1", "--allow-insecure-tcp").
+	result := env.Parachute("--run-once", "--armed", "--backup", "none", "--protect-databases=false", "--delay-days", "0",
+		"--helper-image", env.ParachuteImage(), "--porcelain", "v1", "--allow-insecure-tcp").
 		Setenv("PARACHUTE_HOSTS", twoDistinctEngineHosts(env)).Run(runTimeout)
 	assertExit(t, result, 0)
 	entries := hostEntriesFor(result, container)
