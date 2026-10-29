@@ -86,7 +86,7 @@ func startupLog(t *testing.T, logs []harness.Log) harness.Log {
 
 func fixture(env *harness.Env) string {
 	env.T.Helper()
-	return env.Registry().Push("app", "1", "1")
+	return env.NewRegistry().Push("app", "1", "1")
 }
 
 type updatable struct {

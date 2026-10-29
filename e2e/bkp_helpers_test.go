@@ -90,7 +90,7 @@ func assertManifestArchivesMatch(t *testing.T, env *harness.Env, storeDir, snaps
 
 func listSnapshotDirs(env *harness.Env, storeDir string) []string {
 	env.T.Helper()
-	out := env.Docker("run", "--rm", "-v", storeDir+":"+storeDir+":ro", env.FixtureV2Image(), "ls", "-1", storeDir)
+	out := env.Docker("run", "--rm", "--entrypoint", "ls", "-v", storeDir+":"+storeDir+":ro", env.FixtureV2Image(), "-1", storeDir)
 	var snaps []string
 	for _, name := range strings.Fields(out) {
 		if strings.HasPrefix(name, "snap-") {
@@ -204,7 +204,7 @@ func createFakeHelper(env *harness.Env, labels map[string]string) string {
 	for key, value := range labels {
 		args = append(args, "--label", key+"="+value)
 	}
-	args = append(args, env.FixtureV2Image(), "sleep", "3600")
+	args = append(args, "--entrypoint", "sleep", env.FixtureV2Image(), "3600")
 	return env.Docker(args...)
 }
 

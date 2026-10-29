@@ -18,6 +18,9 @@ type Env struct {
 	ConfigDir string
 	lock      sync.Mutex
 	images    []string
+
+	registryOnce sync.Once
+	registry     *Registry
 }
 
 func NewEnv(t *testing.T) *Env {

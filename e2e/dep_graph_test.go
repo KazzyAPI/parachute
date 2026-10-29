@@ -27,15 +27,14 @@ func TestDEP_003_cross_stack_shares_transaction(t *testing.T) {
 
 func TestDEP_004_label_depends_on_stops_dependents_first(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	b := env.RunContainer("b", image, harness.ContainerOptions{})
 	c := env.RunContainer("c", image, harness.ContainerOptions{})
 	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": b + "," + c}})
 	beforeB, _ := env.ContainerState(b)
 	beforeC, _ := env.ContainerState(c)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
-	env.Tag(u.ref, image)
 	armedOnce(env, "--name", a)
 	afterB, _ := env.ContainerState(b)
 	afterC, _ := env.ContainerState(c)
@@ -46,12 +45,11 @@ func TestDEP_004_label_depends_on_stops_dependents_first(t *testing.T) {
 
 func TestDEP_005_linked_db_restarts_before_web(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	db := env.RunContainer("db", image, harness.ContainerOptions{})
 	web := env.RunContainer("web", image, harness.ContainerOptions{Extra: []string{"--link", db + ":db"}})
-	u := newUpdatable(env, "app")
 	u.publishNewer()
-	env.Tag(u.ref, image)
 	beforeDB := env.Docker("inspect", "--format", "{{.State.StartedAt}}", db)
 	armedOnce(env, "--name", db)
 	afterDB := env.Docker("inspect", "--format", "{{.State.StartedAt}}", db)
@@ -65,13 +63,13 @@ func TestDEP_005_linked_db_restarts_before_web(t *testing.T) {
 
 func TestDEP_006_unrelated_container_unchanged(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	db := env.RunContainer("db", image, harness.ContainerOptions{})
 	cache := env.RunContainer("cache", image, harness.ContainerOptions{})
 	web := env.RunContainer("web", image, harness.ContainerOptions{Extra: []string{"--link", db + ":db"}})
 	cacheID, cacheImage := env.ContainerState(cache)
 	dbID, dbImage := env.ContainerState(db)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	armedOnce(env, "--name", web)
 	assertUnchanged(env, cache, cacheID, cacheImage)
@@ -80,11 +78,11 @@ func TestDEP_006_unrelated_container_unchanged(t *testing.T) {
 
 func TestDEP_007_network_mode_dependent_recreated(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	app := env.RunContainer("app", image, harness.ContainerOptions{})
 	sidecar := env.RunContainer("sidecar", image, harness.ContainerOptions{Extra: []string{"--network", "container:" + app}})
 	before, _ := env.ContainerState(sidecar)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	armedOnce(env, "--name", app)
 	after, _ := env.ContainerState(sidecar)
@@ -95,11 +93,11 @@ func TestDEP_007_network_mode_dependent_recreated(t *testing.T) {
 
 func TestDEP_008_dependency_cycle_fails(t *testing.T) {
 	env := harness.NewEnv(t)
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": env.Name("b")}})
 	b := env.RunContainer("b", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": a}})
 	c := env.RunContainer("c", image, harness.ContainerOptions{})
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	start := time.Now()
 	result := armedOnce(env)
@@ -116,7 +114,8 @@ func TestDEP_009_replicas_keep_names(t *testing.T) {
 	if _, err := env.DockerMayFail("compose", "version"); err != nil {
 		t.Skip("docker compose is not installed")
 	}
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	project := env.Name("shop")
 	compose := env.WriteFile("compose/compose.yaml", `services:
   worker:
@@ -126,7 +125,6 @@ func TestDEP_009_replicas_keep_names(t *testing.T) {
 	composeUp(env, project, compose)
 	env.Docker("compose", "-p", project, "-f", compose, "up", "-d", "--scale", "worker=2")
 	_ = os.Remove(compose)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	result := armedOnce(env)
 	for _, name := range []string{project + "-worker-1", project + "-worker-2"} {
@@ -139,7 +137,8 @@ func TestDEP_010_compose_lists_after_update(t *testing.T) {
 	if _, err := env.DockerMayFail("compose", "version"); err != nil {
 		t.Skip("docker compose is not installed")
 	}
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	project := env.Name("shop")
 	compose := env.WriteFile("compose/compose.yaml", `services:
   web:
@@ -148,7 +147,6 @@ func TestDEP_010_compose_lists_after_update(t *testing.T) {
 `, 0o644)
 	composeUp(env, project, compose)
 	_ = os.Remove(compose)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	armedOnce(env)
 	out := env.Docker("compose", "-p", project, "ps", "--format", "{{.Name}}")
@@ -162,7 +160,8 @@ func TestUPD_013_rolling_restart_serial_replicas(t *testing.T) {
 	if _, err := env.DockerMayFail("compose", "version"); err != nil {
 		t.Skip("docker compose is not installed")
 	}
-	image := fixture(env)
+	u := newUpdatable(env, "app")
+	image := u.ref
 	project := env.Name("shop")
 	compose := env.WriteFile("compose/compose.yaml", `services:
   worker:
@@ -172,7 +171,6 @@ func TestUPD_013_rolling_restart_serial_replicas(t *testing.T) {
 	composeUp(env, project, compose)
 	env.Docker("compose", "-p", project, "-f", compose, "up", "-d", "--scale", "worker=3")
 	_ = os.Remove(compose)
-	u := newUpdatable(env, "app")
 	u.publishNewer()
 	one := project + "-worker-1"
 	before := env.Docker("inspect", "--format", "{{.State.StartedAt}}", one)

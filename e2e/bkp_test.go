@@ -397,7 +397,7 @@ func TestBKP_007_symlink_archive_invalid_on_restore_verify(t *testing.T) {
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
 	app.publishNewer()
-	runArmed(env, "--backup-volume", store, "--helper-image", env.ParachuteImage())
+	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
 	mounts, _ := manifest["mounts"].([]any)

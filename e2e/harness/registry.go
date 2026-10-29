@@ -28,6 +28,11 @@ type RegistryRequest struct {
 }
 
 func (e *Env) Registry() *Registry {
+	e.registryOnce.Do(func() { e.registry = e.startRegistry("", "") })
+	return e.registry
+}
+
+func (e *Env) NewRegistry() *Registry {
 	return e.startRegistry("", "")
 }
 

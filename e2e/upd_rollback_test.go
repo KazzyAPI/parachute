@@ -200,7 +200,7 @@ func TestUPD_016_verify_phase_interruption_rolls_back_at_next_start(t *testing.T
 	a, _, _ := gatedFailure(t, env, "a")
 	id, image := env.ContainerState(a)
 	process := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--delay-days", "0", "--backup", "none",
-		"--verify-stable", "1s", "--porcelain", "v1").Start()
+		"--verify-stable", "1s", "--helper-image", env.ParachuteImage(), "--porcelain", "v1").Start()
 	waitRenamedOriginal(env, a)
 	process.Signal(syscall.SIGKILL)
 	process.Wait(30 * time.Second)
