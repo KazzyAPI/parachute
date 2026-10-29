@@ -12,14 +12,6 @@ import (
 )
 
 func (c *Container) RestoreVerify(ctx context.Context) error {
-	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
-	document, ok, err := store.Read()
-	if err != nil {
-		return configurationError(err)
-	}
-	if !ok || len(document.Snapshots) == 0 {
-		return errors.New("no snapshots to verify")
-	}
 	hosts, connected, closeHosts, err := c.hosts(ctx)
 	if err != nil {
 		return err
@@ -33,6 +25,14 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		return configurationError(errors.New("helper-image is required for restore-verify when not containerised"))
 	}
 	_ = hosts
+	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
+	document, ok, err := store.Read()
+	if err != nil {
+		return configurationError(err)
+	}
+	if !ok || len(document.Snapshots) == 0 {
+		return errors.New("no snapshots to verify")
+	}
 	host := connected[0]
 	if host.docker == nil {
 		return unreachableError(errors.New("no docker host"))
