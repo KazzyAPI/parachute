@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/recreate"
 	"github.com/KazzyAPI/parachute/internal/txn"
 	"github.com/KazzyAPI/parachute/internal/verify"
@@ -38,7 +39,12 @@ func snapshotFailure(err error) error {
 			return err
 		}
 	}
-	return recreate.Failure{State: string(domain.StateFailed), Reason: "snapshot_failed", Detail: err.Error()}
+	reason := "snapshot_failed"
+	var writeErr *engine.WriteError
+	if errors.As(err, &writeErr) {
+		reason = "engine_error"
+	}
+	return recreate.Failure{State: string(domain.StateFailed), Reason: reason, Detail: err.Error()}
 }
 
 func pullFailure(err error) error {
