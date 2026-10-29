@@ -325,7 +325,7 @@ func (e *Executor) batchUpdate(ctx context.Context, plan txn.Plan, group Group, 
 		if !member.Update && !member.Recreate {
 			continue
 		}
-		replacement, err := e.recreator.Replacement(ctx, plan, member.Container.Name)
+		replacement, err := e.recreator.Replacement(ctx, plan, member.Container.ID, member.Container.Name)
 		if err != nil {
 			return err
 		}
@@ -359,7 +359,7 @@ func (e *Executor) rollingUpdate(ctx context.Context, plan txn.Plan, group Group
 			if err := e.engine.Rename(ctx, member.Container.ID, member.Container.Name+"-parachute-"+plan.ID[len(plan.ID)-6:]); err != nil {
 				return err
 			}
-			replacement, err := e.recreator.Replacement(ctx, plan, member.Container.Name)
+			replacement, err := e.recreator.Replacement(ctx, plan, member.Container.ID, member.Container.Name)
 			if err != nil {
 				return err
 			}

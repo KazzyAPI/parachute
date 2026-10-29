@@ -66,7 +66,7 @@ func (f fakeSnapshots) Retain(context.Context, string, string, int) error { retu
 type fakeRecreator struct{ unreproducible error }
 
 func (f fakeRecreator) Reproducible(context.Context, string) error { return f.unreproducible }
-func (f fakeRecreator) Replacement(context.Context, txn.Plan, string) (string, error) {
+func (f fakeRecreator) Replacement(context.Context, txn.Plan, string, string) (string, error) {
 	return "replacement", nil
 }
 

@@ -65,7 +65,7 @@ type Snapshotter interface {
 
 type Recreator interface {
 	Reproducible(ctx context.Context, container string) error
-	Replacement(ctx context.Context, plan Plan, container string) (string, error)
+	Replacement(ctx context.Context, plan Plan, id, name string) (string, error)
 }
 
 type Verdict struct {

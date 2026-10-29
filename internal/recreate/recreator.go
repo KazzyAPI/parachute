@@ -28,11 +28,12 @@ func (r *Recreator) Reproducible(ctx context.Context, container string) error {
 	return nil
 }
 
-func (r *Recreator) Replacement(ctx context.Context, plan txn.Plan, container string) (string, error) {
-	original, err := r.engine.Inspect(ctx, container)
+func (r *Recreator) Replacement(ctx context.Context, plan txn.Plan, id, name string) (string, error) {
+	original, err := r.engine.Inspect(ctx, id)
 	if err != nil {
 		return "", err
 	}
+	original.Name = name
 	return r.replaceSpec(ctx, plan, original, r.settings())
 }
 
