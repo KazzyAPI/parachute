@@ -1,24 +1,26 @@
-# Parachute
+<h1 align="center">Parachute</h1>
 
-**Docker updates you can trust: back up first, verify after, roll back automatically.**
+<p align="center">
+  <img src="docs/assets/readme-banner.jpg" alt="Parachute: Docker updates you can trust. Back up, verify, roll back." width="640">
+</p>
 
-Keeping containers up to date matters, and blind auto-updates break things. Parachute updates your containers the way a careful operator would. It snapshots your data, checks that the new version really works, and puts the old one back if it doesn't. Built in the open: one small static binary, no database.
+<p align="center">
+  <a href="https://github.com/KazzyAPI/parachute/actions/workflows/ci.yml"><img src="https://github.com/KazzyAPI/parachute/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+</p>
 
-> **Status: pre-alpha.** Milestones 1 and 2 are report-only: selection, policies and approvals, HTTP API and metrics, multi-host, status, and notifications ship, but nothing is updated yet. Do not point it at data you can't lose. Progress is tracked in [`docs/specs/README.md`](docs/specs/README.md).
+Keeping containers up to date matters, and blind auto-updates break things. Parachute updates your containers the way a careful operator would: it pulls the new image, snapshots your data first, checks that the new version really works, and puts the old one back if it doesn't.
 
-## What Parachute is built to do
+It is one small static binary with no database and nothing to install on your hosts.
 
-These are the design goals. Today only report-only detection ships; each row below arrives with the milestone in the roadmap.
+## Why you can leave it running
 
-| | |
-|---|---|
-| **Backup before every update** | Volumes and bind mounts are snapshotted first. Databases are dumped or stopped so the copy is consistent. |
-| **Verified, or rolled back** | After the update Parachute waits for the container to be healthy. If it isn't, the previous image, container and data are restored. |
-| **Safe by default** | It starts in report-only mode and updates nothing until you arm it. New releases wait two days, and databases need your approval. |
-| **Compose-aware** | A stack updates as a unit, in dependency order, so a web app never meets a half-updated database. |
-| **Multi-host** | One instance can look after several Docker hosts over TLS. Nothing is installed on the other hosts. |
-| **Quiet notifications** | One digest per cycle through many services (Discord, Slack, Telegram, email, ntfy and more). Secrets are never logged or sent. |
-| **Pinned by digest** | An update pulls exactly the digest you approved, never a tag that may have moved since. |
+- **Your data is backed up before every update.** Volumes and bind mounts are snapshotted first. Databases are dumped or stopped so the copy is consistent.
+- **A bad update undoes itself.** Parachute waits for the new container to be healthy. If it isn't, the previous image, container and data are put back, and you get told why.
+- **It does nothing until you say so.** It starts in report-only mode and tells you what it *would* update. New releases wait two days, and database updates need your approval.
+- **Your stacks stay in one piece.** A Compose project is updated as a unit, in dependency order, so a web app never meets a half-updated database.
+- **You get one calm message, not a flood.** A single digest per cycle through Discord, Slack, Telegram, email, ntfy and more. Secrets are never logged or sent.
+- **You know exactly what ran.** An update pulls the digest you approved, never a tag that may have moved since.
+- **One instance covers many hosts.** Point it at several Docker hosts over TLS.
 
 ## How an update works
 
@@ -28,11 +30,11 @@ detect -> policy -> snapshot -> update -> verify -> commit
                                     +-- roll back to the previous image and data
 ```
 
-Every update is a transaction with an ID. The previous image is kept until the new version is verified. A failed rollback freezes the stack and tells you, instead of retrying blindly.
+Every update is a transaction with its own ID. The previous container and image are kept until the new version has been verified. If a rollback itself fails, Parachute freezes that stack and tells you, instead of retrying blindly.
 
-## Quick start
+## Try it
 
-Parachute is pre-alpha and has no published image yet. Build it and look at what it would update:
+Build the image and ask Parachute what it would update. Nothing is touched:
 
 ```bash
 git clone https://github.com/KazzyAPI/parachute.git
@@ -44,30 +46,44 @@ docker run --rm \
   parachute:dev --run-once
 ```
 
-You get a list of containers with a newer image available, and nothing is touched. To run it as a daemon, drop `--run-once` and `--rm` and add `-d`. It checks daily by default; set `PARACHUTE_SCHEDULE` for a cron schedule.
+You get a list of containers with a newer image available. When the list looks right, run it for real:
 
-Opt a container out with a label, for example `parachute.enable=false`. Every setting and label is in the [configuration spec](docs/specs/16-configuration.md).
+```bash
+docker run -d --name parachute --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v parachute-state:/var/lib/parachute \
+  parachute:dev --armed
+```
+
+It checks once a day by default. Set `PARACHUTE_SCHEDULE` for a cron schedule, or `--interval` for a different period.
 
 > Access to the Docker socket is root-equivalent on the host. [ADR-0010](docs/adr/0010-docker-socket-access-and-security.md) explains how Parachute limits what it does with it.
 
-## Roadmap
+## Tune it with labels
 
-| Stage | What it adds | State |
-|---|---|---|
-| Report-only core | Selection, scheduling, update detection, registry auth, notifications, status, policies and approvals, HTTP API and metrics, multi-host | Done; tests are catching up with later spec changes ([deviations](docs/specs/README.md)) |
-| Safe updates | Backup, the update transaction, verification, rollback, hooks | Next |
-| Control plane | Restore verification | Planned |
+Put labels on a container to change how Parachute treats it.
 
-## Project principles
+| Label | Effect |
+|---|---|
+| `parachute.enable=false` | Leave this container alone. |
+| `parachute.monitor-only=true` | Report new versions but never update. |
+| `parachute.backup=stop` / `live` / `none` | Choose how its data is snapshotted. |
+| `parachute.depends-on=db,cache` | Update and restart in dependency order. |
+| `parachute.stop-signal=SIGHUP` | Stop it with the signal it expects. |
+| `parachute.lifecycle.pre-update` and friends | Run a command before or after an update (enable with `--enable-lifecycle-hooks`). |
 
-- **Spec-driven.** The specs and ADRs are the source of truth, and the tests are written from the specs, not from the code. See [`docs/specs/`](docs/specs/) and [`docs/adr/`](docs/adr/).
-- **Black-box tested.** End-to-end tests run the real binary against real Docker and a local registry.
-- **Safe by default.** When in doubt, Parachute does nothing and tells you why.
-- **Small.** One binary, one JSON state file, no database, no agent on your hosts.
+Every setting and label is listed in the [configuration reference](docs/specs/16-configuration.md).
 
 ## Coming from another updater?
 
-See the [migration guide](docs/migration.md). It maps settings, labels and metrics, and explains what behaves differently on day one.
+The [migration guide](docs/migration.md) maps settings, labels and metrics, and explains what behaves differently on day one.
+
+## Built to be trusted
+
+- **Specified first.** The behaviour is written down as specs with acceptance criteria and architecture decisions. Start at [`docs/specs/`](docs/specs/) and [`docs/adr/`](docs/adr/).
+- **Tested like a user would.** End-to-end tests run the real binary against real Docker and a local registry.
+- **Cautious by default.** When in doubt, Parachute does nothing and tells you why.
+- **Small.** One binary, one JSON state file, no database, no agent on your hosts.
 
 ## Contributing
 
@@ -75,4 +91,4 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and commit standard. 
 
 ## License
 
-To be decided before the first release.
+Licence terms will be published with the first release.

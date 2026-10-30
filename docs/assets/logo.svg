@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Parachute">
+  <defs>
+    <linearGradient id="canopy" x1="256" y1="72" x2="256" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <!-- registry pull -->
+  <path d="M256 28v24M256 28c-12 0-22 8-24 18" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <path d="M248 46h16l-8 10z" fill="#64748b"/>
+  <!-- parachute -->
+  <path d="M96 188c48-72 112-108 160-108s112 36 160 108" stroke="#0f172a" stroke-width="8" stroke-linecap="round"/>
+  <path d="M120 176c40-56 88-84 136-84s96 28 136 84" fill="url(#canopy)"/>
+  <path d="M168 168h32M256 156h32M344 168h32" stroke="#0284c7" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+  <line x1="168" y1="188" x2="208" y2="268" stroke="#0f172a" stroke-width="5"/>
+  <line x1="256" y1="188" x2="256" y2="268" stroke="#0f172a" stroke-width="5"/>
+  <line x1="344" y1="188" x2="304" y2="268" stroke="#0f172a" stroke-width="5"/>
+  <!-- container stack -->
+  <path d="M208 268h96v56H208z" fill="#2496ED" stroke="#0f172a" stroke-width="6"/>
+  <path d="M208 268l48-28 48 28" fill="#3ba9f5" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M256 240v28M208 296h96" stroke="#dbeafe" stroke-width="4" stroke-linecap="round"/>
+  <path d="M224 324h64v48H224z" fill="#1d4ed8" stroke="#0f172a" stroke-width="6"/>
+  <path d="M224 324l32-18 32 18" fill="#2496ED" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+  <!-- whale body (simplified) -->
+  <path d="M160 372c24-40 72-56 120-56h48c32 0 56 24 56 52 0 28-24 48-56 48h-88c-48 0-88-20-80-44z" fill="#2496ED" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="352" cy="368" r="8" fill="#0f172a"/>
+  <path d="M128 372c-16 8-24 20-24 32s12 24 32 28" fill="#2496ED" stroke="#0f172a" stroke-width="6" stroke-linejoin="round"/>
+  <!-- keep fresh -->
+  <circle cx="368" cy="248" r="28" fill="#10b981" stroke="#0f172a" stroke-width="5"/>
+  <path d="M368 232v8l6 6" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M352 248a16 16 0 0 1 27-11" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M384 248a16 16 0 0 0-27 11" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+</svg>
