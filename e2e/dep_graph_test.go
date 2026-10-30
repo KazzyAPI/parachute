@@ -69,7 +69,8 @@ func TestDEP_004_label_depends_on_stops_dependents_first(t *testing.T) {
 	rec := env.StartEventRecorder("")
 	u.publishNewer()
 	armedOnce(env, "--verify-stable", "1s")
-	waitEventOrder(env, rec, 2*time.Minute, "die "+a, "die "+b, "die "+c, "start "+b, "start "+c, "start "+a)
+	waitEventOrder(env, rec, 2*time.Minute, "die "+a, "die "+b, "start "+b, "start "+a)
+	waitEventOrder(env, rec, 2*time.Minute, "die "+a, "die "+c, "start "+c, "start "+a)
 }
 
 func TestDEP_004_compose_depends_on_orders_stop_and_start(t *testing.T) {
