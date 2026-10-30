@@ -50,7 +50,7 @@ func TestHOK_002_stopped_candidate_hook_skipped_and_still_checked(t *testing.T) 
 	})
 	env.Docker("stop", a)
 	app.publishNewer()
-	result := runOnce(env, append(armedHooks(env), "--include-stopped")...)
+	result := runOnce(env, append(unarmedHooks(env), "--include-stopped", "--log-level", "debug")...)
 	assertState(t, result, a, "would_update", "")
 	assertHookFile(t, filepath.Join(hostDir, "ran"), false)
 	skipped := findLogs(result.Logs(), func(entry harness.Log) bool {
@@ -69,7 +69,7 @@ func TestHOK_005_pre_check_timeout_continues_after_60s_with_warn(t *testing.T) {
 	})
 	app.publishNewer()
 	started := time.Now()
-	result := runOnce(env, armedHooks(env)...)
+	result := runOnce(env, unarmedHooks(env)...)
 	if result.Duration < 55*time.Second || result.Duration > 75*time.Second {
 		t.Fatalf("expected cycle near 60s, took %s", result.Duration)
 	}
@@ -151,7 +151,7 @@ func TestHOK_006_post_check_75_is_silent_success(t *testing.T) {
 		Labels: hookLabel("post-check", "exit 75"),
 	})
 	app.publishNewer()
-	result := runOnce(env, armedHooks(env)...)
+	result := runOnce(env, unarmedHooks(env)...)
 	assertState(t, result, a, "would_update", "")
 	for _, entry := range result.Logs() {
 		if entry.Level() == "warn" && strings.Contains(entry.Msg(), "hook") {
@@ -253,7 +253,7 @@ func TestHOK_003_no_update_runs_check_hooks_only(t *testing.T) {
 		Labels: hookOrderLabels(mark),
 	})
 	result := runOnce(env, armedHooks(env)...)
-	assertState(t, result, a, "would_update", "")
+	assertState(t, result, a, "fresh", "")
 	if got := readHookOrder(t, filepath.Join(hostDir, "order")); got != "pre-check post-check" {
 		t.Fatalf("hook order %q", got)
 	}

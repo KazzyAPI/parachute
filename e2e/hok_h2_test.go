@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,13 +12,18 @@ import (
 
 func TestHOK_006_deferred_update_proceeds_next_cycle(t *testing.T) {
 	env := harness.NewEnv(t)
+	hostDir, mount := hookVolume(env)
 	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
-		Labels: hookLabel("pre-update", "exit 75"),
+		Extra:  hookContainerExtra(hostDir, mount),
+		Labels: hookLabel("pre-update", "test -f "+filepath.Join(mount, "go")+" || exit 75"),
 	})
 	app.publishNewer()
-	runOnce(env, armedHooks(env)...)
-	env.Docker("label", "set", a, "parachute.lifecycle.pre-update=exit 0")
+	deferred := runOnce(env, armedHooks(env)...)
+	assertState(t, deferred, a, "held", "hook_deferred")
+	if err := os.WriteFile(filepath.Join(hostDir, "go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	app.publishNewer()
 	result := runOnce(env, armedHooks(env)...)
 	assertState(t, result, a, "updated", "")

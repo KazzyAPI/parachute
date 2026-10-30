@@ -57,10 +57,10 @@ func (x *RollbackFinisher) FinishRollback(ctx context.Context, plan txn.Plan, or
 	if started && plan.Snapshot != "" && plan.Snapshot != "none" {
 		x.restoreData(ctx, plan, &report)
 	}
-	restored, err := x.restoreOriginals(ctx, plan, originals)
+	restored, restarted, err := x.restoreOriginals(ctx, plan, originals)
 	report.fail(err)
 	if report.failure == nil {
-		report.fail(x.verifyOriginals(ctx, plan, originals))
+		report.fail(x.verifyOriginals(ctx, plan, restarted))
 	}
 	skipped, _ := x.snapshots.SkippedFromSnapshot(ctx, plan.Snapshot)
 	outcome := txn.Outcome{State: txn.StateRolledBack, Result: final, Reason: txn.Reason(reason)}
@@ -143,8 +143,9 @@ func (x *RollbackFinisher) restoreData(ctx context.Context, plan txn.Plan, repor
 	report.dataRestored = true
 }
 
-func (x *RollbackFinisher) restoreOriginals(ctx context.Context, plan txn.Plan, originals []txn.Original) (map[string]string, error) {
+func (x *RollbackFinisher) restoreOriginals(ctx context.Context, plan txn.Plan, originals []txn.Original) (map[string]string, []txn.Original, error) {
 	restored := map[string]string{}
+	var restarted []txn.Original
 	suffix := "-parachute-" + plan.ID[len(plan.ID)-6:]
 	var failure error
 	for _, original := range originals {
@@ -172,9 +173,11 @@ func (x *RollbackFinisher) restoreOriginals(ctx context.Context, plan txn.Plan, 
 		}
 		if err := x.engine.Start(ctx, original.ID); err != nil {
 			failure = firstError(failure, err)
+			continue
 		}
+		restarted = append(restarted, original)
 	}
-	return restored, failure
+	return restored, restarted, failure
 }
 
 func (x *RollbackFinisher) verifyOriginals(ctx context.Context, plan txn.Plan, originals []txn.Original) error {

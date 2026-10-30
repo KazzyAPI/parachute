@@ -90,3 +90,14 @@ func readHookOrder(t *testing.T, hostPath string) string {
 	}
 	return strings.TrimSpace(string(data))
 }
+
+func unarmedHooks(env *harness.Env, args ...string) []string {
+	env.T.Helper()
+	var out []string
+	for _, arg := range armedHooks(env, args...) {
+		if arg != "--armed" {
+			out = append(out, arg)
+		}
+	}
+	return out
+}
