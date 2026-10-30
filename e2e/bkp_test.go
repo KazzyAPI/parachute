@@ -675,7 +675,7 @@ func TestBKP_012_system_mounts_skipped(t *testing.T) {
 		"-v", data + ":/data",
 	}})
 	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
-	result := runArmed(env, "--backup-volume", store, "--log-level", "warn")
+	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "updated", "")
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)

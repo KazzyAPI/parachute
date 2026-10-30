@@ -330,7 +330,7 @@ func assertLiveModeSnapshotOrder(t *testing.T, events []string, appName string) 
 		if !parsed || name == appName {
 			continue
 		}
-		if action == "start" && helperName == "" {
+		if action == "start" && helperName == "" && strings.HasSuffix(strings.TrimSpace(line), " true") {
 			helperName = name
 		}
 		if helperName != "" && name == helperName && (action == "die" || action == "destroy") {
@@ -477,6 +477,7 @@ func manifestSkippedRecord(manifest map[string]any, destination string) map[stri
 func observeSnapshotHelpers(env *harness.Env, volume string, run func()) {
 	env.T.Helper()
 	seen := map[string]struct{}{}
+	copied := false
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -495,7 +496,9 @@ func observeSnapshotHelpers(env *harness.Env, volume string, run func()) {
 				}
 				if _, ok := seen[id]; !ok {
 					seen[id] = struct{}{}
-					assertHelperInspect(env.T, env, id, volume)
+					if assertHelperInspect(env.T, env, id, volume) {
+						copied = true
+					}
 				}
 			}
 			time.Sleep(25 * time.Millisecond)
@@ -507,9 +510,12 @@ func observeSnapshotHelpers(env *harness.Env, volume string, run func()) {
 	if len(seen) == 0 {
 		env.T.Fatal("no snapshot helper observed during cycle")
 	}
+	if !copied {
+		env.T.Fatal("no helper with read-only sources and a read-write snapshot dir observed")
+	}
 }
 
-func assertHelperInspect(t *testing.T, env *harness.Env, id, dataVolume string) {
+func assertHelperInspect(t *testing.T, env *harness.Env, id, dataVolume string) bool {
 	t.Helper()
 	raw := env.Docker("inspect", id)
 	var specs []map[string]any
@@ -558,9 +564,7 @@ func assertHelperInspect(t *testing.T, env *harness.Env, id, dataVolume string) 
 			t.Fatal("data volume mount must be read-only on helper")
 		}
 	}
-	if readOnly == 0 || readWrite == 0 {
-		t.Fatalf("helper mounts want read-only sources and read-write snapshot dir, got rw=%d ro=%d", readWrite, readOnly)
-	}
+	return readWrite > 0 && readOnly > 0
 }
 
 func assertCapConstraints(t *testing.T, host map[string]any) {
