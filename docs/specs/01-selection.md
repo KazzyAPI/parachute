@@ -1,6 +1,6 @@
 # 01 Container selection
 
-**Status:** Draft
+**Status:** Accepted
 
 Which containers Parachute considers in a cycle. A container that passes selection is a **candidate**. Settings are listed in [16-configuration.md](16-configuration.md#settings-reference); labels are read from the monitored container, never from Parachute's own container, and only as the operator set them when the container was created (SEL-013; [glossary: Trust boundaries](glossary.md#trust-boundaries)). Selection is evaluated per host (see [13-daemon-and-runtimes.md](13-daemon-and-runtimes.md)).
 
