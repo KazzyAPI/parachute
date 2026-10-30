@@ -120,13 +120,17 @@ func composeDependsOn(container domain.Container, index Index) []Edge {
 		}
 		return edges
 	}
-	for _, service := range strings.Split(raw, ",") {
-		service = strings.TrimSpace(service)
-		if service == "" {
-			continue
+	for _, entry := range strings.Split(raw, ",") {
+		service, rest, _ := strings.Cut(strings.TrimSpace(entry), ":")
+		condition := ConditionStarted
+		switch strings.TrimSpace(strings.SplitN(rest, ":", 2)[0]) {
+		case "service_healthy":
+			condition = ConditionHealthy
+		case "service_completed_successfully":
+			condition = ConditionExitOK
 		}
-		for _, target := range services[service] {
-			edges = append(edges, Edge{Dependent: container.Name, Dependency: target.Name, Condition: ConditionStarted})
+		for _, target := range services[strings.TrimSpace(service)] {
+			edges = append(edges, Edge{Dependent: container.Name, Dependency: target.Name, Condition: condition})
 		}
 	}
 	return edges

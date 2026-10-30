@@ -3,6 +3,7 @@ package graph
 import (
 	"cmp"
 	"slices"
+	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -87,7 +88,7 @@ func (b *Builder) affected(index Index, targets map[string]txn.Target, edges []E
 			if !ok {
 				continue
 			}
-			recreate := networkDependsOn(index, container, name)
+			recreate := mustRecreate(index, container, name)
 			affected[dependent] = Member{Container: container, Recreate: recreate}
 			queue = append(queue, dependent)
 		}
@@ -101,7 +102,7 @@ func (b *Builder) affected(index Index, targets map[string]txn.Target, edges []E
 				continue
 			}
 			if _, updating := targets[edge.Dependency]; updating {
-				member.Recreate = member.Recreate || networkDependsOn(index, member.Container, edge.Dependency)
+				member.Recreate = member.Recreate || mustRecreate(index, member.Container, edge.Dependency)
 			}
 		}
 		affected[name] = member
@@ -122,6 +123,20 @@ func (b *Builder) markReplica(index Index, affected map[string]Member, container
 		}
 		affected[replica.Name] = member
 	}
+}
+
+func mustRecreate(index Index, container domain.Container, dependency string) bool {
+	return networkDependsOn(index, container, dependency) || linkDependsOn(index, container, dependency)
+}
+
+func linkDependsOn(index Index, container domain.Container, dependency string) bool {
+	if strings.TrimSpace(container.Labels[labelDependsOn]) != "" {
+		return false
+	}
+	return slices.ContainsFunc(container.Links, func(link string) bool {
+		target, ok := linkTarget(link, index)
+		return ok && target.Name == dependency
+	})
 }
 
 func networkDependsOn(index Index, container domain.Container, dependency string) bool {

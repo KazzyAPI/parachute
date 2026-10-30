@@ -159,12 +159,12 @@ func TestDEP_005_service_healthy_waits_before_dependent_starts(t *testing.T) {
 	_ = os.Remove(compose)
 	app := project + "-app-1"
 	db := project + "-db-1"
-	rec := env.StartStatusEventRecorder("")
+	rec := env.StartEventRecorder("")
 	dbApp.registry.PushSpec("db", "1", harness.ImageSpec{
 		Verify: true, Version: "2", Healthcheck: health, Env: map[string]string{"FIXTURE_HEALTH": "starting"},
 	})
 	armedOnce(env, "--verify-stable", "1s")
-	waitEventOrder(env, rec, 2*time.Minute, "health_status healthy "+db, "start "+app)
+	waitEventOrder(env, rec, 2*time.Minute, "health_status: healthy "+db, "start "+app)
 }
 
 func TestDEP_006_unrelated_container_unchanged(t *testing.T) {
@@ -202,8 +202,9 @@ func TestDEP_007_network_mode_dependent_recreated(t *testing.T) {
 	if afterImage != beforeImage {
 		t.Fatalf("sidecar image changed %s -> %s", beforeImage, afterImage)
 	}
-	if ref := strings.TrimSpace(env.Docker("inspect", "--format", "{{.HostConfig.NetworkMode}}", sidecar)); !strings.HasSuffix(ref, app) {
-		t.Fatalf("sidecar network mode %q, want container:%s", ref, app)
+	newAppID, _ := env.ContainerState(app)
+	if mode := strings.TrimSpace(env.Docker("inspect", "--format", "{{.HostConfig.NetworkMode}}", sidecar)); mode != "container:"+newAppID {
+		t.Fatalf("sidecar network mode %q, want container:%s", mode, newAppID)
 	}
 }
 

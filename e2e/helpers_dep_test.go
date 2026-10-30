@@ -22,7 +22,7 @@ func containerStartedAt(env *harness.Env, name string) string {
 
 func containerRestartCount(env *harness.Env, name string) string {
 	env.T.Helper()
-	return strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.RestartCount}}", name))
+	return strings.TrimSpace(env.Docker("inspect", "--format", "{{.RestartCount}}", name))
 }
 
 func assertTimingUnchanged(env *harness.Env, name, startedAt, restartCount string) {

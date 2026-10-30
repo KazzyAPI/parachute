@@ -33,16 +33,6 @@ func (e *Env) StartEventRecorder(labelFilter string) *EventRecorder {
 	return e.startEventRecorder(recorder, args)
 }
 
-func (e *Env) StartStatusEventRecorder(labelFilter string) *EventRecorder {
-	e.T.Helper()
-	recorder := &EventRecorder{env: e, done: make(chan struct{})}
-	args := []string{"events", "--format", "{{.Type}} {{.Action}} {{.Status}} {{.Actor.Attributes.name}}", "--filter", "label=parachute-e2e=" + e.ID}
-	if labelFilter != "" {
-		args = append(args, "--filter", "label="+labelFilter)
-	}
-	return e.startEventRecorder(recorder, args)
-}
-
 func (e *Env) startEventRecorder(recorder *EventRecorder, args []string) *EventRecorder {
 	e.T.Helper()
 	command := exec.Command("docker", args...)

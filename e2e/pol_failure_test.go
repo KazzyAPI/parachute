@@ -17,6 +17,7 @@ type frozenShop struct {
 	env         *harness.Env
 	failed      string
 	sibling     string
+	failedApp   updatable
 	siblingApp  updatable
 	project     string
 	transaction string
@@ -51,7 +52,14 @@ func freezeShop(t *testing.T, env *harness.Env, extra ...string) frozenShop {
 	if !strings.HasPrefix(transaction, "txn-") {
 		t.Fatalf("rollback_failed entry has no transaction: %v", entry)
 	}
-	return frozenShop{env: env, failed: failed, sibling: sibling, siblingApp: other, project: project, transaction: transaction}
+	return frozenShop{env: env, failed: failed, sibling: sibling, failedApp: app, siblingApp: other, project: project, transaction: transaction}
+}
+
+func (s frozenShop) repairFailed() {
+	s.env.RunContainer("a", s.failedApp.ref, harness.ContainerOptions{
+		Labels: map[string]string{"com.docker.compose.project": s.project, "com.docker.compose.service": "a"},
+	})
+	s.failedApp.registry.Push("app", "1", "9")
 }
 
 func (s frozenShop) publishSibling(version string) {
@@ -101,6 +109,7 @@ func freezeJoinedStacks(t *testing.T, env *harness.Env) joinedFreeze {
 	if !strings.HasPrefix(transaction, "txn-") {
 		t.Fatalf("rollback_failed entry has no transaction: %v", entry)
 	}
+	env.RunContainer("app", appApp.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": cache}})
 	return joinedFreeze{
 		env: env, app: app, cache: cache, appStack: app, cacheStack: cache,
 		transaction: transaction, cacheApp: cacheApp, appApp: appApp,
@@ -150,6 +159,7 @@ func TestPOL_010_approval_retries_a_rolled_back_digest(t *testing.T) {
 func TestPOL_010_rollback_failed_freezes_the_stack_whatever_the_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	shop := freezeShop(t, env)
+	shop.repairFailed()
 	failedID, failedImage := env.ContainerState(shop.failed)
 	siblingID, siblingImage := env.ContainerState(shop.sibling)
 	shop.publishSibling("2")
@@ -231,6 +241,7 @@ func TestPOL_010_recreated_stack_stays_frozen_until_release(t *testing.T) {
 		t.Skip("docker compose is not installed")
 	}
 	shop := freezeShop(t, env)
+	shop.repairFailed()
 	shop.publishSibling("2")
 	assertState(t, shop.update(t), shop.sibling, "held", "previous_attempt_failed")
 	compose := env.WriteFile("compose/shop.yaml", `services:
@@ -245,7 +256,7 @@ func TestPOL_010_recreated_stack_stays_frozen_until_release(t *testing.T) {
 `, 0o644)
 	beforeFailed, _ := env.ContainerState(shop.failed)
 	beforeSibling, _ := env.ContainerState(shop.sibling)
-	env.Docker("compose", "-p", shop.project, "-f", compose, "down")
+	env.Docker("rm", "-f", shop.failed, shop.sibling)
 	env.Docker("compose", "-p", shop.project, "-f", compose, "up", "-d")
 	_ = os.Remove(compose)
 	afterFailed, _ := env.ContainerState(shop.failed)
