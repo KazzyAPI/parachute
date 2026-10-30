@@ -138,6 +138,8 @@ func (d *FakeTLSDaemon) handle(conn net.Conn, certificate tls.Certificate) {
 type HTTPEngineProxy struct {
 	Endpoint string
 	engineID string
+	onlyKey  string
+	onlyVal  string
 	forward  *httputil.ReverseProxy
 	lock     sync.Mutex
 	failing  []string
@@ -238,7 +240,49 @@ func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.
 	_, _ = io.WriteString(response, `{"message":"injected engine failure"}`)
 }
 
+func (p *HTTPEngineProxy) OnlyContainersLabelled(key, value string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.onlyKey, p.onlyVal = key, value
+}
+
+func (p *HTTPEngineProxy) filterContainers(response *http.Response) error {
+	p.lock.Lock()
+	key, value := p.onlyKey, p.onlyVal
+	p.lock.Unlock()
+	if key == "" || !strings.HasSuffix(response.Request.URL.Path, "/containers/json") {
+		return nil
+	}
+	var listed []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&listed); err != nil {
+		return err
+	}
+	_ = response.Body.Close()
+	kept := []map[string]any{}
+	for _, item := range listed {
+		labels, _ := item["Labels"].(map[string]any)
+		if labels[key] == value {
+			kept = append(kept, item)
+		}
+	}
+	return p.replaceBody(response, kept)
+}
+
+func (p *HTTPEngineProxy) replaceBody(response *http.Response, document any) error {
+	body, err := json.Marshal(document)
+	if err != nil {
+		return err
+	}
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
+}
+
 func (p *HTTPEngineProxy) rewriteEngineID(response *http.Response) error {
+	if err := p.filterContainers(response); err != nil {
+		return err
+	}
 	if p.engineID == "" || !strings.HasSuffix(response.Request.URL.Path, "/info") {
 		return nil
 	}
@@ -248,12 +292,5 @@ func (p *HTTPEngineProxy) rewriteEngineID(response *http.Response) error {
 	}
 	_ = response.Body.Close()
 	info["ID"] = p.engineID
-	body, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	response.Body = io.NopCloser(bytes.NewReader(body))
-	response.ContentLength = int64(len(body))
-	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
-	return nil
+	return p.replaceBody(response, info)
 }

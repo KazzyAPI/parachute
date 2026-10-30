@@ -118,17 +118,25 @@ func TestDMN_010_shop_entries_have_distinct_transaction_ids_per_host(t *testing.
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
 	stack := shopStack(env)
-	container := env.RunContainer("web", app.ref, harness.ContainerOptions{Labels: composeLabels(stack, "web")})
+	engines := map[string]*harness.HTTPEngineProxy{"a": env.DistinctEngineProxy(), "b": env.DistinctEngineProxy()}
+	containers := map[string]string{}
+	for host, proxy := range engines {
+		proxy.OnlyContainersLabelled("e2e-host", host)
+		labels := composeLabels(stack, "web")
+		labels["e2e-host"] = host
+		containers[host] = env.RunContainer("web-"+host, app.ref, harness.ContainerOptions{Labels: labels})
+	}
 	app.publishNewer()
 	result := env.Parachute("--run-once", "--armed", "--backup", "none", "--protect-databases=false", "--delay-days", "0",
-		"--helper-image", env.ParachuteImage(), "--porcelain", "v1", "--allow-insecure-tcp").
-		Setenv("PARACHUTE_HOSTS", twoDistinctEngineHosts(env)).Run(runTimeout)
+		"--verify-stable", "1s", "--helper-image", env.ParachuteImage(), "--porcelain", "v1", "--allow-insecure-tcp").
+		Setenv("PARACHUTE_HOSTS", "a="+engines["a"].Endpoint+",b="+engines["b"].Endpoint).Run(runTimeout)
 	assertExit(t, result, 0)
-	entries := hostEntriesFor(result, container)
-	if len(entries) != 2 {
-		t.Fatalf("expected entries on hosts a and b, got %v", entries)
-	}
-	for _, host := range []string{"a", "b"} {
+	entries := map[string]map[string]any{}
+	for host, container := range containers {
+		entries[host] = hostEntriesFor(result, container)[host]
+		if entries[host] == nil {
+			t.Fatalf("no entry for %s on host %s:\n%s", container, host, result.Stdout)
+		}
 		if entries[host]["stack"] != stack {
 			t.Errorf("host %s stack %v, want %s", host, entries[host]["stack"], stack)
 		}
