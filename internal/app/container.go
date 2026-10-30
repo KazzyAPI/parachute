@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/KazzyAPI/parachute/internal/config"
-	"github.com/KazzyAPI/parachute/internal/graph"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/labels"
 	"github.com/KazzyAPI/parachute/internal/logging"
@@ -107,7 +106,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	c.cleanupHelpers(ctx, connected, journal)
 	recovery.Recover(ctx)
 	collector := metrics.NewCollector(hostNames(hosts))
-	selfRunner := graph.NoSelfRunner{}
+	selfRunner := c.selfRunner(store, connected, helper)
 	graphStage, finishStage := c.graphStages(store, connected, helper, selfRunner)
 	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery, finishStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
