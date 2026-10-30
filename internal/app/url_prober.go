@@ -3,12 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/moby/moby/api/types/container"
 
 	"github.com/KazzyAPI/parachute/internal/engine"
 )
@@ -22,43 +21,34 @@ func (p *urlProber) Probe(ctx context.Context, transactionID, containerID, url s
 	if p.helperImage == "" {
 		return 0, "", fmt.Errorf("helper-image is not set")
 	}
-	name := "parachute-url-" + transactionID + "-" + containerID[:12]
-	spec := engine.Spec{
-		Name: name,
-		Config: &container.Config{
-			Image: p.helperImage,
-			Cmd:   []string{"sleep", "300"},
-			Labels: map[string]string{
-				"parachute.helper":      "true",
-				"parachute.transaction": transactionID,
-			},
-		},
-		HostConfig: &container.HostConfig{
-			NetworkMode:    container.NetworkMode("container:" + containerID),
-			ReadonlyRootfs: true,
-			CapDrop:        []string{"ALL"},
-			SecurityOpt:    []string{"no-new-privileges"},
-			RestartPolicy:  container.RestartPolicy{Name: "no"},
-			Tmpfs:          map[string]string{"/tmp": "rw"},
-		},
-	}
-	id, err := p.docker.Create(ctx, spec)
+	id, err := p.docker.RunHelper(ctx, engine.HelperSpec{
+		Image:       p.helperImage,
+		Command:     []string{"sleep", "300"},
+		NetworkMode: "container:" + containerID,
+		Labels:      map[string]string{"parachute.helper": "true", "parachute.transaction": transactionID},
+	})
 	if err != nil {
 		return 0, "", err
 	}
-	defer func() { _ = p.docker.Remove(ctx, id, false, true) }()
-	if err := p.docker.Start(ctx, id); err != nil {
-		return 0, "", err
-	}
-	result, err := p.docker.Exec(ctx, id, []string{"sh", "-c", "wget -q -S -O /dev/null " + shellQuote(url) + " 2>&1"}, nil, 30*time.Second, 1000)
+	defer func() { _ = p.docker.Remove(context.WithoutCancel(ctx), id, false, true) }()
+	result, err := p.docker.Exec(ctx, id, []string{"sh", "-c", "wget -S -O /dev/null " + shellQuote(url) + " 2>&1"}, nil, 30*time.Second, 1000)
 	if err != nil {
 		return 0, "", err
 	}
-	status := parseHTTPStatus(string(result.Output))
-	if status == 0 && result.ExitCode != 0 {
-		return 0, strings.TrimSpace(string(result.Output)), fmt.Errorf("probe failed")
+	output := strings.TrimSpace(string(result.Output))
+	status, err := probeStatus(result.ExitCode, output)
+	return status, output, err
+}
+
+func probeStatus(exitCode int, output string) (int, error) {
+	status := parseHTTPStatus(output)
+	switch {
+	case status != 0:
+		return status, nil
+	case exitCode == 0:
+		return http.StatusOK, nil
 	}
-	return status, strings.TrimSpace(string(result.Output)), nil
+	return 0, fmt.Errorf("probe failed: %s", output)
 }
 
 func shellQuote(value string) string {
@@ -68,11 +58,11 @@ func shellQuote(value string) string {
 var httpStatusLine = regexp.MustCompile(`HTTP/\S+\s+(\d{3})`)
 
 func parseHTTPStatus(output string) int {
-	match := httpStatusLine.FindStringSubmatch(output)
-	if len(match) < 2 {
+	matches := httpStatusLine.FindAllStringSubmatch(output, -1)
+	if len(matches) == 0 {
 		return 0
 	}
-	code, err := strconv.Atoi(match[1])
+	code, err := strconv.Atoi(matches[len(matches)-1][1])
 	if err != nil {
 		return 0
 	}
