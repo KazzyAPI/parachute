@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 960 400" fill="none" role="img" aria-label="Parachute update transaction flow">
+  <defs>
+    <marker id="flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#94a3b8"/>
+    </marker>
+    <marker id="rollback-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#ef4444"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="400" rx="20" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- header -->
+  <image xlink:href="logo.png" x="40" y="32" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>
+  <text x="100" y="56" fill="#0f172a" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="700" letter-spacing="-0.02em">Parachute</text>
+  <text x="100" y="76" fill="#64748b" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13" font-weight="500">How an update works</text>
+  <line x1="40" y1="96" x2="920" y2="96" stroke="#f1f5f9" stroke-width="1"/>
+
+  <!-- rollback connectors (drawn under nodes and rollback card) -->
+  <g stroke="#f87171" stroke-width="1.5" stroke-dasharray="5 4" fill="none" stroke-linecap="round">
+    <path d="M484 188 L484 228"/>
+    <path d="M612 188 L612 228"/>
+    <path d="M484 228 L612 228"/>
+    <path d="M548 228 L548 268" marker-end="url(#rollback-arrow)"/>
+  </g>
+
+  <!-- pipeline nodes: y=124 h=52 -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13" font-weight="600">
+    <rect x="48" y="124" width="104" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="100" y="155" text-anchor="middle" fill="#334155">Detect</text>
+
+    <rect x="176" y="124" width="104" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="228" y="155" text-anchor="middle" fill="#334155">Policy</text>
+
+    <rect x="304" y="124" width="104" height="52" rx="10" fill="#f0f9ff" stroke="#7dd3fc" stroke-width="1.5"/>
+    <text x="356" y="155" text-anchor="middle" fill="#0369a1">Snapshot</text>
+
+    <rect x="432" y="124" width="104" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="484" y="155" text-anchor="middle" fill="#334155">Update</text>
+
+    <rect x="560" y="124" width="104" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="612" y="155" text-anchor="middle" fill="#334155">Verify</text>
+
+    <rect x="688" y="124" width="104" height="52" rx="10" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+    <text x="740" y="155" text-anchor="middle" fill="#047857">Commit</text>
+  </g>
+
+  <!-- forward arrows (between boxes only, vertical center y=150) -->
+  <g stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round">
+    <line x1="156" y1="150" x2="170" y2="150" marker-end="url(#flow-arrow)"/>
+    <line x1="284" y1="150" x2="298" y2="150" marker-end="url(#flow-arrow)"/>
+    <line x1="412" y1="150" x2="426" y2="150" marker-end="url(#flow-arrow)"/>
+    <line x1="540" y1="150" x2="554" y2="150" marker-end="url(#flow-arrow)"/>
+    <line x1="668" y1="150" x2="682" y2="150" marker-end="url(#flow-arrow)"/>
+  </g>
+
+  <!-- rollback card -->
+  <rect x="328" y="268" width="440" height="72" rx="12" fill="#fffafa" stroke="#fecaca" stroke-width="1"/>
+  <text x="548" y="298" text-anchor="middle" fill="#b91c1c" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" font-weight="700">Roll back</text>
+  <text x="548" y="320" text-anchor="middle" fill="#991b1b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500">Restore previous image, container, and data</text>
+
+  <text x="480" y="378" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="500">Each update runs as a single transaction with its own ID</text>
+</svg>

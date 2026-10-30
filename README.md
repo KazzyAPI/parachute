@@ -24,13 +24,14 @@ It is one small static binary with no database and nothing to install on your ho
 
 ## How an update works
 
-```
-detect -> policy -> snapshot -> update -> verify -> commit
-                                   \          \
-                                    +-- roll back to the previous image and data
-```
+<p align="center">
+  <picture>
+    <source srcset="docs/assets/update-flow.svg" type="image/svg+xml">
+    <img src="docs/assets/update-flow.png" alt="Parachute update flow: detect, policy, snapshot, update, verify, commit; roll back restores the previous image, container, and data if update or verify fails" width="720">
+  </picture>
+</p>
 
-Every update is a transaction with its own ID. The previous container and image are kept until the new version has been verified. If a rollback itself fails, Parachute freezes that stack and tells you, instead of retrying blindly.
+The previous container and image are kept until the new version has been verified. If a rollback itself fails, Parachute freezes that stack and tells you, instead of retrying blindly.
 
 ## Try it
 
