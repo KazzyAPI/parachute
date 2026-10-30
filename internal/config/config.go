@@ -26,6 +26,11 @@ type Config struct {
 	StartupMessage bool
 	Verify         Verify
 	NoRestart      bool
+	Hooks          Hooks
+}
+
+type Hooks struct {
+	Enabled bool
 }
 
 type Verify struct {

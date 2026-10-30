@@ -126,14 +126,14 @@ func newHarness(snapshots fakeSnapshots, recreator fakeRecreator, verifier fakeV
 	h.containers = []domain.Container{web}
 	result := domain.NewResult("local", web).Available("sha256:new")
 	h.candidates = []*pipeline.Candidate{{Container: web, Result: result}}
-	h.executor = NewExecutor(NewBuilder(), h.engine, h.journal, snapshots, recreator, verifier, h.rollbacker,
+	h.executor = NewExecutor(NewBuilder(), h.engine, h.journal, snapshots, recreator, verifier, h.rollbacker, txn.NoHooks{}, NoSelfRunner{},
 		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{}, func(registry.Reference) engine.RegistryAuth { return "" })
 	return h
 }
 
 func (h *harness) run(t *testing.T) {
 	t.Helper()
-	if err := h.executor.Run(context.Background(), "local", h.containers, h.candidates, ""); err != nil {
+	if _, err := h.executor.Run(context.Background(), "local", h.containers, h.candidates, ""); err != nil {
 		t.Fatal(err)
 	}
 }
