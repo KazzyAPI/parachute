@@ -58,6 +58,8 @@ type Options struct {
 	RemoveVolumes      bool
 	Retention          int
 	TransactionTimeout time.Duration
+	NoRestart          bool
+	ReviveStopped      bool
 }
 
 func NewExecutor(
@@ -302,7 +304,7 @@ func originalsOf(group Group, startOrder []string) []txn.Original {
 		if member == nil {
 			continue
 		}
-		running := member.Container.State == "running" || member.Container.State == "restarting"
+		running := wasRunning(*member)
 		originals = append(originals, txn.Original{ID: member.Container.ID, Running: running, Updated: member.Update || member.Recreate})
 	}
 	return originals
@@ -344,7 +346,7 @@ func (e *Executor) batchUpdate(ctx context.Context, plan txn.Plan, group Group, 
 		if err != nil {
 			return err
 		}
-		if err := e.engine.Start(ctx, replacement); err != nil {
+		if err := e.startReplacement(ctx, *member, replacement); err != nil {
 			return err
 		}
 		e.setReplacement(candidates, member.Container.Name, replacement)
@@ -378,7 +380,7 @@ func (e *Executor) rollingUpdate(ctx context.Context, plan txn.Plan, group Group
 			if err != nil {
 				return err
 			}
-			if err := e.engine.Start(ctx, replacement); err != nil {
+			if err := e.startReplacement(ctx, *member, replacement); err != nil {
 				return err
 			}
 			e.setReplacement(candidates, member.Container.Name, replacement)
@@ -424,15 +426,26 @@ func (e *Executor) stopContainer(ctx context.Context, name string, member *Membe
 	if member == nil {
 		return nil
 	}
-	if member.Container.State != "running" && member.Container.State != "restarting" {
+	if !wasRunning(*member) {
 		return nil
 	}
 	return e.engine.Stop(ctx, member.Container.ID, "", e.options.StopTimeout)
 }
 
+func wasRunning(member Member) bool {
+	return member.Container.State == "running" || member.Container.State == "restarting"
+}
+
+func (e *Executor) startReplacement(ctx context.Context, member Member, replacement string) error {
+	if e.options.NoRestart || !wasRunning(member) && !e.options.ReviveStopped {
+		return nil
+	}
+	return e.engine.Start(ctx, replacement)
+}
+
 func (e *Executor) startMember(ctx context.Context, group Group, name string) error {
 	member := memberOf(group, name)
-	if member == nil || member.Update || member.Recreate {
+	if member == nil || member.Update || member.Recreate || !wasRunning(*member) {
 		return nil
 	}
 	return e.engine.Start(ctx, member.Container.ID)

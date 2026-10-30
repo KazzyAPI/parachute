@@ -26,6 +26,7 @@ func (l *Loader) update(b *binder) Update {
 		Cleanup:            b.boolean("cleanup"),
 		RemoveVolumes:      b.boolean("remove-volumes"),
 		RollingRestart:     b.boolean("rolling-restart"),
+		ReviveStopped:      b.boolean("revive-stopped"),
 	}
 }
 

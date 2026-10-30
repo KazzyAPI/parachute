@@ -46,6 +46,7 @@ type Update struct {
 	Cleanup            bool
 	RemoveVolumes      bool
 	RollingRestart     bool
+	ReviveStopped      bool
 }
 
 type Relaxation struct {

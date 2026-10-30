@@ -52,6 +52,8 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 		RemoveVolumes:      c.cfg.Update.RemoveVolumes,
 		Retention:          c.cfg.Backup.Retention,
 		TransactionTimeout: c.cfg.Update.TransactionTimeout,
+		NoRestart:          c.cfg.NoRestart,
+		ReviveStopped:      c.cfg.Update.ReviveStopped,
 	}
 	recreateSettings := func() recreate.Settings {
 		return recreate.Settings{RemoveVolumes: c.cfg.Update.RemoveVolumes, CommittedAt: c.deps.Clock.Now()}

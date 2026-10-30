@@ -18,6 +18,7 @@ import (
 
 type fakeEngine struct {
 	stops, removes, pulls int
+	started               []string
 	local                 engine.Image
 }
 
@@ -26,7 +27,10 @@ func (f *fakeEngine) Stop(context.Context, string, string, time.Duration) error 
 	f.stops++
 	return nil
 }
-func (f *fakeEngine) Start(context.Context, string) error          { return nil }
+func (f *fakeEngine) Start(_ context.Context, id string) error {
+	f.started = append(f.started, id)
+	return nil
+}
 func (f *fakeEngine) Rename(context.Context, string, string) error { return nil }
 func (f *fakeEngine) Remove(context.Context, string, bool, bool) error {
 	f.removes++
@@ -238,5 +242,41 @@ func TestDEP_003_restarted_dependent_shares_transaction(t *testing.T) {
 	}
 	if dependent.State == domain.StateUpdated {
 		t.Fatalf("dependent marked updated")
+	}
+}
+
+func stoppedHarness(options Options) *harness {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	h.containers[0].State = "exited"
+	h.candidates[0].Container.State = "exited"
+	h.executor.options = options
+	return h
+}
+
+func TestSEL_010_stopped_container_replacement_is_not_started(t *testing.T) {
+	h := stoppedHarness(Options{})
+	h.run(t)
+	if len(h.engine.started) != 0 {
+		t.Fatalf("started %v", h.engine.started)
+	}
+	if h.candidates[0].Result.State != domain.StateUpdated {
+		t.Fatalf("state %s", h.candidates[0].Result.State)
+	}
+}
+
+func TestSEL_010_revive_stopped_starts_replacement(t *testing.T) {
+	h := stoppedHarness(Options{ReviveStopped: true})
+	h.run(t)
+	if len(h.engine.started) != 1 || h.engine.started[0] != "replacement" {
+		t.Fatalf("started %v", h.engine.started)
+	}
+}
+
+func TestUPD_012_no_restart_does_not_start_replacement(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	h.executor.options = Options{NoRestart: true}
+	h.run(t)
+	if len(h.engine.started) != 0 {
+		t.Fatalf("started %v", h.engine.started)
 	}
 }
