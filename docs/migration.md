@@ -2,7 +2,7 @@
 
 Parachute is not a drop-in replacement: it uses its own names (`parachute.*` labels, `PARACHUTE_*` variables) and it is **safer by default**, so some things behave differently on day one. This guide lists every change. Most migrations are a find-and-replace plus reading the "behavior differences" section once.
 
-> Status: draft, written against the specs in [`docs/specs/`](specs/). The current milestone only reports: it detects updates but cannot apply them, and arming it is a startup error until update execution ships ([M1 deviations](specs/README.md#m1-deviations)). Check names against the spec before relying on this.
+> Names and defaults here follow the specs in [`docs/specs/`](specs/); where this guide and a spec disagree, the spec wins.
 
 ## 1. The 5-minute path
 
