@@ -66,13 +66,10 @@ func TestDEP_004_label_depends_on_stops_dependents_first(t *testing.T) {
 	b := env.RunContainer("b", image, harness.ContainerOptions{})
 	c := env.RunContainer("c", image, harness.ContainerOptions{})
 	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": b + "," + c}})
-	beforeCStarted := containerStartedAt(env, c)
-	beforeCRestarts := containerRestartCount(env, c)
 	rec := env.StartEventRecorder("")
 	u.publishNewer()
 	armedOnce(env, "--verify-stable", "1s")
 	waitEventOrder(env, rec, 2*time.Minute, "die "+a, "die "+b, "die "+c, "start "+b, "start "+c, "start "+a)
-	assertTimingUnchanged(env, c, beforeCStarted, beforeCRestarts)
 }
 
 func TestDEP_004_compose_depends_on_orders_stop_and_start(t *testing.T) {
