@@ -18,6 +18,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/schedule"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/status"
+	"github.com/KazzyAPI/parachute/internal/txn"
 )
 
 type Container struct {
@@ -49,19 +50,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter,
 }
 
 func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
-	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
-	if err := store.Open(); err != nil {
-		return nil, nil, configurationError(err)
-	}
 	trigger, err := c.trigger()
-	if err != nil {
-		return nil, nil, err
-	}
-	reporter, err := c.reporter(store)
-	if err != nil {
-		return nil, nil, err
-	}
-	policyStage, err := c.policyStage(store)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,7 +63,46 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	if err != nil {
 		return nil, nil, errors.Join(closeHosts(), configurationError(err))
 	}
+	readyMarker := health.NewMarker(c.cfg.RuntimeDir, c.deps.System, c.deps.System)
+	var handoverStartup *StartupHandover
+	for _, host := range connected {
+		if host.docker == nil || host.err != nil {
+			continue
+		}
+		handoverStartup = c.startupHandover(host)
+		handoverStartup.bind(nil, nil, nil, readyMarker)
+		if err := handoverStartup.BeforeStore(ctx); err != nil {
+			return nil, nil, errors.Join(closeHosts(), err)
+		}
+		break
+	}
+	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
+	if err := store.Open(); err != nil {
+		return nil, nil, errors.Join(closeHosts(), configurationError(err))
+	}
+	reporter, err := c.reporter(store)
+	if err != nil {
+		return nil, nil, errors.Join(closeHosts(), err)
+	}
+	policyStage, err := c.policyStage(store)
+	if err != nil {
+		return nil, nil, errors.Join(closeHosts(), err)
+	}
 	journal := state.NewJournal(store, c.deps.Clock.Now)
+	if handoverStartup != nil {
+		ids := txn.NewIDGenerator(c.deps.Clock.Now)
+		for _, host := range connected {
+			if host.docker == nil || host.err != nil {
+				continue
+			}
+			finisher := c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))
+			handoverStartup.bind(journal, reporter, finisher, readyMarker)
+			if err := handoverStartup.AfterStore(ctx, store); err != nil {
+				return nil, nil, errors.Join(closeHosts(), err)
+			}
+			break
+		}
+	}
 	recovery := c.recovery(connected, journal, helper)
 	c.cleanupHelpers(ctx, connected, journal)
 	recovery.Recover(ctx)
@@ -97,7 +125,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	return NewDaemon(DaemonParts{
 		Guard:          NewArmedLabelGuard(firstReachable(hosts), c.self(), c.labels),
 		Announcer:      reporter,
-		Marker:         health.NewMarker(c.cfg.RuntimeDir, c.deps.System, c.deps.System),
+		Marker:         readyMarker,
 		Loop:           loop,
 		Server:         server,
 		Summary:        StartupSummary{Version: c.deps.Version, Hosts: hosts, Schedule: scheduleText, Settings: c.cfg},
