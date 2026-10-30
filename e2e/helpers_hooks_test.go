@@ -69,6 +69,7 @@ func armedHooks(env *harness.Env, args ...string) []string {
 		"--protect-databases=false",
 		"--helper-image", env.ParachuteImage(),
 		"--enable-lifecycle-hooks",
+		"--verify-stable", "1s",
 	}
 	return append(base, args...)
 }
