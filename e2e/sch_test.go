@@ -48,6 +48,9 @@ func TestSCH_001_invalid_interval(t *testing.T) {
 
 func TestSCH_002_cron_schedule_fires_on_matching_seconds(t *testing.T) {
 	env := harness.NewEnv(t)
+	for second := time.Now().Second() % 20; second < 2 || second > 10; second = time.Now().Second() % 20 {
+		time.Sleep(200 * time.Millisecond)
+	}
 	launched := time.Now()
 	process := startDaemon(env, env.Parachute("--schedule", "*/20 * * * * *"))
 	process.WaitForLogs(120*time.Second, "three cycles", 3, func(entry harness.Log) bool { return entry.Msg() == "cycle started" })
@@ -57,7 +60,7 @@ func TestSCH_002_cron_schedule_fires_on_matching_seconds(t *testing.T) {
 			t.Errorf("cycle started at second %d", start.Second())
 		}
 	}
-	if starts[0].Sub(launched) < 500*time.Millisecond && launched.Second()%20 != 0 {
+	if starts[0].Sub(launched) < 500*time.Millisecond {
 		t.Errorf("a cycle ran at startup")
 	}
 }

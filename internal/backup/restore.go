@@ -126,6 +126,18 @@ func (s *Snapshotter) SkippedFromSnapshot(ctx context.Context, snapshot string) 
 	return manifest.Skipped, nil
 }
 
+func (s *Snapshotter) SkippedDestinations(ctx context.Context, snapshot string) (map[string][]string, error) {
+	records, err := s.SkippedFromSnapshot(ctx, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	byContainer := map[string][]string{}
+	for _, record := range records {
+		byContainer[record.Container] = append(byContainer[record.Container], record.Destination)
+	}
+	return byContainer, nil
+}
+
 func (s *Snapshotter) ValidateTransaction(ctx context.Context, snapshot, host, stack, transaction string) error {
 	root, err := s.store.Root(ctx)
 	if err != nil {
