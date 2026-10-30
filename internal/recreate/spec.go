@@ -46,6 +46,10 @@ func buildReplacement(original engine.Spec, oldImage, newImage *dockerspec.Docke
 	networks := cloneNetworks(original.Networks)
 	applyImageDefaults(config, host, original, oldImage, newImage, settings.RemoveVolumes)
 	applyBookkeeping(config, planID, snapshot, previousImage, settings.CommittedAt)
+	if host.NetworkMode.IsContainer() {
+		config.Hostname = ""
+		config.Domainname = ""
+	}
 	return engine.Spec{Name: original.Name, Config: config, HostConfig: host, Networks: networks}
 }
 
@@ -346,7 +350,7 @@ func configsMatch(expected, created engine.Spec) (string, bool) {
 	if expected.HostConfig == nil || created.HostConfig == nil {
 		return "HostConfig", false
 	}
-	if expected.Config.Hostname != created.Config.Hostname {
+	if !expected.HostConfig.NetworkMode.IsContainer() && expected.Config.Hostname != created.Config.Hostname {
 		return "Hostname", false
 	}
 	if expected.Config.User != created.Config.User {

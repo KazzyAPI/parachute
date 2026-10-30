@@ -109,3 +109,23 @@ func TestReplacementOfDependentWithoutTargetKeepsItsOwnImage(t *testing.T) {
 		t.Fatalf("created image = %q, want sha256:old", fake.created.Config.Image)
 	}
 }
+
+func TestReplacementOfNetworkModeDependentDropsHostname(t *testing.T) {
+	fake := &fakeEngine{specs: map[string]engine.Spec{
+		"old-id": {
+			ID:         "old-id",
+			Name:       "sidecar",
+			ImageID:    "sha256:old",
+			Config:     &container.Config{Image: "reg/side:1", Hostname: "abc123def456", Domainname: "local"},
+			HostConfig: &container.HostConfig{NetworkMode: "container:app"},
+		},
+		"app": {ID: "app", Name: "app"},
+	}}
+
+	if _, err := NewRecreator(fake, func() Settings { return Settings{} }).Replacement(context.Background(), txn.Plan{ID: "txn-1"}, "old-id", "sidecar"); err != nil {
+		t.Fatalf("Replacement: %v", err)
+	}
+	if fake.created.Config.Hostname != "" || fake.created.Config.Domainname != "" {
+		t.Fatalf("created hostname %q domain %q", fake.created.Config.Hostname, fake.created.Config.Domainname)
+	}
+}
