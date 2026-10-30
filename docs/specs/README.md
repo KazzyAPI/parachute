@@ -63,7 +63,7 @@ Requirements implemented by each milestone. `make trace` fails when a `MUST` or 
 |---|---|
 | M1 report-only core | CFG-001, CFG-002, CFG-003, CFG-004, CFG-005, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SEL-001, SEL-002, SEL-003, SEL-004, SEL-005, SEL-006, SEL-007, SEL-008, SEL-009, SEL-010, SEL-011, SEL-012, SCH-001, SCH-002, SCH-003, SCH-004, SCH-005, SCH-006, SCH-007, DET-001, DET-002, DET-003, DET-004, DET-005, DET-006, DET-007, REG-001, REG-002, REG-003, REG-004, DMN-001, DMN-002, DMN-003, DMN-004, DMN-005, DMN-006, NTF-001, NTF-002, NTF-003, NTF-004, NTF-005, NTF-006, NTF-008, NTF-010, NTF-013, STS-001, STS-002, STS-005, DEP-001, DEP-002 |
 | M2 | SCH-008, API-001, API-002, API-003, API-004, API-005, API-006, API-007, API-008, API-009, API-010, API-011, API-012, STS-003, STS-006, STS-007, DEP-011, POL-001, POL-002, POL-003, POL-006, POL-007, POL-008, POL-009, POL-011, SEL-013, DMN-003, DMN-005, DMN-007, DMN-008, DMN-009, DET-008, REG-005, REG-007, REG-008, NTF-007, NTF-009, NTF-011, NTF-014, CFG-012, REG-006 |
-| M3 | BKP-001, BKP-002, BKP-003, BKP-004, BKP-005, BKP-006, BKP-007, BKP-008, BKP-009, BKP-010, BKP-011, BKP-012, BKP-013, DMN-010, VER-001, VER-002, VER-003, VER-004, VER-005, VER-006, VER-007, VER-012, UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-011, UPD-020, DEP-003, DEP-004, DEP-005, DEP-006, DEP-007, DEP-008, DEP-009, DEP-010, UPD-013 |
+| M3 | BKP-001, BKP-002, BKP-003, BKP-004, BKP-005, BKP-006, BKP-007, BKP-008, BKP-009, BKP-010, BKP-011, BKP-012, BKP-013, DMN-010, VER-001, VER-002, VER-003, VER-004, VER-005, VER-006, VER-007, VER-008, VER-009, VER-010, VER-011, VER-012, UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-009, UPD-010, UPD-011, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019, UPD-020, DEP-003, DEP-004, DEP-005, DEP-006, DEP-007, DEP-008, DEP-009, DEP-010, UPD-013 |
 | M3 policy | POL-004, POL-005, POL-010, POL-011, API-007, NTF-012, STS-002, STS-004 |
 
 ### M1 deviations
@@ -75,9 +75,9 @@ M1 reported and never changed containers; update execution has since landed in M
 - `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
 - The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: DMN-003, STS-002 (M2 updated SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012 and DET-004).
 
-### M3 armed transactions (integration branch `milestone/3`)
+### M3 armed transactions
 
-Spine S0 lays shared foundations; parallel work lands in these packages:
+M3 is merged on `main` ([PR 15](https://github.com/KazzyAPI/parachute/pull/15)). Armed update execution, snapshot, verify, rollback, stack graph, failure policy, and per-host reporting are implemented and listed in the M3 and M3 policy rows above. The packages below are how that work was organised during delivery:
 
 | Package | Requirements |
 |---|---|
@@ -89,13 +89,16 @@ Spine S0 lays shared foundations; parallel work lands in these packages:
 | F failure policy | POL-010, POL-011 (release), API-007 (release), NTF-012, STS-004, STS-002 (`frozen`, `last_transaction`), POL-004, POL-005 |
 | H second engine | DMN-010 |
 | M1 rewrites | CFG-001, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SCH-005, SEL-008, SEL-010, SEL-011, DET-001, DET-004, REG-001, NTF-003 |
-| M3 rollback | VER-008, VER-009, VER-010, VER-011, UPD-009, UPD-010, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019 |
 
 `internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
 
 ### Later milestones
 
-M4 hooks and self-update; M5 restore verification and Podman. Each gets its row in the coverage table when its tests exist, because `make trace` fails for a listed requirement without a test.
+Requirements not in the coverage table above. Each ID moves into an `M4` or `M5` row once its `Test<ID>` e2e tests exist, because `make trace` fails for a listed requirement without a test.
+
+- **Hooks and self-update (future M4):** HOK-001–HOK-008, UPD-018 — `--enable-lifecycle-hooks` and self-update handover are not implemented.
+- **Restore verification and Podman (future M5):** RST-001–RST-007, DMN-011–DMN-014 — scheduled restore verification and Podman runtimes are not implemented.
+- **Unscheduled:** UPD-001, UPD-002, UPD-006, UPD-012 — behaviour exists in production paths but has no e2e test named `TestUPD-NNN_*` (phase and transaction ID logging are exercised via CFG-008 and rollback tests; stop timeout via CFG-001; `--no-restart` recreate via VER-012 and internal tests only).
 
 ### M2 deviations
 
