@@ -117,7 +117,7 @@ func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
 		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
 		Args: []string{
 			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
-			"--interval", "8760h", "--scope", env.Scope(),
+			"--interval", "31536000", "--scope", env.Scope(),
 		},
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
@@ -155,7 +155,7 @@ func TestNTF_012_interrupted_handover_sends_error_notification(t *testing.T) {
 		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
 		Args: []string{
 			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
-			"--interval", "8760h", "--scope", env.Scope(),
+			"--interval", "31536000", "--scope", env.Scope(),
 		},
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
