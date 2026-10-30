@@ -19,7 +19,14 @@ type EventRecorder struct {
 func (e *Env) StartRawEventRecorder() *EventRecorder {
 	e.T.Helper()
 	recorder := &EventRecorder{env: e, done: make(chan struct{})}
-	args := []string{"events", "--format", "{{.Type}} {{.Action}} {{.Actor.Attributes.name}}"}
+	args := []string{"events", "--format", "{{.Type}} {{.Action}} {{.Actor.Attributes.name}} {{index .Actor.Attributes \"parachute.helper\"}}"}
+	return e.startEventRecorder(recorder, args)
+}
+
+func (e *Env) StartExecEventRecorder() *EventRecorder {
+	e.T.Helper()
+	recorder := &EventRecorder{env: e, done: make(chan struct{})}
+	args := []string{"events", "--format", "{{.Action}} {{.Actor.ID}}", "--filter", "type=exec"}
 	return e.startEventRecorder(recorder, args)
 }
 

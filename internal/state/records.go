@@ -9,16 +9,17 @@ import (
 )
 
 type TransactionRecord struct {
-	ID         string         `json:"id"`
-	Host       string         `json:"host"`
-	Stacks     []string       `json:"stacks"`
-	State      string         `json:"state"`
-	Snapshot   string         `json:"snapshot,omitempty"`
-	SelfUpdate bool           `json:"self_update,omitempty"`
-	Originals  []txn.Original `json:"originals,omitempty"`
-	Result     string         `json:"result,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	Time       time.Time      `json:"time"`
+	ID           string         `json:"id"`
+	Host         string         `json:"host"`
+	Stacks       []string       `json:"stacks"`
+	State        string         `json:"state"`
+	Snapshot     string         `json:"snapshot,omitempty"`
+	SelfUpdate   bool           `json:"self_update,omitempty"`
+	OwnContainer string         `json:"own_container,omitempty"`
+	Originals    []txn.Original `json:"originals,omitempty"`
+	Result       string         `json:"result,omitempty"`
+	Reason       string         `json:"reason,omitempty"`
+	Time         time.Time      `json:"time"`
 }
 
 type SnapshotRecord struct {
@@ -82,5 +83,7 @@ func discard[T any](logger *slog.Logger, kind string, records []T, check func(T)
 }
 
 func validKeys(keys []FreezeKey) bool {
-	return len(keys) > 0 && !slices.ContainsFunc(keys, func(key FreezeKey) bool { return key.Host == "" })
+	return len(keys) > 0 && !slices.ContainsFunc(keys, func(key FreezeKey) bool {
+		return key.Host == "" || (key.Stack == "" && key.Container == "")
+	})
 }
