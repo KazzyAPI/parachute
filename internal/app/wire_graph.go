@@ -45,7 +45,7 @@ func (c *Container) hostFinisher(host connectedHost, snapshotter *backup.Snapsho
 	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.labels, c.logger)
 }
 
-func (c *Container) graphStage(store *state.Store, connected []connectedHost, helper string) pipeline.Stage {
+func (c *Container) graphStages(store *state.Store, connected []connectedHost, helper string, selfRunner graph.SelfRunner) (pipeline.Stage, pipeline.Stage) {
 	journal := state.NewJournal(store, c.deps.Clock.Now)
 	ids := txn.NewIDGenerator(c.deps.Clock.Now)
 	options := graph.Options{
@@ -75,6 +75,8 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 			recreate.NewRecreator(host.docker, recreateSettings),
 			c.verifier(host.docker),
 			c.hostFinisher(host, snapshotter),
+			txn.NoHooks{},
+			selfRunner,
 			ids,
 			c.deps.Clock,
 			c.logger,
@@ -82,7 +84,28 @@ func (c *Container) graphStage(store *state.Store, connected []connectedHost, he
 			c.pullAuth,
 		)
 	}
-	return graph.NewStage(executors, "")
+	return graph.NewStage(executors, c.ownContainerName(connected)), graph.NewFinishStage(selfRunner)
+}
+
+func (c *Container) ownContainerName(connected []connectedHost) string {
+	self := c.self()
+	for _, host := range connected {
+		if host.docker == nil || host.err != nil {
+			continue
+		}
+		containers, err := host.docker.Containers(context.Background())
+		if err != nil {
+			continue
+		}
+		if self.Mark([]engine.SelfHost{{Local: engine.LocalEndpoint(host.spec.Endpoint), Containers: containers}}) {
+			for _, container := range containers {
+				if container.Own {
+					return container.Name
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (c *Container) recovery(connected []connectedHost, journal *state.Journal, helper string) *Recovery {

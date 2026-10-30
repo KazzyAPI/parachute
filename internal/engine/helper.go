@@ -25,7 +25,7 @@ func (d *Docker) RunHelper(ctx context.Context, spec HelperSpec) (string, error)
 		return "", err
 	}
 	if err := d.Start(ctx, id); err != nil {
-		_ = d.Remove(ctx, id, false, true)
+		_ = d.Remove(context.WithoutCancel(ctx), id, false, true)
 		return "", err
 	}
 	return id, nil

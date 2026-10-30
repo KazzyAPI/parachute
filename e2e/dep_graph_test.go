@@ -216,6 +216,7 @@ func TestDEP_008_dependency_cycle_fails(t *testing.T) {
 	b := env.RunContainer("b", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": a}})
 	c := env.RunContainer("c", image, harness.ContainerOptions{})
 	u.publishNewer()
+	env.ParachuteImage()
 	start := time.Now()
 	result := armedOnce(env)
 	if time.Since(start) > 60*time.Second {

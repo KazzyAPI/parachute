@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/KazzyAPI/parachute/internal/config"
+	"github.com/KazzyAPI/parachute/internal/graph"
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/labels"
 	"github.com/KazzyAPI/parachute/internal/logging"
@@ -32,7 +33,7 @@ func NewContainer(cfg config.Config, deps Dependencies, logger *slog.Logger, red
 	return &Container{cfg: cfg, deps: deps, logger: logger, redactor: redactor, entries: entries, labels: labels.NewReader(logger)}
 }
 
-func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage, graphStage, recoveredStage pipeline.Stage) *pipeline.Pipeline {
+func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter, collector *metrics.Collector, policyStage, graphStage, recoveredStage pipeline.Stage, finishStage pipeline.Stage) *pipeline.Pipeline {
 	return pipeline.New(
 		c.insecureHostWarning(),
 		c.discoverStage(),
@@ -43,6 +44,7 @@ func (c *Container) cyclePipeline(store *state.Store, reporter *notify.Reporter,
 		graphStage,
 		c.driftStage(),
 		pipeline.NewReportStage(c.deps.Clock, c.logger, append(c.sinks(store, reporter), collector)...),
+		finishStage,
 	)
 }
 
@@ -77,8 +79,9 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	c.cleanupHelpers(ctx, connected, journal)
 	recovery.Recover(ctx)
 	collector := metrics.NewCollector(hostNames(hosts))
-	graphStage := c.graphStage(store, connected, helper)
-	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
+	selfRunner := graph.NoSelfRunner{}
+	graphStage, finishStage := c.graphStages(store, connected, helper, selfRunner)
+	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery, finishStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
