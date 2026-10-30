@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"encoding/json"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -111,12 +113,54 @@ func TestUPD_020_pull_uses_approved_digest(t *testing.T) {
 	}
 }
 
-func TestUPD_008_original_container_kept_until_commit_blocked_on_verify_phase_hook(t *testing.T) {
-	t.Skip("needs verify-phase timing hook to inspect renamed original mid-transaction")
+func TestUPD_008_original_container_kept_until_commit(t *testing.T) {
+	env := harness.NewEnv(t)
+	a, signalFile, _ := gatedFailure(t, env, "a")
+	origID, origImage := env.ContainerState(a)
+	done := runArmedAsync(env, "--backup", "none")
+	renamedID := waitRenamedOriginal(env, a)
+	if renamedID != origID {
+		t.Fatalf("renamed container id %s, want original %s", renamedID, origID)
+	}
+	if running := strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Running}}", renamedID)); running != "false" {
+		t.Fatalf("renamed original running=%q, want stopped", running)
+	}
+	if !strings.Contains(env.ImageList(), origImage) {
+		t.Fatalf("original image %s no longer present", origImage)
+	}
+	replacement := strings.TrimSpace(env.Docker("ps", "-q", "--filter", "name="+a, "--filter", "label=parachute.transaction"))
+	txn := strings.TrimSpace(env.Docker("inspect", "--format", "{{index .Config.Labels \"parachute.transaction\"}}", replacement))
+	suffix := txn[len(txn)-6:]
+	if name := strings.TrimSpace(env.Docker("inspect", "--format", "{{.Name}}", renamedID)); name != "/"+a+"-parachute-"+suffix {
+		t.Fatalf("renamed container %q, want /%s-parachute-%s", name, a, suffix)
+	}
+	if err := os.WriteFile(signalFile, []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assertState(t, <-done, a, "rolled_back", "verify_failed")
 }
 
-func TestUPD_020_rejects_pulled_image_without_approved_digest_blocked_because_docker_validates_digests_itself(t *testing.T) {
-	t.Skip("needs registry proxy that serves wrong digest body after manifest approval")
+func TestUPD_020_rejects_pulled_image_without_approved_digest(t *testing.T) {
+	env := harness.NewEnv(t)
+	registry := env.Registry()
+	v1 := registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "1"})
+	v1Manifest := registry.Manifest("fixture/app", "1")
+	proxy := registry.Proxy(harness.ProxyOptions{
+		Rewrite: func(request *http.Request, header http.Header, body []byte) []byte {
+			if request.Method != http.MethodGet || !isManifest(request) || !strings.Contains(request.URL.Path, "/manifests/sha256:") {
+				return body
+			}
+			digest := request.URL.Path[strings.LastIndex(request.URL.Path, "/")+1:]
+			header.Set("Docker-Content-Digest", digest)
+			return v1Manifest
+		},
+	})
+	a := env.RunContainer("a", env.Rehome(v1, proxy.Host), harness.ContainerOptions{})
+	id, image := env.ContainerState(a)
+	registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "2"})
+	result := armedOnce(env)
+	assertState(t, result, a, "failed", "pull_failed")
+	assertUnchanged(env, a, id, image)
 }
 
 func TestUPD_005_bookkeeping_labels_on_compose_service(t *testing.T) {
