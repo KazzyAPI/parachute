@@ -1,6 +1,6 @@
 # 09 Update policies
 
-**Status:** Draft
+**Status:** Accepted
 
 Rules that decide whether a detected update is applied now ([ADR-0007](../adr/0007-safe-by-default.md)). A policy that stops an update creates a **hold**. Holds are evaluated in the `policy` phase, before any transaction exists (UPD-001), and never change containers. A stack whose every update is held gets no transaction and no transaction ID in that cycle.
 
