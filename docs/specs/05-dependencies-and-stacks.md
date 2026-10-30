@@ -1,6 +1,6 @@
 # 05 Dependencies and stacks
 
-**Status:** Draft
+**Status:** Accepted
 
 How containers are grouped and ordered ([ADR-0006](../adr/0006-compose-is-the-unit-of-update.md)). The **service** is the unit of update; the **stack** is the unit of snapshot, verification, and rollback.
 

@@ -1,6 +1,6 @@
 # 10 Notifications
 
-**Status:** Draft
+**Status:** Accepted
 
 How Parachute tells the operator what happened. Default behaviour is one quiet digest per cycle ([ADR-0007](../adr/0007-safe-by-default.md)). Delivery uses shoutrrr service URLs, through a maintained fork ([ADR-0002](../adr/0002-language-and-docker-client.md), [ADR-0015](../adr/0015-traceability-and-test-practice.md)). Tests use a `generic://` URL pointing at a fake webhook that records every request.
 

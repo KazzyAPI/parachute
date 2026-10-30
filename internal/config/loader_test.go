@@ -58,6 +58,16 @@ func TestConvenientProfileRelaxesOnlyImplicitDefaults(t *testing.T) {
 	}
 }
 
+func TestEnableLifecycleHooksBindsWithoutStartupError(t *testing.T) {
+	cfg, err := newTestLoader().Load([]string{"--enable-lifecycle-hooks"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Hooks.Enabled {
+		t.Fatal("hooks not enabled")
+	}
+}
+
 func TestFeatureSectionsAreBoundFromTypedValues(t *testing.T) {
 	cfg, err := newTestLoader().Load([]string{"--delay-days", "0.5", "--maintenance-window-duration", "90m", "--http-api-port", "9000"},
 		[]string{"PARACHUTE_HTTP_API_TOKEN=tok", "PARACHUTE_APPROVAL_REMINDER_DAYS=3.5"})
@@ -84,7 +94,6 @@ func TestStartupErrorsNameTheSetting(t *testing.T) {
 		{environ: []string{"PARACHUTE_NOTIFICATION_SLACK_HOOK_URL=x"}, want: []string{"--notification-url", "slack://"}},
 		{args: []string{"--revive-stopped"}, want: []string{"revive-stopped", "include-stopped"}},
 		{args: []string{"--interval", "5", "--schedule", "* * * * * *"}, want: []string{"interval", "schedule"}},
-		{args: []string{"--enable-lifecycle-hooks"}, want: []string{"enable-lifecycle-hooks", "not implemented"}},
 		{args: []string{"--hosts", "a=unix:///x,a=unix:///y"}, want: []string{"duplicate host name", "a"}},
 		{args: []string{"--hosts", "Bad=unix:///x"}, want: []string{"Bad", "[a-z0-9]"}},
 		{args: []string{"--hosts", "a"}, want: []string{"name=endpoint"}},

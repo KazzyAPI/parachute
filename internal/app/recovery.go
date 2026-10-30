@@ -103,6 +103,7 @@ func (r *Recovery) snapshotOf(record txn.OpenRecord) string {
 
 func recoveryCandidates(record txn.OpenRecord, containers []domain.Container) []*pipeline.Candidate {
 	suffix := "-parachute-" + record.ID[len(record.ID)-6:]
+	digests := replacementDigests(record.ID, containers)
 	var candidates []*pipeline.Candidate
 	for _, original := range record.Originals {
 		if !original.Updated {
@@ -115,9 +116,22 @@ func recoveryCandidates(record txn.OpenRecord, containers []domain.Container) []
 				container.Name = strings.TrimSuffix(listed.Name, suffix)
 			}
 		}
-		candidates = append(candidates, &pipeline.Candidate{Container: container, Result: domain.NewResult(record.Host, container)})
+		result := domain.NewResult(record.Host, container)
+		result.CandidateDigest = digests[container.Name]
+		candidates = append(candidates, &pipeline.Candidate{Container: container, Result: result})
 	}
 	return candidates
+}
+
+func replacementDigests(transaction string, containers []domain.Container) map[string]string {
+	digests := map[string]string{}
+	for _, listed := range containers {
+		if listed.Labels["parachute.transaction"] != transaction || listed.Labels["parachute.helper"] == "true" {
+			continue
+		}
+		digests[listed.Name] = listed.ImageID
+	}
+	return digests
 }
 
 func (r *Recovery) Run(_ context.Context, cycle *pipeline.Cycle) error {

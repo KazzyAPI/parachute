@@ -1,6 +1,6 @@
 # 08 Verification and rollback
 
-**Status:** Draft
+**Status:** Accepted
 
 After an update, Parachute proves the new containers work, or puts the old ones back.
 
