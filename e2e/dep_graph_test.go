@@ -123,12 +123,15 @@ func TestDEP_005_linked_db_restarts_before_web(t *testing.T) {
 	image := u.ref
 	db := env.RunContainer("db", image, harness.ContainerOptions{})
 	web := env.RunContainer("web", image, harness.ContainerOptions{Extra: []string{"--link", db + ":db"}})
+	webID, _ := env.ContainerState(web)
 	rec := env.StartEventRecorder("")
 	u.publishNewer()
 	result := armedOnce(env, "--name", db, "--verify-stable", "1s")
 	assertState(t, result, db, "updated", "")
-	assertState(t, result, web, "updated", "")
 	waitEventOrder(env, rec, 2*time.Minute, "die "+web, "die "+db, "start "+db, "start "+web)
+	if id, _ := env.ContainerState(web); id == webID {
+		t.Fatalf("%s was not recreated: still %s", web, id)
+	}
 }
 
 func TestDEP_005_service_healthy_waits_before_dependent_starts(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 type fakeEngine struct {
 	stops, removes, pulls int
 	started               []string
+	calls                 []string
 	local                 engine.Image
 	health                []string
 }
@@ -31,12 +33,14 @@ func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) {
 	f.health = f.health[1:]
 	return engine.Spec{HealthStatus: status}, nil
 }
-func (f *fakeEngine) Stop(context.Context, string, string, time.Duration) error {
+func (f *fakeEngine) Stop(_ context.Context, id string, _ string, _ time.Duration) error {
 	f.stops++
+	f.calls = append(f.calls, "stop "+id)
 	return nil
 }
 func (f *fakeEngine) Start(_ context.Context, id string) error {
 	f.started = append(f.started, id)
+	f.calls = append(f.calls, "start "+id)
 	return nil
 }
 func (f *fakeEngine) Rename(context.Context, string, string) error { return nil }
@@ -404,5 +408,23 @@ func TestUPD_019_ceiling_before_update_phase_aborts_with_failed(t *testing.T) {
 	h.run(t)
 	if h.rollbacker.reason != "transaction_timeout" || h.rollbacker.final != domain.StateFailed || h.journal.outcome.State != txn.StateAborted || h.engine.stops != 0 {
 		t.Fatalf("rollback %+v journal %+v stops %d", h.rollbacker, h.journal.outcome, h.engine.stops)
+	}
+}
+
+func TestUPD_013_rolling_restart_stops_and_starts_each_replica_in_turn(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	labels := map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "worker"}
+	h.containers = nil
+	h.candidates = nil
+	for _, name := range []string{"a", "b", "c"} {
+		container := domain.Container{ID: name + "-id", Name: name, State: "running", ImageRef: "repo/w:1", Labels: labels}
+		h.containers = append(h.containers, container)
+		h.candidates = append(h.candidates, &pipeline.Candidate{Container: container, Result: domain.NewResult("local", container).Available("sha256:new")})
+	}
+	h.executor.options.Rolling = true
+	h.run(t)
+	want := []string{"stop a-id", "start replacement", "stop b-id", "start replacement", "stop c-id", "start replacement"}
+	if !slices.Equal(h.engine.calls, want) {
+		t.Fatalf("calls %v want %v", h.engine.calls, want)
 	}
 }

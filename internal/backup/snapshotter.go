@@ -180,7 +180,7 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 		if mode == "none" {
 			continue
 		}
-		if mode == "stop" {
+		if mode == "stop" && len(mounts) > 0 {
 			if err := s.engine.Stop(ctx, container.ID, "SIGTERM", 10*time.Second); err != nil {
 				return "", err
 			}
