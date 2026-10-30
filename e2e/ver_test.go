@@ -140,6 +140,7 @@ func TestVER_006_short_timeout_health_starting_rolls_back(t *testing.T) {
 		Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture"}, HealthcheckInterval: "2s", HealthcheckTimeout: "1h",
 		Env: map[string]string{"FIXTURE_HEALTH": "starting"},
 	})
+	env.ParachuteImage()
 	start := time.Now()
 	result := armedRunOnce(env)
 	assertRolledBack(t, result, container, "verify_timeout")
