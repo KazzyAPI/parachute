@@ -93,10 +93,6 @@ func TestPOL_010_rollback_failed_self_update_does_not_freeze_project(t *testing.
 	}
 }
 
-func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
-	t.Skip("needs self-update transaction finish path (SU2)")
-}
-
 func TestNTF_012_interrupted_handover_sends_error_notification(t *testing.T) {
 	t.Skip("needs self-update handover takeover (SU1/SU2)")
 }
