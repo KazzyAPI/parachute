@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,32 @@ func TestVER_009_data_restored_when_replacement_started(t *testing.T) {
 	assertReasonDetail(t, result, a, "data restored: yes")
 	if got := strings.TrimSpace(env.Docker("exec", a, "cat", "/data/version")); got != "original" {
 		t.Fatalf("data not restored: %q", got)
+	}
+}
+
+func TestVER_009_data_not_restored_when_replacement_not_started(t *testing.T) {
+	env := harness.NewEnv(t)
+	volume := env.ID + "-data"
+	registry := env.Registry()
+	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "1", Cmd: []string{"sh", "-c", sleeper}})
+	a := env.RunContainer("a", v1, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
+	env.Docker("exec", a, "sh", "-c", "echo original > /data/version")
+	beforeMtime := fileModTime(env, a, "/data/version")
+	registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "2", Cmd: []string{"sh", "-c", sleeper}})
+	id, image := env.ContainerState(a)
+	proxy := env.HTTPEngineProxy()
+	proxy.FailFirstAfter("/containers/create?name="+a, "/start")
+	result := armedParachute(env, "--backup", "stop", "--allow-insecure-tcp").Setenv("DOCKER_HOST", proxy.Endpoint).Run(runTimeout)
+	assertState(t, result, a, "rolled_back", "engine_error")
+	assertUnchanged(env, a, id, image)
+	if after := fileModTime(env, a, "/data/version"); after != beforeMtime {
+		t.Fatalf("modification time changed %s -> %s", beforeMtime, after)
+	}
+	if got := strings.TrimSpace(env.Docker("exec", a, "cat", "/data/version")); got != "original" {
+		t.Fatalf("volume content changed: %q", got)
+	}
+	if strings.Contains(result.Detail(a), "data restored: yes") {
+		t.Fatalf("unexpected data restore: %q", result.Detail(a))
 	}
 }
 
@@ -265,6 +292,35 @@ func TestUPD_019_transaction_timeout_must_be_positive(t *testing.T) {
 		result := env.Parachute("--run-once", "--transaction-timeout="+value).Run(runTimeout)
 		assertExit(t, result, 2)
 		assertContains(t, result.Stderr, "transaction-timeout")
+	}
+}
+
+func TestUPD_019_snapshot_pull_delay_hits_transaction_timeout(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	var digestPulls int
+	proxy := app.registry.Proxy(harness.ProxyOptions{
+		Handle: func(_ http.ResponseWriter, request *http.Request) bool {
+			if request.Method == http.MethodGet && strings.Contains(request.URL.Path, "/manifests/sha256:") {
+				digestPulls++
+				time.Sleep(25 * time.Second)
+			}
+			return false
+		},
+	})
+	a := env.RunContainer("a", env.Rehome(app.ref, proxy.Host), harness.ContainerOptions{})
+	id, image := env.ContainerState(a)
+	app.publishNewer()
+	start := time.Now()
+	result := armedOnce(env, "--transaction-timeout", "20s")
+	if digestPulls == 0 {
+		t.Fatal("expected delayed digest manifest pull")
+	}
+	assertExit(t, result, 1)
+	assertState(t, result, a, "failed", "transaction_timeout")
+	assertUnchanged(env, a, id, image)
+	if elapsed := time.Since(start); elapsed < 20*time.Second || elapsed > 50*time.Second {
+		t.Fatalf("elapsed %s, want between 20s and 50s", elapsed)
 	}
 }
 

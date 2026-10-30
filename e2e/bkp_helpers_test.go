@@ -134,6 +134,11 @@ func countStackSnapshots(env *harness.Env, storeDir, stack string) int {
 	return count
 }
 
+func fileModTime(env *harness.Env, container, path string) string {
+	env.T.Helper()
+	return strings.TrimSpace(env.Docker("exec", container, "stat", "-c", "%Y", path))
+}
+
 func verifyFailLabels(signalDir string) map[string]string {
 	cmd := fmt.Sprintf("while [ ! -f %s ]; do sleep 0.1; done; exit 1", filepath.Join(signalDir, "go"))
 	return map[string]string{"parachute.verify.cmd": cmd}
