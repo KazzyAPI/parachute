@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -113,6 +114,28 @@ func TestCFG_010_missing_state_file_is_created(t *testing.T) {
 	var document map[string]any
 	if err := json.Unmarshal(contents, &document); err != nil || document["format"] != "parachute.state/v1" {
 		t.Fatalf("state.json is not parachute.state/v1: %v %s", err, contents)
+	}
+}
+
+func TestCFG_010_state_file_keeps_at_most_100_finished_transactions(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	assertExit(t, env.Parachute("--run-once").Run(runTimeout), 0)
+	editState(t, env, func(document map[string]any) {
+		var seeded []any
+		for index := range 150 {
+			seeded = append(seeded, map[string]any{
+				"id": fmt.Sprintf("txn-20200101T000000Z-%06x", index), "host": "local", "stacks": []string{"old"},
+				"state": "committed", "result": "updated", "time": "2020-01-01T00:00:00Z",
+			})
+		}
+		document["transactions"] = seeded
+	})
+	app.publishNewer()
+	assertExit(t, armedParachute(env, "--backup", "none").Run(runTimeout), 0)
+	if transactions := env.StateDocument()["transactions"].([]any); len(transactions) != 100 {
+		t.Fatalf("state.json holds %d transactions, want 100", len(transactions))
 	}
 }
 

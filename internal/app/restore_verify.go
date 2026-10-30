@@ -52,6 +52,7 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 	if err := host.docker.EnsureVolume(ctx, volumeName); err != nil {
 		return err
 	}
+	defer func() { _ = host.docker.RemoveVolume(context.WithoutCancel(ctx), volumeName) }()
 	if err := snap.RestoreToVolume(ctx, latest.ID, record.File, volumeName); err != nil {
 		return &ExitError{Code: domain.ExitFailures, Err: fmt.Errorf("restore verification failed: %w", err)}
 	}
