@@ -10,7 +10,7 @@ const defaultTemplate = `{{- range .Hosts}}
 {{- if not .Reachable}}{{.Name}}: unreachable
 {{else if .Stacks}}{{.Name}}
 {{range .Stacks}}  {{.Name}}
-{{range .Services}}    {{.Name}} ({{.Container}}): {{.State}}{{if .Reason}} ({{.Reason}}){{end}}{{if .HoldUntil}} until {{.HoldUntil}}{{end}} {{.Image}}{{if .TransactionID}} {{.TransactionID}}{{end}}
+{{range .Services}}    {{.Name}} ({{.Container}}): {{.State}}{{if .Reason}} ({{.Reason}}){{end}}{{if .Detail}} [{{.Detail}}]{{end}}{{if .HoldUntil}} until {{.HoldUntil}}{{end}} {{.Image}}{{if .TransactionID}} {{.TransactionID}}{{end}}
 {{end}}{{end}}{{end}}{{end}}`
 
 const defaultEntriesTemplate = `{{range .}}{{.Level}} {{.Message}}{{range $key, $value := .Fields}} {{$key}}={{$value}}{{end}}

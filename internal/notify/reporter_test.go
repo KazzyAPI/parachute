@@ -62,3 +62,16 @@ func TestRollbackFailureIsSentWhateverTheLevelAndDelay(t *testing.T) {
 		t.Errorf("sent %v", sender.bodies)
 	}
 }
+
+func TestDefaultReportShowsDetail(t *testing.T) {
+	renderer, err := NewRenderer("", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := []domain.Result{{Container: "a", Service: "a", Stack: "s", State: domain.StateRolledBack, Reason: "verify_failed", Detail: "data restored: yes"}}
+	view := NewViewBuilder(domain.LevelDebug, "host").Build(domain.Report{Hosts: []domain.HostReport{{Name: "local", Reachable: true, Results: results}}}, "t", func(domain.Result) bool { return false })
+	body, err := renderer.Render(view)
+	if err != nil || !strings.Contains(body, "data restored: yes") {
+		t.Fatalf("body %q err %v", body, err)
+	}
+}

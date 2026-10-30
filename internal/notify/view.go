@@ -13,6 +13,7 @@ type ServiceView struct {
 	CandidateDigest string
 	State           string
 	Reason          string
+	Detail          string
 	HoldUntil       string
 	TransactionID   string
 	SnapshotID      string
@@ -81,7 +82,7 @@ func (b *ViewBuilder) stacks(results []domain.Result, hidden func(domain.Result)
 		last := &stacks[len(stacks)-1]
 		last.Services = append(last.Services, ServiceView{
 			Name: result.Service, Container: result.Container, Image: result.Image, CandidateDigest: result.CandidateDigest,
-			State: string(result.State), Reason: result.Reason, TransactionID: result.Transaction, SnapshotID: result.Snapshot,
+			State: string(result.State), Reason: result.Reason, Detail: result.Detail, TransactionID: result.Transaction, SnapshotID: result.Snapshot,
 			HoldUntil: holdUntil(result),
 		})
 	}
