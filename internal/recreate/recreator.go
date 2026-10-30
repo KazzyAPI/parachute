@@ -48,7 +48,10 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 	}
 	target := targetFor(plan, original.Name)
 	if target.Image == "" {
-		return "", fmt.Errorf("missing image for %s", original.Name)
+		if original.Config == nil || original.ImageID == "" {
+			return "", fmt.Errorf("missing image for %s", original.Name)
+		}
+		target.Image = original.ImageID
 	}
 	oldImage, err := r.engine.ImageConfig(ctx, original.ImageID)
 	if err != nil {

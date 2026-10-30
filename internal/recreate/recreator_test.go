@@ -89,3 +89,23 @@ func TestFollowNetworkPeerPointsAtTheReplacement(t *testing.T) {
 		t.Fatalf("unrelated peer rewritten: %s", host.NetworkMode)
 	}
 }
+
+func TestReplacementOfDependentWithoutTargetKeepsItsOwnImage(t *testing.T) {
+	fake := &fakeEngine{specs: map[string]engine.Spec{
+		"old-id": {
+			ID:         "old-id",
+			Name:       "sidecar-parachute-abc123",
+			ImageID:    "sha256:old",
+			Config:     &container.Config{Image: "reg/app:1"},
+			HostConfig: &container.HostConfig{},
+		},
+	}}
+	plan := txn.Plan{ID: "txn-1", Targets: []txn.Target{{Container: "app", Image: "reg/app:1", Digest: "sha256:new"}}}
+
+	if _, err := NewRecreator(fake, func() Settings { return Settings{} }).Replacement(context.Background(), plan, "old-id", "sidecar"); err != nil {
+		t.Fatalf("Replacement: %v", err)
+	}
+	if fake.created.Config.Image != "sha256:old" {
+		t.Fatalf("created image = %q, want sha256:old", fake.created.Config.Image)
+	}
+}
