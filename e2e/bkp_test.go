@@ -95,11 +95,10 @@ func TestBKP_002_exclude_label_omits_mount(t *testing.T) {
 func TestBKP_003_stop_mode_stops_before_helper(t *testing.T) {
 	env := harness.NewEnv(t)
 	rec := env.StartRawEventRecorder()
-	app := newUpdatable(env, "app")
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Cmd: counterImageCmd()})
 	name := env.Name("a")
-	volume := env.ID + "-data"
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: append([]string{"-v", volume + ":/data"}, counterContainerCommand()...)})
-	app.publishNewer()
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Cmd: counterImageCmd()})
 	result := runArmed(env)
 	assertState(t, result, a, "updated", "")
 	assertStopModeSnapshotOrder(t, rec.Events(), name)
@@ -108,10 +107,10 @@ func TestBKP_003_stop_mode_stops_before_helper(t *testing.T) {
 func TestBKP_003_live_mode_copies_before_stop(t *testing.T) {
 	env := harness.NewEnv(t)
 	rec := env.StartRawEventRecorder()
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Cmd: counterImageCmd()})
 	name := env.Name("a")
-	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: append([]string{"-v", env.ID + "-data:/data"}, counterContainerCommand()...), Labels: map[string]string{"parachute.backup": "live"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}, Labels: map[string]string{"parachute.backup": "live"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Cmd: counterImageCmd()})
 	result := runArmed(env)
 	assertState(t, result, a, "updated", "")
 	assertLiveModeSnapshotOrder(t, rec.Events(), name)
@@ -411,9 +410,11 @@ func TestBKP_008_retention_after_commits(t *testing.T) {
 		app.registry.Push("app", "1", strconv.Itoa(i+2))
 		result := runArmed(env, "--backup-volume", store)
 		assertState(t, result, a, "updated", "")
-		if snap := porcelainField(result.Entry("a"), "snapshot"); snap != "" && snap != "none" {
-			created = append(created, snap)
+		snap := newStackSnapshot(env, store, stack, created)
+		if snap == "" {
+			t.Fatalf("run %d created no snapshot", i)
 		}
+		created = append(created, snap)
 	}
 	assertRetentionKeepsNewest(t, env, store, stack, created, 3)
 }
@@ -426,15 +427,17 @@ func TestBKP_008_retention_after_rollbacks(t *testing.T) {
 	}
 	stack := env.Name("a")
 	var created []string
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "3s"}})
 	for i := range 5 {
-		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
-		a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "3s"}})
 		pushV2(env, "app", "1", harness.ImageSpec{Version: strconv.Itoa(i + 2)})
 		result := runArmed(env, "--backup-volume", store)
 		assertState(t, result, a, "rolled_back", "verify_failed")
-		if snap := porcelainField(result.Entry("a"), "snapshot"); snap != "" && snap != "none" {
-			created = append(created, snap)
+		snap := newStackSnapshot(env, store, stack, created)
+		if snap == "" {
+			t.Fatalf("run %d created no snapshot", i)
 		}
+		created = append(created, snap)
 	}
 	assertRetentionKeepsNewest(t, env, store, stack, created, 3)
 }

@@ -38,13 +38,6 @@ func transactionLabel(env *harness.Env, container string) string {
 	return strings.TrimSpace(env.Docker("inspect", "--format", "{{index .Config.Labels \"parachute.transaction\"}}", container))
 }
 
-func porcelainField(entry map[string]any, key string) string {
-	if value, ok := entry[key].(string); ok {
-		return value
-	}
-	return ""
-}
-
 func readManifest(env *harness.Env, dir, snapshotID string) map[string]any {
 	env.T.Helper()
 	raw := env.ReadHostPath(filepath.Join(dir, snapshotID, "manifest.json"))
@@ -187,6 +180,16 @@ func stackSnapshotIDs(env *harness.Env, storeDir, stack string) []string {
 	return ids
 }
 
+func newStackSnapshot(env *harness.Env, storeDir, stack string, known []string) string {
+	env.T.Helper()
+	for _, id := range stackSnapshotIDs(env, storeDir, stack) {
+		if !slices.Contains(known, id) {
+			return id
+		}
+	}
+	return ""
+}
+
 func assertRetentionKeepsNewest(t *testing.T, env *harness.Env, storeDir, stack string, created []string, keep int) {
 	t.Helper()
 	if len(created) < keep {
@@ -262,9 +265,8 @@ func postgresReady(env *harness.Env, container string) {
 	})
 }
 
-func counterContainerCommand() []string {
-	script := "i=0; while true; do i=$((i+1)); echo $i > /data/c; sleep 0.1; done"
-	return []string{"--entrypoint", "sh", "-c", script}
+func counterImageCmd() []string {
+	return []string{"sh", "-c", "i=0; while true; do i=$((i+1)); echo $i > /data/c; sleep 0.1; done"}
 }
 
 func parseContainerEvent(line string) (action, name string, ok bool) {
@@ -571,7 +573,7 @@ func assertCapConstraints(t *testing.T, host map[string]any) {
 	}
 	if add, ok := host["CapAdd"].([]any); ok {
 		for _, item := range add {
-			name := fmt.Sprint(item)
+			name := strings.TrimPrefix(fmt.Sprint(item), "CAP_")
 			if !allowed[name] {
 				t.Fatalf("CapAdd %s not allowed", name)
 			}
