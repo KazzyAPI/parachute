@@ -89,17 +89,23 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 	if err != nil {
 		return configurationError(handover.InvalidMarkerError(err))
 	}
-	if !hasMarker {
-		return nil
-	}
 	if !s.self.Contained() || s.engine == nil {
+		if !hasMarker {
+			return nil
+		}
 		return configurationError(errors.New("handover.json"))
 	}
 	containers, err := s.engine.Containers(ctx)
 	if err != nil {
+		if !hasMarker {
+			return nil
+		}
 		return unreachableError(err)
 	}
 	if !s.self.Mark([]engine.SelfHost{{Local: true, Containers: containers}}) {
+		if !hasMarker {
+			return nil
+		}
 		return configurationError(errors.New("handover.json"))
 	}
 	for _, container := range containers {
@@ -107,6 +113,9 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 			s.own = container
 			break
 		}
+	}
+	if !hasMarker {
+		return nil
 	}
 	if s.own.ID == "" {
 		return configurationError(errors.New("handover.json"))

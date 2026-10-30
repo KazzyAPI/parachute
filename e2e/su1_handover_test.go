@@ -36,6 +36,8 @@ func handoverChecksum(t *testing.T, env *harness.Env) string {
 
 func imageRepoDigest(t *testing.T, env *harness.Env, ref string) string {
 	t.Helper()
+	env.Docker("tag", ref, env.Registry().Ref("parachute", "1"))
+	env.Docker("push", "-q", env.Registry().Ref("parachute", "1"))
 	line := env.Docker("inspect", "--format", "{{index .RepoDigests 0}}", ref)
 	_, digest, ok := strings.Cut(strings.TrimSpace(line), "@")
 	if !ok || digest == "" {
@@ -48,10 +50,10 @@ func TestUPD_018_invalid_handover_marker_exits_2_and_keeps_file(t *testing.T) {
 	env := harness.NewEnv(t)
 	ref := officialRef(env)
 	startOwnWithStateMount(env, ref)
-	before := handoverChecksum(t, env)
 	writeHandover(t, env, map[string]any{
 		"format": "parachute.handover/v1", "transaction": "not-a-txn", "container": strings.Repeat("a", 64), "digest": "sha256:deadbeef",
 	})
+	before := handoverChecksum(t, env)
 	result := env.Parachute("--run-once").Run(runTimeout)
 	assertExit(t, result, 2)
 	if !strings.Contains(result.Stderr, "handover.json") {
@@ -101,5 +103,6 @@ func startOwnWithStateMount(env *harness.Env, ref string) string {
 		Mounts: []string{env.StateDir + ":/var/lib/parachute"},
 	})
 	assertExit(env.T, env.StartAttached(name, runTimeout), 0)
+	env.OpenStateDir()
 	return name
 }

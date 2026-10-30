@@ -121,6 +121,9 @@ func (fakeSnapshotter) Estimate(context.Context, txn.Plan) (int64, error) { retu
 func (fakeSnapshotter) Take(context.Context, txn.Plan) (string, error)    { return "none", nil }
 func (fakeSnapshotter) Validate(context.Context, string) error            { return nil }
 func (fakeSnapshotter) Restore(context.Context, string) error             { return nil }
+func (fakeSnapshotter) SkippedDestinations(context.Context, string) (map[string][]string, error) {
+	return nil, nil
+}
 func (fakeSnapshotter) Discard(context.Context, string) error             { return nil }
 func (fakeSnapshotter) Retain(context.Context, string, string, int) error { return nil }
 

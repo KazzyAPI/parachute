@@ -135,3 +135,36 @@ func TestStartupHandoverSupersededInstanceExits(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+type fakeSelfFiles struct{ hostname string }
+
+func (fakeSelfFiles) ReadFile(string) ([]byte, error) { return nil, fs.ErrNotExist }
+
+func (fakeSelfFiles) Stat(string) (fs.FileInfo, error) { return nil, nil }
+
+func (f fakeSelfFiles) Hostname() (string, error) { return f.hostname, nil }
+
+func TestStartupHandoverSupersededInstanceExitsWithoutMarker(t *testing.T) {
+	ownID := strings.Repeat("c", 64)
+	store := state.NewStore("/s", handoverMemoryFiles{}, nil)
+	if err := store.Open(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(func(document *state.Document) error {
+		document.SupersededInstances = []string{ownID}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	startup := &StartupHandover{
+		stateDir: "/s", files: handoverMemoryFiles{}, self: engine.ProbeSelf(fakeSelfFiles{hostname: ownID[:12]}),
+		engine: &fakeHandoverEngine{containers: []domain.Container{{ID: ownID, Name: "parachute", State: "running"}}},
+	}
+	if err := startup.BeforeStore(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var exitErr *ExitError
+	if err := startup.AfterStore(context.Background(), store); !errors.As(err, &exitErr) || exitErr.Code != domain.ExitConfiguration {
+		t.Fatalf("err=%v", err)
+	}
+}
