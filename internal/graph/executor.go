@@ -279,6 +279,11 @@ func (e *Executor) rollback(ctx context.Context, plan txn.Plan, affected []*pipe
 	if finishErr := e.journal.Finish(ctx, plan.ID, outcome); finishErr != nil && err == nil {
 		err = finishErr
 	}
+	if outcome.State == txn.StateRolledBack {
+		for _, stack := range plan.Stacks {
+			_ = e.snapshot.Retain(ctx, plan.Host, stack, e.options.Retention)
+		}
+	}
 	return err
 }
 

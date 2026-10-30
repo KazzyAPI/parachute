@@ -280,3 +280,24 @@ func TestUPD_012_no_restart_does_not_start_replacement(t *testing.T) {
 		t.Fatalf("started %v", h.engine.started)
 	}
 }
+
+type retainCounter struct {
+	fakeSnapshots
+	stacks *[]string
+}
+
+func (r retainCounter) Retain(_ context.Context, _, stack string, _ int) error {
+	*r.stacks = append(*r.stacks, stack)
+	return nil
+}
+
+func TestBKP_008_retention_runs_after_completed_rollback(t *testing.T) {
+	var retained []string
+	verdict := txn.Verdict{Reason: "verify_failed", Check: "health"}
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{verdict})
+	h.executor.snapshot = retainCounter{stacks: &retained}
+	h.run(t)
+	if !h.rollbacker.called || len(retained) != 1 {
+		t.Fatalf("rollback %v retained %v", h.rollbacker.called, retained)
+	}
+}
