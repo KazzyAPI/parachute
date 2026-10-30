@@ -91,6 +91,8 @@ func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit t
 		return ExecResult{}, writeError("attach exec", err)
 	}
 	defer attached.Close()
+	stop := context.AfterFunc(attempt, attached.Close)
+	defer stop()
 	output := &cappedBuffer{limit: maxOutput}
 	if _, err := stdcopy.StdCopy(output, output, attached.Reader); err != nil {
 		return ExecResult{}, writeError("read exec output", err)
