@@ -92,6 +92,7 @@ func fixture(env *harness.Env) string {
 type updatable struct {
 	registry *harness.Registry
 	ref      string
+	shell    bool
 }
 
 func newUpdatable(env *harness.Env, repo string) updatable {
@@ -100,7 +101,21 @@ func newUpdatable(env *harness.Env, repo string) updatable {
 	return updatable{registry: registry, ref: registry.Push(repo, "1", "1")}
 }
 
+func newShellUpdatable(env *harness.Env, repo string) updatable {
+	env.T.Helper()
+	registry := env.Registry()
+	return updatable{registry: registry, ref: pushShell(registry, repo, "1"), shell: true}
+}
+
+func pushShell(registry *harness.Registry, repo, version string) string {
+	return registry.PushSpec(repo, "1", harness.ImageSpec{Verify: true, Version: version})
+}
+
 func (u updatable) publishNewer() {
+	if u.shell {
+		pushShell(u.registry, refRepo(u.ref), "2")
+		return
+	}
 	u.registry.Push(refRepo(u.ref), "1", "2")
 }
 
