@@ -39,11 +39,12 @@ type Candidate struct {
 }
 
 type Cycle struct {
-	ID      string
-	Started time.Time
-	Armed   bool
-	Hosts   []*HostRun
-	Report  domain.Report
+	ID             string
+	Started        time.Time
+	Armed          bool
+	Hosts          []*HostRun
+	Report         domain.Report
+	HandoverTicket any
 }
 
 func NewCycle(id string, started time.Time, armed bool, hosts []Host) *Cycle {

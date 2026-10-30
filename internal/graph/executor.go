@@ -44,6 +44,8 @@ type Executor struct {
 	recreator  txn.Recreator
 	verifier   txn.Verifier
 	rollbacker Rollbacker
+	hooks      txn.Hooks
+	selfRunner SelfRunner
 	ids        *txn.IDGenerator
 	clock      Clock
 	logger     *slog.Logger
@@ -70,6 +72,8 @@ func NewExecutor(
 	recreator txn.Recreator,
 	verifier txn.Verifier,
 	rollbacker Rollbacker,
+	hooks txn.Hooks,
+	selfRunner SelfRunner,
 	ids *txn.IDGenerator,
 	clock Clock,
 	logger *slog.Logger,
@@ -78,13 +82,14 @@ func NewExecutor(
 ) *Executor {
 	return &Executor{
 		builder: builder, engine: engine, journal: journal, snapshot: snapshot, recreator: recreator,
-		verifier: verifier, rollbacker: rollbacker, ids: ids, clock: clock, logger: logger, options: options, auth: auth,
+		verifier: verifier, rollbacker: rollbacker, hooks: hooks, selfRunner: selfRunner, ids: ids, clock: clock,
+		logger: logger, options: options, auth: auth,
 	}
 }
 
-func (e *Executor) Run(ctx context.Context, host string, containers []domain.Container, candidates []*pipeline.Candidate, own string) error {
+func (e *Executor) Run(ctx context.Context, host string, containers []domain.Container, candidates []*pipeline.Candidate, own string) (HandoverTicket, error) {
 	if len(candidates) == 0 {
-		return nil
+		return HandoverTicket{}, nil
 	}
 	index := NewIndex(containers)
 	targets := map[string]txn.Target{}
@@ -106,7 +111,21 @@ func (e *Executor) Run(ctx context.Context, host string, containers []domain.Con
 	}
 	for _, group := range plan.Groups {
 		if err := e.runGroup(ctx, host, index, group, candidates); err != nil {
-			return err
+			return HandoverTicket{}, err
+		}
+	}
+	return e.selfRunner.Handover(ctx, host, ownCandidate(candidates, own))
+}
+
+func ownCandidate(candidates []*pipeline.Candidate, own string) *pipeline.Candidate {
+	for _, candidate := range candidates {
+		if own != "" && (candidate.Container.Name == own || candidate.Container.ID == own) {
+			return candidate
+		}
+	}
+	for _, candidate := range candidates {
+		if candidate.Container.Own {
+			return candidate
 		}
 	}
 	return nil
