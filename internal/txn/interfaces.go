@@ -63,6 +63,7 @@ type Snapshotter interface {
 	Restore(ctx context.Context, snapshot string) error
 	Discard(ctx context.Context, snapshot string) error
 	Retain(ctx context.Context, host, stack string, keep int) error
+	SkippedDestinations(ctx context.Context, snapshot string) (map[string][]string, error)
 }
 
 type Recreator interface {
