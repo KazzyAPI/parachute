@@ -147,10 +147,12 @@ func verifyFailUpdate(env *harness.Env, repo string) string {
 func waitSnapshotDuringVerify(env *harness.Env, container, signalFile string, tamper func(snapID string)) {
 	env.T.Helper()
 	name := env.Name(container)
+	var snap string
 	env.Eventually(2*time.Minute, "snapshot label during verify", func() bool {
-		return strings.HasPrefix(snapshotLabel(env, name), "snap-")
+		out, err := env.DockerMayFail("inspect", "--format", "{{index .Config.Labels \"parachute.snapshot\"}}", name)
+		snap = out
+		return err == nil && strings.HasPrefix(snap, "snap-")
 	})
-	snap := snapshotLabel(env, name)
 	tamper(snap)
 	if err := os.WriteFile(signalFile, []byte("1"), 0o644); err != nil {
 		env.T.Fatal(err)
