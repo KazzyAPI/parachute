@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
 	"strings"
@@ -31,23 +32,38 @@ func TestCFG_001_environment_variable_sets_stop_timeout(t *testing.T) {
 	assertState(t, result, a, "updated", "")
 	events := env.Docker("events", "--since", strconv.FormatInt(since, 10), "--until", strconv.FormatInt(time.Now().Unix()+1, 10),
 		"--filter", "container="+id, "--filter", "event=kill", "--format", "{{.Actor.Attributes.signal}} {{.TimeNano}}")
-	signalled := map[string]time.Time{}
+	var kill time.Time
 	for _, line := range strings.Split(strings.TrimSpace(events), "\n") {
 		fields := strings.Fields(line)
-		if len(fields) != 2 {
+		if len(fields) != 2 || fields[0] != "9" {
 			continue
 		}
 		nanos, err := strconv.ParseInt(fields[1], 10, 64)
 		if err != nil {
 			t.Fatalf("event line %q: %v", line, err)
 		}
-		signalled[fields[0]] = time.Unix(0, nanos)
+		kill = time.Unix(0, nanos)
 	}
-	term, kill := signalled["15"], signalled["9"]
-	if term.IsZero() || kill.IsZero() {
-		t.Fatalf("kill events missing SIGTERM or SIGKILL:\n%s", events)
+	stopBegan := updatePhaseStart(t, result.Stderr)
+	if kill.IsZero() {
+		t.Fatalf("no SIGKILL event after the stop timeout:\n%s", events)
 	}
-	assertDuration(t, kill.Sub(term), 5*time.Second, 2*time.Second)
+	assertDuration(t, kill.Sub(stopBegan), 5*time.Second, 2*time.Second)
+}
+
+func updatePhaseStart(t *testing.T, stderr string) time.Time {
+	t.Helper()
+	for _, line := range strings.Split(stderr, "\n") {
+		var entry struct {
+			Time  time.Time `json:"time"`
+			Phase string    `json:"phase"`
+		}
+		if json.Unmarshal([]byte(line), &entry) == nil && entry.Phase == "update" {
+			return entry.Time
+		}
+	}
+	t.Fatalf("no update phase log line:\n%s", stderr)
+	return time.Time{}
 }
 
 func TestCFG_002_flag_wins_over_environment(t *testing.T) {

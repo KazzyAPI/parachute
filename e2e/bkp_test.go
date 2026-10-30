@@ -438,7 +438,7 @@ func TestBKP_008_retention_after_rollbacks(t *testing.T) {
 	stack := env.Name("a")
 	for i := range 5 {
 		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
-		a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
+		a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "3s"}})
 		pushV2(env, "app", "1", harness.ImageSpec{Version: strconv.Itoa(i + 2)})
 		runArmed(env, "--backup-volume", store)
 		env.Docker("rm", "-f", a)

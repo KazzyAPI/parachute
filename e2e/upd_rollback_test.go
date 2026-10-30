@@ -123,7 +123,7 @@ func TestVER_011_verify_timeout_names_deadline_and_label(t *testing.T) {
 	webhook := env.Webhook()
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "5s", "parachute.verify.stable": "1s"}})
-	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture", "exit", "1"}, HealthcheckInterval: "1s"})
+	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture"}, HealthcheckInterval: "1s", HealthcheckTimeout: "1h"})
 	result := armedOnce(env, "--no-startup-message", "--notification-url", webhook.URL())
 	assertState(t, result, a, "rolled_back", "verify_timeout")
 	assertReasonDetail(t, result, a, "5s", "parachute.verify.timeout")
