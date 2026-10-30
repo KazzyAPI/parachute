@@ -15,6 +15,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/policy"
+	"github.com/KazzyAPI/parachute/internal/redact"
 	"github.com/KazzyAPI/parachute/internal/txn"
 	"github.com/moby/moby/api/types/mount"
 )
@@ -33,6 +34,8 @@ type Settings struct {
 	Retention int
 	Helper    string
 }
+
+const NoSnapshot = "none"
 
 type Snapshotter struct {
 	engine    Engine
@@ -99,6 +102,11 @@ func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error
 
 func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 	s.stopped = nil
+	if all, err := s.allUnbacked(ctx, plan); err != nil {
+		return "", err
+	} else if all {
+		return NoSnapshot, nil
+	}
 	id, err := s.ids.New("snap")
 	if err != nil {
 		return "", err
@@ -206,6 +214,19 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 	return id, nil
 }
 
+func (s *Snapshotter) allUnbacked(ctx context.Context, plan txn.Plan) (bool, error) {
+	for _, target := range plan.Targets {
+		_, _, mode, err := s.loadTarget(ctx, plan.Host, target.Container)
+		if err != nil {
+			return false, err
+		}
+		if mode != "none" {
+			return false, nil
+		}
+	}
+	return len(plan.Targets) > 0, nil
+}
+
 func (s *Snapshotter) Validate(ctx context.Context, snapshot string) error {
 	root, err := s.store.Root(ctx)
 	if err != nil {
@@ -304,7 +325,7 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 		return DumpRecord{}, err
 	}
 	if result.ExitCode != 0 {
-		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", string(result.Output))
+		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", redactEnvValues(string(result.Output), spec))
 		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
 	}
 	if result.Truncated {
@@ -316,6 +337,18 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 		return DumpRecord{}, err
 	}
 	return DumpRecord{Container: container.Name, File: file, SHA256: sum, Size: size}, nil
+}
+
+func redactEnvValues(text string, spec engine.Spec) string {
+	var values []string
+	if spec.Config != nil {
+		for _, pair := range spec.Config.Env {
+			if _, value, ok := strings.Cut(pair, "="); ok {
+				values = append(values, value)
+			}
+		}
+	}
+	return redact.New(redact.Static(values...)).Redact(text)
 }
 
 func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, cmd, env *[]string) bool {

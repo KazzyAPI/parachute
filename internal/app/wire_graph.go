@@ -23,6 +23,9 @@ func (r recordingSnapshotter) Take(ctx context.Context, plan txn.Plan) (string, 
 	if err != nil {
 		return "", err
 	}
+	if snapshot == backup.NoSnapshot {
+		return snapshot, nil
+	}
 	for _, stack := range plan.Stacks {
 		if err := r.journal.RecordSnapshot(plan.Host, stack, plan.ID, snapshot); err != nil {
 			return "", err
