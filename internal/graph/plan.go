@@ -3,7 +3,6 @@ package graph
 import (
 	"cmp"
 	"slices"
-	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -88,7 +87,7 @@ func (b *Builder) affected(index Index, targets map[string]txn.Target, edges []E
 			if !ok {
 				continue
 			}
-			recreate := networkDependsOn(container, name)
+			recreate := networkDependsOn(index, container, name)
 			affected[dependent] = Member{Container: container, Recreate: recreate}
 			queue = append(queue, dependent)
 		}
@@ -102,7 +101,7 @@ func (b *Builder) affected(index Index, targets map[string]txn.Target, edges []E
 				continue
 			}
 			if _, updating := targets[edge.Dependency]; updating {
-				member.Recreate = member.Recreate || networkDependsOn(member.Container, edge.Dependency)
+				member.Recreate = member.Recreate || networkDependsOn(index, member.Container, edge.Dependency)
 			}
 		}
 		affected[name] = member
@@ -125,13 +124,9 @@ func (b *Builder) markReplica(index Index, affected map[string]Member, container
 	}
 }
 
-func networkDependsOn(container domain.Container, dependency string) bool {
-	const prefix = "container:"
-	if !strings.HasPrefix(container.NetworkMode, prefix) {
-		return false
-	}
-	target := strings.TrimPrefix(container.NetworkMode, prefix)
-	return target == dependency || strings.HasPrefix(container.NetworkMode, "container:"+dependency)
+func networkDependsOn(index Index, container domain.Container, dependency string) bool {
+	target, ok := networkContainer(container.NetworkMode, index)
+	return ok && target.Name == dependency
 }
 
 func (b *Builder) groups(index Index, affected map[string]Member, targets map[string]txn.Target, edges []Edge, own string) []Group {

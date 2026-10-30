@@ -64,3 +64,20 @@ func TestUPD_013_rolling_groups(t *testing.T) {
 		t.Fatalf("groups %v", groups)
 	}
 }
+
+func TestDEP_007_network_mode_by_id_marks_dependent_for_recreation(t *testing.T) {
+	app := container("app", "", "", nil, nil, "")
+	app.ID = "abc123def456"
+	sidecar := container("sidecar", "", "", nil, nil, "container:abc123def456")
+	index := NewIndex([]domain.Container{app, sidecar})
+	plan := NewBuilder().Plan(index, map[string]txn.Target{"app": {Container: "app"}}, "")
+	if len(plan.Groups) != 1 {
+		t.Fatalf("groups %v", plan.Groups)
+	}
+	for _, member := range plan.Groups[0].Members {
+		if member.Container.Name == "sidecar" && member.Recreate {
+			return
+		}
+	}
+	t.Fatalf("sidecar not marked for recreation: %v", plan.Groups[0].Members)
+}
