@@ -77,6 +77,12 @@ func (d *Docker) Remove(ctx context.Context, id string, anonymousVolumes, force 
 func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit time.Duration, maxOutput int64) (ExecResult, error) {
 	attempt, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
+	fail := func(operation string, err error) (ExecResult, error) {
+		if expired := attempt.Err(); expired != nil {
+			err = expired
+		}
+		return ExecResult{}, writeError(operation, err)
+	}
 	created, err := d.client.ExecCreate(attempt, id, client.ExecCreateOptions{
 		Cmd:          cmd,
 		Env:          env,
@@ -84,22 +90,22 @@ func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit t
 		AttachStderr: true,
 	})
 	if err != nil {
-		return ExecResult{}, writeError("create exec", err)
+		return fail("create exec", err)
 	}
 	attached, err := d.client.ExecAttach(attempt, created.ID, client.ExecAttachOptions{})
 	if err != nil {
-		return ExecResult{}, writeError("attach exec", err)
+		return fail("attach exec", err)
 	}
 	defer attached.Close()
 	stop := context.AfterFunc(attempt, attached.Close)
 	defer stop()
 	output := &cappedBuffer{limit: maxOutput}
 	if _, err := stdcopy.StdCopy(output, output, attached.Reader); err != nil {
-		return ExecResult{}, writeError("read exec output", err)
+		return fail("read exec output", err)
 	}
 	inspected, err := d.client.ExecInspect(attempt, created.ID, client.ExecInspectOptions{})
 	if err != nil {
-		return ExecResult{}, writeError("inspect exec", err)
+		return fail("inspect exec", err)
 	}
 	return ExecResult{ExitCode: inspected.ExitCode, Output: output.Bytes(), Truncated: output.truncated}, nil
 }

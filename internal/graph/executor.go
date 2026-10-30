@@ -3,6 +3,7 @@ package graph
 import (
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -160,6 +161,25 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 		e.abort(ctx, id, affected, err)
 		return nil
 	}
+	if _, err := e.snapshot.Estimate(ctx, plan); err != nil {
+		e.abort(ctx, id, affected, snapshotFailure(err))
+		return nil
+	}
+	if err := e.runPreUpdateHooks(ctx, group, edges, ceiling); err != nil {
+		if errors.Is(err, errDeferred) {
+			e.abortDeferred(ctx, id, affected)
+			return nil
+		}
+		_, reason, _ := classify(err, "")
+		if reason == "transaction_timeout" {
+			return e.rollback(ctx, plan, affected, originals, txn.StateSnapshot, err)
+		}
+		e.abortPreUpdateHook(ctx, id, affected, err)
+		return nil
+	}
+	if ceiling.Expired() {
+		return e.rollback(ctx, plan, affected, originals, txn.StateSnapshot, timeoutFailure())
+	}
 	snapshot, err := e.snapshot.Take(ctx, plan)
 	if err != nil {
 		e.abort(ctx, id, affected, snapshotFailure(err))
@@ -224,6 +244,7 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 			e.joinTransaction(candidates, member.Container.Name, id)
 		}
 	}
+	e.runPostChecks(ctx, transactionCandidates(group, candidates))
 	return nil
 }
 
@@ -309,6 +330,7 @@ func (e *Executor) rollback(ctx context.Context, plan txn.Plan, affected []*pipe
 			_ = e.snapshot.Retain(ctx, plan.Host, stack, e.options.Retention)
 		}
 	}
+	e.runPostChecks(ctx, affected)
 	return err
 }
 
@@ -427,6 +449,12 @@ func (e *Executor) startAll(ctx context.Context, plan txn.Plan, group Group, nam
 			return err
 		}
 		e.setReplacement(candidates, member.Container.Name, replacement)
+		for _, candidate := range candidates {
+			if candidate.Container.Name == member.Container.Name {
+				e.runPostUpdateHook(ctx, candidate.Container)
+				break
+			}
+		}
 		running[name] = replacement
 		if verify != nil {
 			if err := verify(name); err != nil {
