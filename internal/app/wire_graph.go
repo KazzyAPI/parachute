@@ -75,7 +75,7 @@ func (c *Container) graphStages(store *state.Store, connected []connectedHost, h
 			recreate.NewRecreator(host.docker, recreateSettings),
 			c.verifier(host.docker),
 			c.hostFinisher(host, snapshotter),
-			txn.NoHooks{},
+			c.hooks(host.docker),
 			selfRunner,
 			ids,
 			c.deps.Clock,
