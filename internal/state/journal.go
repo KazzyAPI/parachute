@@ -53,8 +53,9 @@ func (j *Journal) Finish(ctx context.Context, id string, outcome txn.Outcome) er
 			if outcome.State == txn.StateRollbackFail && !record.SelfUpdate {
 				document.Freezes = append(document.Freezes, freezeOf(*document, record))
 			}
-			return nil
+			break
 		}
+		prune(document)
 		return nil
 	})
 }
