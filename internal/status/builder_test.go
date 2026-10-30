@@ -14,6 +14,20 @@ type identity struct{}
 
 func (identity) Redact(text string) string { return text }
 
+func TestFreezeSelfUpdateListsOwnContainerOnly(t *testing.T) {
+	own := domain.Container{Name: "parachute-1", Labels: map[string]string{"com.docker.compose.project": "ops"}}
+	web := domain.Container{Name: "web-1", Labels: map[string]string{"com.docker.compose.project": "ops"}}
+	run := &pipeline.HostRun{Host: pipeline.Host{Name: "local"}, Reachable: true, Containers: []domain.Container{own, web}}
+	freeze := state.Freeze{Transaction: "txn-20260101T000020Z-aaaa20", Keys: []state.FreezeKey{{Host: "local", Container: "parachute-1"}}}
+	stacks := NewBuilder(nil, nil, identity{}, false).freeze([]Stack{{Name: "ops"}}, run, []state.Freeze{freeze})
+	if len(stacks) != 1 || len(stacks[0].Frozen) != 1 {
+		t.Fatalf("stacks %+v", stacks)
+	}
+	if !slices.Equal(stacks[0].Frozen[0].Containers, []string{"parachute-1"}) {
+		t.Errorf("frozen containers %+v", stacks[0].Frozen[0].Containers)
+	}
+}
+
 func TestFreezeListsKeyedStacksAndCoveredContainers(t *testing.T) {
 	web := domain.Container{Name: "shop-web-1", Labels: map[string]string{"com.docker.compose.project": "shop"}}
 	run := &pipeline.HostRun{Host: pipeline.Host{Name: "local"}, Reachable: true, Containers: []domain.Container{web}}

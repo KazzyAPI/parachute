@@ -26,6 +26,25 @@ type fixedClock struct{}
 
 func (fixedClock) Now() time.Time { return time.Unix(0, 0) }
 
+func TestReleaseOwnContainerEndsSelfAndStackFreezes(t *testing.T) {
+	selfKeys := []state.FreezeKey{{Host: "local", Container: "parachute-1"}}
+	stackKeys := []state.FreezeKey{{Host: "local", Stack: "ops"}}
+	own := domain.Container{ID: "1", Name: "parachute-1", Labels: map[string]string{"com.docker.compose.project": "ops"}}
+	store := &memory{document: state.Document{Freezes: []state.Freeze{
+		{Transaction: "txn-20260101T000030Z-aaaa30", Keys: selfKeys},
+		{Transaction: "txn-20260101T000031Z-aaaa31", Keys: stackKeys},
+	}}}
+	service := NewService(store, map[string]ContainerSource{"local": listing{own}}, fixedClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	code, body, err := service.Approve(context.Background(), ApproveRequest{Container: "parachute-1"})
+	released := body.(Released)
+	if err != nil || code != http.StatusOK || len(released.Transactions) != 2 || len(store.document.ActiveFreezes()) != 0 {
+		t.Fatalf("release: %d %v %v active %d", code, released, err, len(store.document.ActiveFreezes()))
+	}
+	if code, _, _ := service.Approve(context.Background(), ApproveRequest{Stack: "ops"}); code != http.StatusNotFound {
+		t.Errorf("stack release after self freeze cleared: %d", code)
+	}
+}
+
 func TestReleaseByContainerAndByStack(t *testing.T) {
 	keys := []state.FreezeKey{{Host: "local", Stack: "shop"}}
 	web := domain.Container{ID: "1", Name: "shop-web-1", Labels: map[string]string{"com.docker.compose.project": "shop"}}
