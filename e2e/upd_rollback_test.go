@@ -95,11 +95,12 @@ func TestVER_009_data_restored_when_replacement_started(t *testing.T) {
 func TestVER_009_data_not_restored_when_replacement_not_started(t *testing.T) {
 	env := harness.NewEnv(t)
 	volume := env.ID + "-data"
-	app := newUpdatable(env, "app")
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
+	registry := env.Registry()
+	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "1", Cmd: []string{"sh", "-c", sleeper}})
+	a := env.RunContainer("a", v1, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
 	env.Docker("exec", a, "sh", "-c", "echo original > /data/version")
 	beforeMtime := fileModTime(env, a, "/data/version")
-	app.publishNewer()
+	registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "2", Cmd: []string{"sh", "-c", sleeper}})
 	id, image := env.ContainerState(a)
 	proxy := env.HTTPEngineProxy()
 	proxy.FailFirstAfter("/containers/create?name="+a, "/start")
@@ -315,6 +316,7 @@ func TestUPD_019_snapshot_pull_delay_hits_transaction_timeout(t *testing.T) {
 	if digestPulls == 0 {
 		t.Fatal("expected delayed digest manifest pull")
 	}
+	assertExit(t, result, 1)
 	assertState(t, result, a, "failed", "transaction_timeout")
 	assertUnchanged(env, a, id, image)
 	if elapsed := time.Since(start); elapsed < 20*time.Second || elapsed > 50*time.Second {

@@ -119,8 +119,8 @@ func TestUPD_008_original_container_kept_until_commit(t *testing.T) {
 	origID, origImage := env.ContainerState(a)
 	done := runArmedAsync(env, "--backup", "none")
 	renamedID := waitRenamedOriginal(env, a)
-	if renamedID != origID {
-		t.Fatalf("renamed container id %s, want original %s", renamedID, origID)
+	if fullID := strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", renamedID)); fullID != origID {
+		t.Fatalf("renamed container id %s, want original %s", fullID, origID)
 	}
 	if running := strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Running}}", renamedID)); running != "false" {
 		t.Fatalf("renamed original running=%q, want stopped", running)
