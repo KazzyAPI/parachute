@@ -37,6 +37,7 @@ func TestFailureRule(t *testing.T) {
 		{"released freeze", released, compose, "sha256:z", false, false},
 		{"release with other keys", mismatched, compose, "sha256:z", false, true},
 		{"other stack", frozen, plain, "sha256:z", false, false},
+		{"self freeze not sibling", state.Document{Freezes: []state.Freeze{{Transaction: "txn-20260101T000050Z-aaaa50", Keys: []state.FreezeKey{{Host: "local", Container: "parachute-1"}}}}}, domain.Container{Name: "web-1", Labels: map[string]string{"com.docker.compose.project": "ops"}}, "sha256:z", false, false},
 		{"failed digest", failed, plain, "sha256:a", false, true},
 		{"approved failed digest", failed, plain, "sha256:a", true, false},
 		{"new digest", failed, plain, "sha256:b", false, false},
