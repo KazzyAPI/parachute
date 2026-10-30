@@ -1,6 +1,6 @@
 # 16 Configuration, output, and safety switches
 
-**Status:** Draft
+**Status:** Accepted
 
 The configuration surface, the arming switch, machine-readable output, logging, exit codes, and the state file. Naming is set by [ADR-0005](../adr/0005-label-and-configuration-namespace.md).
 

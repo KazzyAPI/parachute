@@ -1,6 +1,6 @@
 # 02 Scheduling
 
-**Status:** Draft
+**Status:** Accepted
 
 When cycles run. A **cycle** is one pass over all candidates on all managed hosts, ending with one report (NTF-002). Every cycle has a cycle ID matching `cyc-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}` (UTC start time plus random suffix), which appears in its logs, report, and porcelain output.
 

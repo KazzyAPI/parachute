@@ -46,6 +46,7 @@ func TestVER_003_stable_running_commits(t *testing.T) {
 	ref := app.registry.PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "1"})
 	container := env.RunContainer("ver003", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.stable": "5s"}})
 	app.registry.PushSpec("ver003", "1", harness.ImageSpec{Verify: true, Version: "2"})
+	env.ParachuteImage()
 	start := time.Now()
 	result := armedRunOnce(env)
 	assertUpdated(t, result, container)

@@ -1,6 +1,6 @@
 # 12 Registry authentication
 
-**Status:** Draft
+**Status:** Accepted
 
 How Parachute authenticates to registries for detection and pulls. Tests use a local `registry:2` with htpasswd authentication. `config.json` beyond its `auths` fields and every registry response (status, headers, bearer challenges, token bodies, manifests) are untrusted ([glossary: Trust boundaries](glossary.md#trust-boundaries)). Credentials are secrets under [glossary: Redaction](glossary.md#redaction).
 
