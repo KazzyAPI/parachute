@@ -65,22 +65,11 @@ func TestBKP_002_manifest_lists_writable_mounts_only(t *testing.T) {
 		"-v", sock + ":/var/run/docker.sock",
 	}})
 	app.publishNewer()
-	runArmed(env, "--backup-volume", store)
+	result := runArmed(env, "--backup-volume", store)
+	assertState(t, result, a, "updated", "")
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
-	mounts := manifestStrings(manifest, "mounts", "destination")
-	for _, want := range []string{"/data", "/conf"} {
-		if !strings.Contains(strings.Join(mounts, " "), want) {
-			t.Fatalf("mounts %v missing %s", mounts, want)
-		}
-	}
-	for _, omit := range []string{"/etc/ro", "/var/run/docker.sock"} {
-		for _, dest := range mounts {
-			if dest == omit {
-				t.Fatalf("mounts should not include %s", omit)
-			}
-		}
-	}
+	assertManifestDestinations(t, manifest, "mounts", []string{"/data", "/conf"}, []string{"/etc/ro", "/var/run/docker.sock"})
 }
 
 func TestBKP_002_exclude_label_omits_mount(t *testing.T) {
@@ -106,37 +95,25 @@ func TestBKP_002_exclude_label_omits_mount(t *testing.T) {
 func TestBKP_003_stop_mode_stops_before_helper(t *testing.T) {
 	env := harness.NewEnv(t)
 	rec := env.StartRawEventRecorder()
-	app := newUpdatable(env, "app")
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Cmd: counterImageCmd()})
 	name := env.Name("a")
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
-	app.publishNewer()
-	runArmed(env)
-	rec.AssertOrder("die "+name, "start")
-	_ = a
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}})
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Cmd: counterImageCmd()})
+	result := runArmed(env)
+	assertState(t, result, a, "updated", "")
+	assertStopModeSnapshotOrder(t, rec.Events(), name)
 }
 
 func TestBKP_003_live_mode_copies_before_stop(t *testing.T) {
 	env := harness.NewEnv(t)
 	rec := env.StartRawEventRecorder()
-	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1", Cmd: counterImageCmd()})
 	name := env.Name("a")
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", env.ID + "-data:/data"}, Labels: map[string]string{"parachute.backup": "live"}})
-	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
-	runArmed(env)
-	events := rec.Events()
-	dieIndex, startIndex := -1, -1
-	for index, line := range events {
-		if strings.Contains(line, "die") && strings.Contains(line, name) {
-			dieIndex = index
-		}
-		if strings.Contains(line, "start") && !strings.Contains(line, name) && startIndex < 0 {
-			startIndex = index
-		}
-	}
-	if startIndex < 0 || dieIndex < 0 || dieIndex < startIndex {
-		t.Fatalf("expected helper start before container die in live mode, events=%v", events)
-	}
-	_ = a
+	pushV2(env, "app", "1", harness.ImageSpec{Version: "2", Cmd: counterImageCmd()})
+	result := runArmed(env)
+	assertState(t, result, a, "updated", "")
+	assertLiveModeSnapshotOrder(t, rec.Events(), name)
 }
 
 func TestBKP_003_none_mode_rollback_reports_no_data(t *testing.T) {
@@ -191,7 +168,12 @@ func TestBKP_004_postgres_dump_in_snapshot(t *testing.T) {
 
 func TestBKP_004_mysql_password_not_in_events(t *testing.T) {
 	env := harness.NewEnv(t)
+	store := filepath.Join(env.Dir, "backup")
+	if err := os.MkdirAll(store, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	rec := env.StartRawEventRecorder()
+	execRec := env.StartExecEventRecorder()
 	ref := pushRealImage(env, "library/mysql", "8", "mysql:8-oracle")
 	volume := env.ID + "-mysqldata"
 	db := env.RunContainer("db", ref, harness.ContainerOptions{Extra: []string{
@@ -207,12 +189,13 @@ func TestBKP_004_mysql_password_not_in_events(t *testing.T) {
 		return err == nil
 	})
 	env.Registry().PushSpec("library/mysql", "8", harness.ImageSpec{Version: "2", Base: "mysql:8-oracle"})
-	result := runArmed(env, "--log-level", "debug")
+	result := runArmed(env, "--backup-volume", store, "--log-level", "debug")
 	assertState(t, result, db, "updated", "")
-	for _, line := range append(rec.Events(), result.Stderr) {
-		if strings.Contains(line, "s3cr3t-pw") {
-			t.Fatalf("secret leaked in %q", line)
-		}
+	assertMySQLDumpSecretRedacted(t, env, rec.Events(), execRec.Events(), result, "s3cr3t-pw")
+	snap := snapshotLabel(env, db)
+	manifest := readManifest(env, store, snap)
+	if dumps := manifestStrings(manifest, "dumps", "file"); len(dumps) == 0 {
+		t.Fatal("expected mysql dump file in snapshot")
 	}
 }
 
@@ -312,9 +295,8 @@ func TestBKP_006_manifest_matches_archives(t *testing.T) {
 	runArmed(env, "--backup-volume", store)
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
-	if manifest["transaction"] == nil {
-		t.Fatal("manifest missing transaction")
-	}
+	assertManifestSchema(t, manifest, snap)
+	assertManifestTransactionMatches(t, env, manifest, a)
 	assertManifestArchivesMatch(t, env, store, snap)
 }
 
@@ -330,8 +312,9 @@ func TestBKP_007_truncated_archive_invalid_on_rollback(t *testing.T) {
 	}
 	signalFile := filepath.Join(signalDir, "go")
 	app := newUpdatable(env, "app")
+	volume := env.ID + "-data"
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
-		"-v", env.ID + "-data:/data",
+		"-v", volume + ":/data",
 		"-v", signalDir + ":" + signalDir,
 	}, Labels: verifyFailLabels(signalDir)})
 	verifyFailUpdate(env, "app")
@@ -362,8 +345,10 @@ func TestBKP_007_manifest_path_traversal_rejected(t *testing.T) {
 	signalFile := filepath.Join(signalDir, "go")
 	outside := filepath.Join(env.Dir, "outside.tar.gz")
 	app := newUpdatable(env, "app")
+	volume := env.ID + "-data"
+	marker := volumeMarker(env, volume, "marker", "before-rollback")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{
-		"-v", env.ID + "-data:/data",
+		"-v", volume + ":/data",
 		"-v", signalDir + ":" + signalDir,
 	}, Labels: verifyFailLabels(signalDir)})
 	verifyFailUpdate(env, "app")
@@ -385,6 +370,9 @@ func TestBKP_007_manifest_path_traversal_rejected(t *testing.T) {
 	})
 	result := <-done
 	assertState(t, result, a, "rollback_failed", "snapshot_invalid")
+	if got := readVolumeMarker(env, volume, "marker"); got != marker {
+		t.Fatalf("volume marker %q, want %q", got, marker)
+	}
 }
 
 func TestBKP_007_symlink_archive_invalid_on_restore_verify(t *testing.T) {
@@ -405,9 +393,7 @@ func TestBKP_007_symlink_archive_invalid_on_restore_verify(t *testing.T) {
 	real := archivePath + ".real"
 	env.HostShell("mv " + archivePath + " " + real + " && ln -s " + real + " " + archivePath)
 	result := env.Parachute("restore-verify", "--backup-volume", store, "--helper-image", env.ParachuteImage()).Run(runTimeout)
-	assertExit(t, result, 1)
-	assertContains(t, result.Stderr, "snapshot_invalid")
-	_ = snap
+	assertRestoreVerifyFail(t, env, result, "snapshot_invalid")
 }
 
 func TestBKP_008_retention_after_commits(t *testing.T) {
@@ -419,14 +405,18 @@ func TestBKP_008_retention_after_commits(t *testing.T) {
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	stack := env.Name("a")
+	var created []string
 	for i := range 4 {
 		app.registry.Push("app", "1", strconv.Itoa(i+2))
-		runArmed(env, "--backup-volume", store)
+		result := runArmed(env, "--backup-volume", store)
+		assertState(t, result, a, "updated", "")
+		snap := newStackSnapshot(env, store, stack, created)
+		if snap == "" {
+			t.Fatalf("run %d created no snapshot", i)
+		}
+		created = append(created, snap)
 	}
-	if count := countStackSnapshots(env, store, stack); count != 3 {
-		t.Fatalf("retention: got %d snapshots, want 3", count)
-	}
-	_ = a
+	assertRetentionKeepsNewest(t, env, store, stack, created, 3)
 }
 
 func TestBKP_008_retention_after_rollbacks(t *testing.T) {
@@ -436,16 +426,20 @@ func TestBKP_008_retention_after_rollbacks(t *testing.T) {
 		t.Fatal(err)
 	}
 	stack := env.Name("a")
+	var created []string
+	ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
+	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "3s"}})
 	for i := range 5 {
-		ref := pushV2(env, "app", "1", harness.ImageSpec{Version: "1"})
-		a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "3s"}})
 		pushV2(env, "app", "1", harness.ImageSpec{Version: strconv.Itoa(i + 2)})
-		runArmed(env, "--backup-volume", store)
-		env.Docker("rm", "-f", a)
+		result := runArmed(env, "--backup-volume", store)
+		assertState(t, result, a, "rolled_back", "verify_failed")
+		snap := newStackSnapshot(env, store, stack, created)
+		if snap == "" {
+			t.Fatalf("run %d created no snapshot", i)
+		}
+		created = append(created, snap)
 	}
-	if count := countStackSnapshots(env, store, stack); count != 3 {
-		t.Fatalf("retention after rollbacks: got %d snapshots, want 3", count)
-	}
+	assertRetentionKeepsNewest(t, env, store, stack, created, 3)
 }
 
 func TestBKP_008_retention_leaves_unrelated_dirs(t *testing.T) {
@@ -554,9 +548,9 @@ func TestBKP_010_helper_hardening(t *testing.T) {
 	env := harness.NewEnv(t)
 	volume := env.ID + "-big"
 	app := newUpdatable(env, "app")
-	inspectHelperOnCreate(env, volume, func() {
+	observeSnapshotHelpers(env, volume, func() {
 		env.RunContainer("a", app.ref, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
-		env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 52428800 /dev/zero > /data/fill")
+		env.Docker("run", "--rm", "--entrypoint", "sh", "-v", volume+":/data", env.FixtureV2Image(), "-c", "head -c 209715200 /dev/zero > /data/fill")
 		app.publishNewer()
 		runArmed(env)
 	})
@@ -567,9 +561,10 @@ func TestBKP_010_unrelated_helpers_not_removed(t *testing.T) {
 	fake := createFakeHelper(env, nil)
 	fakeTxn := createFakeHelper(env, map[string]string{"parachute.transaction": "txn-20260101T000000Z-abcdef"})
 	app := newUpdatable(env, "app")
-	env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
-	runArmed(env)
+	result := runArmed(env)
+	assertState(t, result, a, "updated", "")
 	for _, id := range []string{fake, fakeTxn} {
 		if running := env.Docker("inspect", "--format", "{{.State.Running}}", id); running != "true" {
 			t.Fatalf("helper %s removed", id)
@@ -606,7 +601,6 @@ func TestBKP_010_unarmed_run_once_ok_without_helper_image(t *testing.T) {
 	app.publishNewer()
 	result := runOnce(env)
 	assertExit(t, result, 0)
-	assertContains(t, result.Stderr, "")
 	if strings.Contains(result.Stderr, "helper-image") {
 		t.Fatalf("unexpected helper-image message")
 	}
@@ -624,6 +618,7 @@ func TestBKP_010_status_ok_without_helper_image(t *testing.T) {
 func TestBKP_011_insufficient_space_refuses_update(t *testing.T) {
 	env := harness.NewEnv(t)
 	store := env.TmpfsMount(filepath.Join(env.Dir, "snapstore"))
+	rec := env.StartRawEventRecorder()
 	volume := env.ID + "-big"
 	env.Docker("volume", "create", volume)
 	a := env.RunContainer("a", pushV2(env, "app", "1", harness.ImageSpec{Version: "1"}), harness.ContainerOptions{
@@ -635,6 +630,10 @@ func TestBKP_011_insufficient_space_refuses_update(t *testing.T) {
 	result := runArmed(env, "--backup-volume", store)
 	assertState(t, result, a, "failed", "insufficient_space")
 	assertUnchanged(env, a, id, image)
+	assertNoDieEvent(t, rec.Events(), env.Name("a"))
+	assertNoPreUpdateHookLogs(t, result)
+	assertNoSnapshotCreated(t, env, store)
+	assertInsufficientSpaceDetail(t, result, a)
 }
 
 func TestBKP_011_small_volume_proceeds(t *testing.T) {
@@ -676,23 +675,20 @@ func TestBKP_012_system_mounts_skipped(t *testing.T) {
 		"-v", data + ":/data",
 	}})
 	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
-	runArmed(env, "--backup-volume", store)
+	result := runArmed(env, "--backup-volume", store)
+	assertState(t, result, a, "updated", "")
 	snap := snapshotLabel(env, a)
 	manifest := readManifest(env, store, snap)
-	mounts := manifestStrings(manifest, "mounts", "destination")
-	skipped := manifestStrings(manifest, "skipped", "destination")
-	if !strings.Contains(strings.Join(mounts, " "), "/data") {
-		t.Fatalf("expected /data in mounts, got %v", mounts)
-	}
+	assertManifestDestinations(t, manifest, "mounts", []string{"/data"}, []string{"/host-etc", "/host-proc"})
+	assertManifestDestinations(t, manifest, "skipped", []string{"/host-etc", "/host-proc"}, nil)
 	for _, dest := range []string{"/host-etc", "/host-proc"} {
-		found := false
-		for _, item := range skipped {
-			if item == dest {
-				found = true
-			}
+		record := manifestSkippedRecord(manifest, dest)
+		if record == nil || record["source"] == "" {
+			t.Fatalf("skipped record for %s missing source: %v", dest, record)
 		}
-		if !found {
-			t.Fatalf("expected %s skipped, got %v", dest, skipped)
+		assertWarnSystemMountSkipped(t, result, env.Name("a"), dest)
+		if detail := result.Detail(a); !strings.Contains(detail, dest) {
+			t.Fatalf("report detail %q missing skipped mount %s", detail, dest)
 		}
 	}
 }
@@ -778,6 +774,7 @@ func TestBKP_013_archive_escape_rejected(t *testing.T) {
 	}, Labels: verifyFailLabels(signalDir)})
 	verifyFailUpdate(env, "app")
 	mountpoint := strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
+	marker := volumeMarker(env, volume, "marker", "keep-content")
 	done := runArmedAsync(env, "--backup-volume", store)
 	waitSnapshotDuringVerify(env, "a", signalFile, func(snapID string) {
 		manifest := readManifest(env, store, snapID)
@@ -789,6 +786,9 @@ func TestBKP_013_archive_escape_rejected(t *testing.T) {
 	assertState(t, result, a, "rollback_failed", "snapshot_invalid")
 	if _, err := os.Stat(filepath.Join(filepath.Dir(mountpoint), "escape")); err == nil {
 		t.Fatal("escape file created outside volume")
+	}
+	if got := readVolumeMarker(env, volume, "marker"); got != marker {
+		t.Fatalf("volume marker %q, want %q", got, marker)
 	}
 }
 
@@ -809,8 +809,7 @@ func TestBKP_013_symlink_outside_target_rejected(t *testing.T) {
 	replaceArchive(env, store, snap, file, "mkdir -p /t && ln -s /etc /t/link && tar -czf - -C /t link")
 	before := env.ReadHostPath("/etc/passwd")
 	result := env.Parachute("restore-verify", "--backup-volume", store, "--helper-image", env.ParachuteImage()).Run(runTimeout)
-	assertExit(t, result, 1)
-	assertContains(t, result.Stderr, "snapshot_invalid")
+	assertRestoreVerifyFail(t, env, result, "snapshot_invalid")
 	after := env.ReadHostPath("/etc/passwd")
 	if before != after {
 		t.Fatal("/etc/passwd changed after failed restore-verify")

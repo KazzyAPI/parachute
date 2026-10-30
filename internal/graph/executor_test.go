@@ -77,7 +77,10 @@ func (f *fakeJournal) Finish(_ context.Context, _ string, outcome txn.Outcome) e
 }
 func (f *fakeJournal) Open(context.Context) ([]txn.OpenRecord, error) { return nil, nil }
 
-type fakeSnapshots struct{ err error }
+type fakeSnapshots struct {
+	err     error
+	skipped map[string][]string
+}
 
 func (f fakeSnapshots) Estimate(context.Context, txn.Plan) (int64, error) { return 0, nil }
 func (f fakeSnapshots) Take(context.Context, txn.Plan) (string, error)    { return "snap-1", f.err }
@@ -85,6 +88,9 @@ func (f fakeSnapshots) Validate(context.Context, string) error            { retu
 func (f fakeSnapshots) Restore(context.Context, string) error             { return nil }
 func (f fakeSnapshots) Discard(context.Context, string) error             { return nil }
 func (f fakeSnapshots) Retain(context.Context, string, string, int) error { return nil }
+func (f fakeSnapshots) SkippedDestinations(context.Context, string) (map[string][]string, error) {
+	return f.skipped, nil
+}
 
 type fakeRecreator struct{ unreproducible error }
 
@@ -348,6 +354,15 @@ func TestBKP_008_retention_runs_after_completed_rollback(t *testing.T) {
 	h.run(t)
 	if !h.rollbacker.called || len(retained) != 1 {
 		t.Fatalf("rollback %v retained %v", h.rollbacker.called, retained)
+	}
+}
+
+func TestBKP_012_commit_detail_names_skipped_system_mounts(t *testing.T) {
+	h := newHarness(fakeSnapshots{skipped: map[string][]string{"web": {"/host-etc", "/host-proc"}}}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	h.run(t)
+	want := "skipped system mount /host-etc; skipped system mount /host-proc"
+	if got := h.candidates[0].Result.Detail; got != want {
+		t.Fatalf("detail %q, want %q", got, want)
 	}
 }
 

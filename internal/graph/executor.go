@@ -208,14 +208,15 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 	for _, stack := range group.Stacks {
 		_ = e.snapshot.Retain(ctx, host, stack, e.options.Retention)
 	}
+	skipped, _ := e.snapshot.SkippedDestinations(ctx, snapshot)
 	for _, member := range group.Members {
 		if member.Update {
-			e.markUpdated(candidates, member.Container.Name, id, snapshot)
+			e.markUpdated(candidates, member.Container.Name, id, snapshot, skipped[member.Container.Name])
 		}
 	}
 	for _, member := range group.Members {
 		if !member.Update && member.Recreate {
-			e.markUpdated(candidates, member.Container.Name, id, snapshot)
+			e.markUpdated(candidates, member.Container.Name, id, snapshot, skipped[member.Container.Name])
 		}
 	}
 	for _, member := range group.Members {
@@ -547,12 +548,15 @@ func (e *Executor) failCandidate(candidates []*pipeline.Candidate, name, reason,
 	}
 }
 
-func (e *Executor) markUpdated(candidates []*pipeline.Candidate, name, id, snapshot string) {
+func (e *Executor) markUpdated(candidates []*pipeline.Candidate, name, id, snapshot string, skipped []string) {
 	for _, candidate := range candidates {
 		if candidate.Container.Name == name {
 			candidate.Result.State = domain.StateUpdated
 			candidate.Result.Transaction = id
 			candidate.Result.Snapshot = snapshot
+			for _, destination := range skipped {
+				candidate.Result.Detail = strings.TrimPrefix(candidate.Result.Detail+"; skipped system mount "+destination, "; ")
+			}
 		}
 	}
 }
