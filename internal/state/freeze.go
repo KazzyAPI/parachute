@@ -15,14 +15,18 @@ type ServiceTransaction struct {
 func (d Document) ActiveFreezes() []Freeze {
 	var active []Freeze
 	for _, freeze := range d.Freezes {
-		released := slices.ContainsFunc(d.Releases, func(release Release) bool {
-			return release.Transaction == freeze.Transaction && slices.Equal(release.Keys, freeze.Keys)
-		})
-		if !released {
+		if !slices.ContainsFunc(d.Releases, func(release Release) bool { return ReleaseEndsFreeze(release, freeze) }) {
 			active = append(active, freeze)
 		}
 	}
 	return active
+}
+
+func ReleaseEndsFreeze(release Release, freeze Freeze) bool {
+	if release.Transaction != freeze.Transaction {
+		return false
+	}
+	return slices.Equal(release.Keys, freeze.Keys)
 }
 
 func (f Freeze) HasStack(host, stack string) bool {

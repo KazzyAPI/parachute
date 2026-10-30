@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KazzyAPI/parachute/e2e/harness"
 )
@@ -128,7 +129,11 @@ func TestUPD_008_original_container_kept_until_commit(t *testing.T) {
 	if !strings.Contains(env.ImageList(), origImage) {
 		t.Fatalf("original image %s no longer present", origImage)
 	}
-	replacement := strings.TrimSpace(env.Docker("ps", "-q", "--filter", "name="+a, "--filter", "label=parachute.transaction"))
+	var replacement string
+	env.Eventually(2*time.Minute, "replacement container", func() bool {
+		replacement = strings.TrimSpace(env.Docker("ps", "-q", "--filter", "name="+a, "--filter", "label=parachute.transaction"))
+		return replacement != ""
+	})
 	txn := strings.TrimSpace(env.Docker("inspect", "--format", "{{index .Config.Labels \"parachute.transaction\"}}", replacement))
 	suffix := txn[len(txn)-6:]
 	if name := strings.TrimSpace(env.Docker("inspect", "--format", "{{.Name}}", renamedID)); name != "/"+a+"-parachute-"+suffix {
