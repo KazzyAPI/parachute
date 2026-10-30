@@ -1,6 +1,6 @@
 # 11 HTTP API and metrics
 
-**Status:** Draft
+**Status:** Accepted
 
 An optional HTTP server for triggering cycles, approving updates, metrics, and the status view ([14-status-view.md](14-status-view.md)). All responses with a body are JSON (`Content-Type: application/json`) except metrics, the HTML status page, and Go's net/http `431 Request Header Fields Too Large` response, which is plain text.
 

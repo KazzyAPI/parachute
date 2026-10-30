@@ -1,6 +1,6 @@
 # 14 Status view
 
-**Status:** Draft
+**Status:** Accepted
 
 A read-only view of every managed stack, built only from the engines and the state file (CFG-010). Host-level checks such as certificate expiry are out of scope.
 
