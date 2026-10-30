@@ -9,8 +9,16 @@ build:
 test:
 	$(GO) test ./...
 
+E2E_ARGS :=
+ifdef E2E_RUN
+E2E_ARGS += -run '$(E2E_RUN)'
+endif
+ifdef E2E_SKIP
+E2E_ARGS += -skip '$(E2E_SKIP)'
+endif
+
 e2e:
-	cd e2e && $(GO) test -count=1 -timeout 30m ./...
+	cd e2e && $(GO) test -count=1 -timeout 30m $(E2E_ARGS) ./...
 
 lint:
 	test -z "$$(gofmt -l .)"
