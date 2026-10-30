@@ -74,8 +74,8 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	}
 	journal := state.NewJournal(store, c.deps.Clock.Now)
 	recovery := c.recovery(connected, journal, helper)
-	recovery.Recover(ctx)
 	c.cleanupHelpers(ctx, connected, journal)
+	recovery.Recover(ctx)
 	collector := metrics.NewCollector(hostNames(hosts))
 	graphStage := c.graphStage(store, connected, helper)
 	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
