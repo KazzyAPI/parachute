@@ -41,9 +41,31 @@ jobs:
           go-version-file: go.mod
       - run: make trace
 
-  e2e:
+  e2e-shard:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: api
+            e2e_run: TestAPI
+          - shard: cfg
+            e2e_run: TestCFG
+          - shard: dep-det-dmn
+            e2e_run: Test(DEP|DET|DMN)
+          - shard: ntf-pol-reg
+            e2e_run: Test(NTF|POL|REG)
+          - shard: sch-sel-sts
+            e2e_run: Test(SCH|SEL|STS)
+          - shard: bkp
+            e2e_run: TestBKP
+          - shard: ver
+            e2e_run: TestVER
+          - shard: upd
+            e2e_run: TestUPD
+          - shard: other
+            e2e_skip: Test(API|CFG|DEP|DET|DMN|NTF|POL|REG|SCH|SEL|STS|BKP|VER|UPD)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
@@ -54,3 +76,17 @@ jobs:
             e2e/go.sum
       - run: docker pull registry:2
       - run: make e2e
+        env:
+          E2E_RUN: ${{ matrix.e2e_run }}
+          E2E_SKIP: ${{ matrix.e2e_skip }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [e2e-shard]
+    if: always()
+    steps:
+      - run: |
+          case "${{ needs.e2e-shard.result }}" in
+            success) ;;
+            *) echo "e2e shard result: ${{ needs.e2e-shard.result }}"; exit 1 ;;
+          esac
