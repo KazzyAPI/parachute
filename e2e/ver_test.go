@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ func TestVER_002_health_fails_rolls_back(t *testing.T) {
 	app := newUpdatable(env, "ver002b")
 	health := []string{"CMD", "/fixture", "exit", "1"}
 	ref := app.registry.PushSpec("ver002b", "1", harness.ImageSpec{Verify: true, Version: "1"})
-	container := env.RunContainer("ver002b", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "30s"}})
+	container := env.RunContainer("ver002b", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "30s", "parachute.verify.stable": "1s"}})
 	app.registry.PushSpec("ver002b", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: health})
 	result := armedRunOnce(env)
 	assertRolledBack(t, result, container, "verify_failed")
@@ -129,14 +128,7 @@ func TestVER_005_url_500_rolls_back(t *testing.T) {
 	app.registry.PushSpec("ver005b", "1", bad)
 	result := armedRunOnce(env)
 	assertRolledBack(t, result, container, "verify_failed")
-	entry := result.Entry(container)
-	if entry == nil {
-		t.Fatalf("no report entry for %s", container)
-	}
-	detail, _ := entry["detail"].(string)
-	if !strings.Contains(detail, "500") {
-		t.Fatalf("detail %q", detail)
-	}
+	assertReasonDetail(t, result, container, "500")
 }
 
 func TestVER_006_short_timeout_health_starting_rolls_back(t *testing.T) {
@@ -184,15 +176,17 @@ func TestVER_007_stack_partial_fail_rolls_back_both(t *testing.T) {
 	registry := env.Registry()
 	webRef := registry.PushSpec("web", "1", harness.ImageSpec{Verify: true, Version: "1"})
 	apiRef := registry.PushSpec("api", "1", harness.ImageSpec{Verify: true, Version: "1"})
-	webID, webImage := env.ContainerState(env.RunContainer("web", webRef, harness.ContainerOptions{Labels: map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "web", "parachute.verify.stable": "2s"}}))
-	apiID, apiImage := env.ContainerState(env.RunContainer("api", apiRef, harness.ContainerOptions{Labels: map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "api", "parachute.verify.stable": "2s"}}))
+	web := env.RunContainer("web", webRef, harness.ContainerOptions{Labels: map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "web", "parachute.verify.stable": "2s"}})
+	api := env.RunContainer("api", apiRef, harness.ContainerOptions{Labels: map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "api", "parachute.verify.stable": "2s"}})
+	webID, webImage := env.ContainerState(web)
+	apiID, apiImage := env.ContainerState(api)
 	registry.PushSpec("web", "1", harness.ImageSpec{Verify: true, Version: "2"})
 	registry.PushSpec("api", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture", "exit", "1"}})
 	result := armedRunOnce(env)
-	assertRolledBack(t, result, "web", "verify_failed")
-	assertRolledBack(t, result, "api", "verify_failed")
-	gotWebID, gotWebImage := env.ContainerState("web")
-	gotAPIID, gotAPIImage := env.ContainerState("api")
+	assertRolledBack(t, result, web, "verify_failed")
+	assertRolledBack(t, result, api, "verify_failed")
+	gotWebID, gotWebImage := env.ContainerState(web)
+	gotAPIID, gotAPIImage := env.ContainerState(api)
 	if gotWebID != webID || gotWebImage != webImage || gotAPIID != apiID || gotAPIImage != apiImage {
 		t.Fatalf("containers not restored: web %s/%s api %s/%s", gotWebID, gotWebImage, gotAPIID, gotAPIImage)
 	}

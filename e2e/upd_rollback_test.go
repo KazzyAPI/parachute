@@ -37,19 +37,19 @@ func waitRenamedOriginal(env *harness.Env, container string) string {
 
 func transactionObjects(env *harness.Env) string {
 	env.T.Helper()
-	return strings.TrimSpace(env.Docker("ps", "-aq", "--filter", "label=parachute.transaction"))
+	return strings.Join(env.TransactionContainers(false), " ")
 }
 
 func dataVolumeApp(env *harness.Env, volume string) (string, string) {
 	env.T.Helper()
 	registry := env.Registry()
 	v1 := registry.PushSpec("app", "1", harness.ImageSpec{Base: "busybox:1.37", Version: "1", Cmd: []string{"sh", "-c", sleeper}})
-	a := env.RunContainer("a", v1, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}})
+	labels := map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "5s"}
+	a := env.RunContainer("a", v1, harness.ContainerOptions{Extra: []string{"-v", volume + ":/data"}, Labels: labels})
 	env.Docker("exec", a, "sh", "-c", "echo original > /data/version")
 	registry.PushSpec("app", "1", harness.ImageSpec{
 		Base: "busybox:1.37", Version: "2",
-		Labels: map[string]string{"parachute.verify.cmd": "exit 1", "parachute.verify.timeout": "5s"},
-		Cmd:    []string{"sh", "-c", "echo migrated > /data/version; " + sleeper},
+		Cmd: []string{"sh", "-c", "echo migrated > /data/version; " + sleeper},
 	})
 	return a, volume
 }
@@ -84,8 +84,8 @@ func TestVER_009_data_restored_when_replacement_started(t *testing.T) {
 	env := harness.NewEnv(t)
 	a, _ := dataVolumeApp(env, env.ID+"-data")
 	result := armedOnce(env, "--verify-stable", "1s")
-	entry := assertState(t, result, a, "rolled_back", "verify_failed")
-	assertReasonDetail(t, entry, "data restored: yes")
+	assertState(t, result, a, "rolled_back", "verify_failed")
+	assertReasonDetail(t, result, a, "data restored: yes")
 	if got := strings.TrimSpace(env.Docker("exec", a, "cat", "/data/version")); got != "original" {
 		t.Fatalf("data not restored: %q", got)
 	}
@@ -114,7 +114,7 @@ func TestVER_011_report_names_transaction_check_output_and_data(t *testing.T) {
 	if txn, _ := entry["txn"].(string); !strings.HasPrefix(txn, "txn-") {
 		t.Fatalf("missing transaction id: %v", entry)
 	}
-	assertReasonDetail(t, entry, "parachute.verify.cmd", "data restored: yes")
+	assertReasonDetail(t, result, a, "parachute.verify.cmd", "data restored: yes")
 	assertContains(t, webhook.WaitFor(time.Minute, 1)[0].Message, "verify_failed", "data restored: yes")
 }
 
@@ -122,11 +122,11 @@ func TestVER_011_verify_timeout_names_deadline_and_label(t *testing.T) {
 	env := harness.NewEnv(t)
 	webhook := env.Webhook()
 	app := newUpdatable(env, "app")
-	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "5s"}})
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"parachute.verify.timeout": "5s", "parachute.verify.stable": "1s"}})
 	env.Registry().PushSpec("app", "1", harness.ImageSpec{Verify: true, Version: "2", Healthcheck: []string{"CMD", "/fixture", "exit", "1"}, HealthcheckInterval: "1s"})
 	result := armedOnce(env, "--no-startup-message", "--notification-url", webhook.URL())
-	entry := assertState(t, result, a, "rolled_back", "verify_timeout")
-	assertReasonDetail(t, entry, "5s", "parachute.verify.timeout")
+	assertState(t, result, a, "rolled_back", "verify_timeout")
+	assertReasonDetail(t, result, a, "5s", "parachute.verify.timeout")
 }
 
 func TestUPD_009_commit_removes_renamed_original_and_reports_updated(t *testing.T) {
@@ -223,7 +223,7 @@ func TestUPD_016_snapshot_phase_interruption_restarts_containers(t *testing.T) {
 	process := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--delay-days", "0", "--backup", "stop",
 		"--helper-image", env.ParachuteImage(), "--porcelain", "v1").Start()
 	env.Eventually(2*time.Minute, "snapshot helper", func() bool {
-		return strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction")) != ""
+		return strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "volume="+volume)) != ""
 	})
 	process.Signal(syscall.SIGKILL)
 	process.Wait(30 * time.Second)
@@ -287,7 +287,7 @@ func TestUPD_019_clock_pauses_while_helper_copies(t *testing.T) {
 	done := runArmedAsync(env, "--backup", "live", "--transaction-timeout", "1m")
 	var helper string
 	env.Eventually(2*time.Minute, "snapshot helper", func() bool {
-		helper = strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction"))
+		helper = strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "volume="+volume))
 		return helper != ""
 	})
 	if _, err := env.DockerMayFail("pause", helper); err != nil {

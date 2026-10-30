@@ -15,11 +15,11 @@ func armedParachute(env *harness.Env, args ...string) *harness.Parachute {
 
 func rollbackCandidate(env *harness.Env, repo string) string {
 	env.T.Helper()
-	labels := map[string]string{"parachute.verify.stable": "2s"}
+	labels := map[string]string{"parachute.verify.stable": "3s"}
 	registry := env.Registry()
 	ref := registry.PushSpec(repo, "1", harness.ImageSpec{Verify: true, Version: "1"})
 	container := env.RunContainer(repo, ref, harness.ContainerOptions{Labels: labels})
-	registry.PushSpec(repo, "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "2"}})
+	registry.PushSpec(repo, "1", harness.ImageSpec{Verify: true, Version: "2", Env: map[string]string{"EXIT_AFTER": "1"}})
 	return container
 }
 

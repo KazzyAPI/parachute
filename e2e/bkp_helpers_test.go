@@ -69,9 +69,9 @@ func backupVolumePath(env *harness.Env, volume string) string {
 	return strings.TrimSpace(env.Docker("volume", "inspect", "--format", "{{.Mountpoint}}", volume))
 }
 
-func assertReasonDetail(t *testing.T, entry map[string]any, parts ...string) {
+func assertReasonDetail(t *testing.T, result *harness.Result, container string, parts ...string) {
 	t.Helper()
-	detail, _ := entry["detail"].(string)
+	detail := result.Detail(container)
 	for _, part := range parts {
 		if !strings.Contains(detail, part) {
 			t.Errorf("detail %q missing %q", detail, part)
@@ -250,13 +250,12 @@ func killDuringSnapshot(env *harness.Env, volume string, app *updatable, contain
 	process := env.Parachute("--run-once", "--armed", "--protect-databases=false", "--delay-days", "0",
 		"--verify-stable", "1s", "--verify-timeout", "30s", "--helper-image", env.ParachuteImage(), "--porcelain", "v1").Start()
 	env.Eventually(2*time.Minute, "snapshot helper", func() bool {
-		return strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction")) != ""
+		return strings.TrimSpace(env.Docker("ps", "-q", "--filter", "label=parachute.helper=true", "--filter", "volume="+volume)) != ""
 	})
 	process.Signal(syscall.SIGKILL)
 	process.Wait(30 * time.Second)
 	runArmed(env)
-	helpers := env.Docker("ps", "-aq", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction")
-	if strings.TrimSpace(helpers) != "" {
+	if helpers := strings.Join(env.TransactionContainers(true), " "); helpers != "" {
 		env.T.Fatalf("stale helpers remain: %s", helpers)
 	}
 	_ = container

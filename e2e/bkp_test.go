@@ -144,8 +144,8 @@ func TestBKP_003_none_mode_rollback_reports_no_data(t *testing.T) {
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Labels: map[string]string{"parachute.backup": "none", "parachute.verify.cmd": "exit 1"}})
 	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env)
-	entry := assertState(t, result, a, "rolled_back", "verify_failed")
-	assertReasonDetail(t, entry, "data not restored: backup=none")
+	assertState(t, result, a, "rolled_back", "verify_failed")
+	assertReasonDetail(t, result, a, "data not restored: backup=none")
 }
 
 func TestBKP_004_postgres_dump_in_snapshot(t *testing.T) {
@@ -549,8 +549,7 @@ func TestBKP_010_no_transaction_helpers_after_cycle(t *testing.T) {
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
 	app.publishNewer()
 	runArmed(env)
-	helpers := env.Docker("ps", "-aq", "--filter", "label=parachute.helper=true", "--filter", "label=parachute.transaction")
-	if strings.TrimSpace(helpers) != "" {
+	if helpers := strings.Join(env.TransactionContainers(true), " "); helpers != "" {
 		t.Fatalf("helpers remain: %s", helpers)
 	}
 	_ = a
@@ -771,8 +770,8 @@ func TestBKP_012_rollback_reports_system_mount(t *testing.T) {
 	a := env.RunContainer("a", ref, harness.ContainerOptions{Extra: []string{"-v", etc + ":/host-etc"}, Labels: map[string]string{"parachute.verify.cmd": "exit 1"}})
 	pushV2(env, "app", "1", harness.ImageSpec{Version: "2"})
 	result := runArmed(env)
-	entry := assertState(t, result, a, "rolled_back", "verify_failed")
-	assertReasonDetail(t, entry, "data not restored: system mount /host-etc")
+	assertState(t, result, a, "rolled_back", "verify_failed")
+	assertReasonDetail(t, result, a, "data not restored: system mount /host-etc")
 }
 
 func TestBKP_013_archive_escape_rejected(t *testing.T) {

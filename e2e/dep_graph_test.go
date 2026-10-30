@@ -32,14 +32,15 @@ func TestDEP_004_label_depends_on_stops_dependents_first(t *testing.T) {
 	b := env.RunContainer("b", image, harness.ContainerOptions{})
 	c := env.RunContainer("c", image, harness.ContainerOptions{})
 	a := env.RunContainer("a", image, harness.ContainerOptions{Labels: map[string]string{"parachute.depends-on": b + "," + c}})
-	beforeB, _ := env.ContainerState(b)
+	beforeA := env.Docker("inspect", "--format", "{{.State.StartedAt}}", a)
 	beforeC, _ := env.ContainerState(c)
 	u.publishNewer()
-	armedOnce(env, "--name", a)
-	afterB, _ := env.ContainerState(b)
-	afterC, _ := env.ContainerState(c)
-	if afterB == beforeB || afterC == beforeC {
-		t.Fatalf("dependents were not restarted")
+	armedOnce(env, "--name", b, "--verify-stable", "1s")
+	if env.Docker("inspect", "--format", "{{.State.StartedAt}}", a) == beforeA {
+		t.Fatalf("dependent was not restarted")
+	}
+	if afterC, _ := env.ContainerState(c); afterC != beforeC {
+		t.Fatalf("unrelated dependency was replaced")
 	}
 }
 
@@ -174,7 +175,7 @@ func TestUPD_013_rolling_restart_serial_replicas(t *testing.T) {
 	u.publishNewer()
 	one := project + "-worker-1"
 	before := env.Docker("inspect", "--format", "{{.State.StartedAt}}", one)
-	armedOnce(env, "--rolling-restart")
+	armedOnce(env, "--rolling-restart", "--verify-stable", "1s")
 	after := env.Docker("inspect", "--format", "{{.State.StartedAt}}", one)
 	if after == before {
 		t.Fatalf("expected rolling restart on %s", one)
