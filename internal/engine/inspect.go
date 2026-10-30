@@ -32,8 +32,12 @@ func (d *Docker) Inspect(ctx context.Context, id string) (Spec, error) {
 		spec.Networks = details.NetworkSettings.Networks
 	}
 	spec.Mounts = details.Mounts
-	if details.State != nil && details.State.Health != nil {
-		spec.HealthStatus = string(details.State.Health.Status)
+	if details.State != nil {
+		spec.Status = string(details.State.Status)
+		spec.ExitCode = details.State.ExitCode
+		if details.State.Health != nil {
+			spec.HealthStatus = string(details.State.Health.Status)
+		}
 	}
 	if details.Config != nil {
 		for _, reference := range []string{details.Image, details.Config.Image} {

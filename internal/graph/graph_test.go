@@ -81,3 +81,34 @@ func TestDEP_007_network_mode_by_id_marks_dependent_for_recreation(t *testing.T)
 	}
 	t.Fatalf("sidecar not marked for recreation: %v", plan.Groups[0].Members)
 }
+
+func TestDEP_004_compose_depends_on_label_carries_condition(t *testing.T) {
+	index := NewIndex([]domain.Container{
+		container("shop-db-1", "shop", "db", nil, nil, ""),
+		container("shop-job-1", "shop", "job", nil, nil, ""),
+		container("shop-app-1", "shop", "app", map[string]string{"com.docker.compose.depends_on": "db:service_healthy:true,job:service_completed_successfully:false"}, nil, ""),
+	})
+	want := map[string]Condition{"shop-db-1": ConditionHealthy, "shop-job-1": ConditionExitOK}
+	edges := Edges(index, index.ByName["shop-app-1"])
+	if len(edges) != 2 {
+		t.Fatalf("edges %v", edges)
+	}
+	for _, edge := range edges {
+		if edge.Condition != want[edge.Dependency] {
+			t.Errorf("edge %v", edge)
+		}
+	}
+}
+
+func TestDEP_005_linked_dependent_is_recreated(t *testing.T) {
+	db := container("db", "", "", nil, nil, "")
+	web := container("web", "", "", nil, []string{"/db:/web/db"}, "")
+	index := NewIndex([]domain.Container{db, web})
+	plan := NewBuilder().Plan(index, map[string]txn.Target{"db": {Container: "db"}}, "")
+	for _, member := range plan.Groups[0].Members {
+		if member.Container.Name == "web" && member.Recreate {
+			return
+		}
+	}
+	t.Fatalf("web not marked for recreation: %v", plan.Groups[0].Members)
+}

@@ -3,6 +3,7 @@ package recreate
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/moby/moby/api/types/container"
@@ -68,6 +69,7 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 	replacement := buildReplacement(original, oldImage, newImage, plan.ID, plan.Snapshot, previousImage, settings)
 	replacement.Config.Image = target.Image
 	r.followNetworkPeer(replacement.HostConfig)
+	followRenamedLinks(replacement.HostConfig, plan.ID)
 	created, err := r.engine.Create(ctx, replacement)
 	if err != nil {
 		return "", err
@@ -109,6 +111,22 @@ func (r *Recreator) followNetworkPeer(host *container.HostConfig) {
 	if replacement, ok := r.replaced[host.NetworkMode.ConnectedContainer()]; ok {
 		host.NetworkMode = container.NetworkMode("container:" + replacement)
 	}
+}
+
+func followRenamedLinks(host *container.HostConfig, planID string) {
+	if host == nil || len(planID) < 6 {
+		return
+	}
+	suffix := "-parachute-" + planID[len(planID)-6:]
+	links := make([]string, len(host.Links))
+	for i, link := range host.Links {
+		target, alias, found := strings.Cut(link, ":")
+		links[i] = strings.TrimSuffix(target, suffix)
+		if found {
+			links[i] += ":" + alias
+		}
+	}
+	host.Links = links
 }
 
 func targetFor(plan txn.Plan, container string) txn.Target {
