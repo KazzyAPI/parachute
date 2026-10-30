@@ -21,7 +21,8 @@ func (j *Journal) Begin(ctx context.Context, record txn.OpenRecord) error {
 	return j.store.Update(func(document *Document) error {
 		document.Transactions = append(document.Transactions, TransactionRecord{
 			ID: record.ID, Host: record.Host, Stacks: record.Stacks, State: string(record.State),
-			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, Originals: record.Originals, Time: j.clock(),
+			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, OwnContainer: record.OwnContainer,
+			Originals: record.Originals, Time: j.clock(),
 		})
 		return nil
 	})
@@ -50,8 +51,15 @@ func (j *Journal) Finish(ctx context.Context, id string, outcome txn.Outcome) er
 			document.Transactions[index].Result = string(outcome.Result)
 			document.Transactions[index].Reason = string(outcome.Reason)
 			document.Transactions[index].Time = j.clock()
-			if outcome.State == txn.StateRollbackFail && !record.SelfUpdate {
-				document.Freezes = append(document.Freezes, freezeOf(*document, record))
+			if outcome.State == txn.StateRollbackFail {
+				if record.SelfUpdate && record.OwnContainer != "" {
+					document.Freezes = append(document.Freezes, selfFreezeOf(*document, record))
+				} else if !record.SelfUpdate {
+					document.Freezes = append(document.Freezes, freezeOf(*document, record))
+				}
+			}
+			if outcome.Superseded != "" && !slices.Contains(document.SupersededInstances, outcome.Superseded) {
+				document.SupersededInstances = append(document.SupersededInstances, outcome.Superseded)
 			}
 			break
 		}
@@ -70,7 +78,8 @@ func (j *Journal) Open(ctx context.Context) ([]txn.OpenRecord, error) {
 		}
 		open = append(open, txn.OpenRecord{
 			ID: record.ID, Host: record.Host, Stacks: record.Stacks, State: state,
-			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, Originals: slices.Clone(record.Originals),
+			Snapshot: record.Snapshot, SelfUpdate: record.SelfUpdate, OwnContainer: record.OwnContainer,
+			Originals: slices.Clone(record.Originals),
 		})
 	}
 	return open, nil
@@ -107,6 +116,16 @@ func (j *Journal) RecordSnapshot(host, stack, transaction, snapshot string) erro
 		})
 		return nil
 	})
+}
+
+func selfFreezeOf(document Document, record TransactionRecord) Freeze {
+	freeze := Freeze{Transaction: record.ID, Snapshot: NoSnapshot, Keys: []FreezeKey{{Host: record.Host, Container: record.OwnContainer}}}
+	for _, snapshot := range document.Snapshots {
+		if snapshot.Transaction == record.ID {
+			freeze.Snapshot = snapshot.ID
+		}
+	}
+	return freeze
 }
 
 func freezeOf(document Document, record TransactionRecord) Freeze {

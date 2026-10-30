@@ -8,9 +8,10 @@ import (
 )
 
 type Outcome struct {
-	State  State
-	Result domain.State
-	Reason Reason
+	State      State
+	Result     domain.State
+	Reason     Reason
+	Superseded string
 }
 
 type Journal interface {
@@ -27,13 +28,14 @@ type Original struct {
 }
 
 type OpenRecord struct {
-	ID         string
-	Host       string
-	Stacks     []string
-	State      State
-	Snapshot   string
-	SelfUpdate bool
-	Originals  []Original
+	ID           string
+	Host         string
+	Stacks       []string
+	State        State
+	Snapshot     string
+	SelfUpdate   bool
+	OwnContainer string
+	Originals    []Original
 }
 
 type Target struct {
