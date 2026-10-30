@@ -18,6 +18,9 @@ type Env struct {
 	ConfigDir string
 	lock      sync.Mutex
 	images    []string
+
+	registryOnce sync.Once
+	registry     *Registry
 }
 
 func NewEnv(t *testing.T) *Env {
@@ -71,6 +74,9 @@ func (e *Env) cleanup() {
 		if out, err := e.DockerMayFail(append([]string{"rm", "-f", "-v"}, ids...)...); err != nil {
 			e.T.Logf("cleanup: remove containers: %v %s", err, out)
 		}
+	}
+	if out, err := e.DockerMayFail("run", "--rm", "--label", "parachute-e2e="+e.ID, "--entrypoint", "chmod", "-v", e.Dir+":"+e.Dir, suite.FixtureV2Image(), "-R", "a+rwX", e.Dir); err != nil {
+		e.T.Logf("cleanup: open test directory: %v %s", err, out)
 	}
 	networks, err := e.DockerMayFail("network", "ls", "-q", "--filter", "name="+e.ID)
 	if err != nil {

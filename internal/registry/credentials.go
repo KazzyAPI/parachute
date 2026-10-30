@@ -131,3 +131,15 @@ func (c Credentials) For(ref Reference) (*Credential, Helper) {
 	}
 	return nil, Helper{}
 }
+
+func (c Credentials) PullAuth(ref Reference) string {
+	credential, _ := c.For(ref)
+	if credential == nil {
+		return ""
+	}
+	encoded, err := json.Marshal(map[string]string{"username": credential.Username, "password": credential.Password, "serveraddress": ref.Domain})
+	if err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(encoded)
+}

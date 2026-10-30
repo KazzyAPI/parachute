@@ -3,7 +3,6 @@ package config
 const (
 	ProfileSafe       = "safe"
 	ProfileConvenient = "convenient"
-	armedUnavailable  = "updates are not implemented in this milestone"
 )
 
 type Registry struct {
@@ -80,7 +79,7 @@ func DefaultSettings() []Setting {
 		{Name: "remove-volumes", Kind: KindBool, Default: "false"},
 		{Name: "no-restart", Kind: KindBool, Default: "false"},
 		{Name: "rolling-restart", Kind: KindBool, Default: "false"},
-		{Name: "transaction-timeout", Kind: KindDuration, Default: "30m"},
+		{Name: "transaction-timeout", Kind: KindPositiveDuration, Default: "30m"},
 		{Name: "enable-lifecycle-hooks", Kind: KindBool, Default: "false", Unimplemented: notInThisMilestone("--enable-lifecycle-hooks")},
 		{Name: "backup", Kind: KindEnum, Default: "stop", Choices: []string{"stop", "live", "none"}},
 		{Name: "backup-volume", Kind: KindString, Default: "parachute-snapshots"},
@@ -119,7 +118,7 @@ func DefaultSettings() []Setting {
 		{Name: "allow-insecure-tcp", Kind: KindBool, Default: "false"},
 		{Name: "hosts", Kind: KindList},
 		{Name: "restore-verify-schedule", Kind: KindString, Unimplemented: notInThisMilestone("--restore-verify-schedule")},
-		{Name: "armed", Kind: KindBool, Default: "false", ConvenientDefault: convenient("true"), Unimplemented: armedUnavailable},
+		{Name: "armed", Kind: KindBool, Default: "false", ConvenientDefault: convenient("true")},
 		{Name: "profile", Kind: KindEnum, Default: ProfileSafe, Choices: []string{ProfileSafe, ProfileConvenient}},
 		{Name: "porcelain", Kind: KindEnum, Choices: []string{"v1"}},
 		{Name: "log-level", Kind: KindEnum, Default: "info", Choices: []string{"error", "warn", "info", "debug", "trace"}},

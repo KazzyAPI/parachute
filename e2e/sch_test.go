@@ -113,6 +113,34 @@ func TestSCH_005_run_once_without_updates_exits_0(t *testing.T) {
 	}
 }
 
+func TestSCH_005_run_once_armed_update_exits_0(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	result := armedParachute(env, "--schedule", "0 0 4 * * *").Run(runTimeout)
+	assertExit(t, result, 0)
+	assertState(t, result, a, "updated", "")
+	if starts := cycleStarts(t, result.Logs()); len(starts) != 1 {
+		t.Errorf("expected exactly one cycle, got %d", len(starts))
+	}
+}
+
+func TestSCH_005_run_once_rollback_exits_1(t *testing.T) {
+	env := harness.NewEnv(t)
+	a := rollbackCandidate(env, "app")
+	result := armedParachute(env, "--backup", "none").Run(runTimeout)
+	assertExit(t, result, 1)
+	assertRolledBack(t, result, a, "verify_failed")
+}
+
+func TestSCH_005_run_once_failed_rollback_exits_3(t *testing.T) {
+	env := harness.NewEnv(t)
+	result, _, a := rollbackFailedRun(env, "app", false)
+	assertExit(t, result, 3)
+	assertRollbackFailed(t, result, a)
+}
+
 func TestSCH_006_cycles_never_overlap(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")

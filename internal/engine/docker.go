@@ -67,6 +67,10 @@ func (d *Docker) Containers(ctx context.Context) ([]domain.Container, error) {
 			container.Labels = details.Config.Labels
 			container.ImageRef = details.Config.Image
 		}
+		if details.HostConfig != nil {
+			container.Links = details.HostConfig.Links
+			container.NetworkMode = string(details.HostConfig.NetworkMode)
+		}
 		containers = append(containers, container)
 	}
 	return containers, nil

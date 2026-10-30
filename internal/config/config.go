@@ -21,7 +21,32 @@ type Config struct {
 	API            API
 	Hosts          []HostSpec
 	Log            Log
+	Backup         Backup
+	Update         Update
 	StartupMessage bool
+	Verify         Verify
+	NoRestart      bool
+}
+
+type Verify struct {
+	Timeout time.Duration
+	Stable  time.Duration
+}
+
+type Backup struct {
+	Mode      string
+	Volume    string
+	Retention int
+	Helper    string
+}
+
+type Update struct {
+	StopTimeout        time.Duration
+	TransactionTimeout time.Duration
+	Cleanup            bool
+	RemoveVolumes      bool
+	RollingRestart     bool
+	ReviveStopped      bool
 }
 
 type Relaxation struct {

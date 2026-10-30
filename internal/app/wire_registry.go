@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/config"
+	"github.com/KazzyAPI/parachute/internal/detect"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/redact"
 	"github.com/KazzyAPI/parachute/internal/registry"
@@ -22,7 +23,8 @@ func (c *Container) registryClient() *registry.Client {
 func (c *Container) detectStage() pipeline.Stage {
 	return pipeline.NewDetectStage(
 		registry.NewCredentialStore(c.cfg.Detection.DockerConfigDir, c.deps.System), c.labels,
-		pipeline.SwitchSettings{Global: c.cfg.Selection.NoPull, LabelWins: c.cfg.Selection.LabelTakePrecedence}, c.logger)
+		pipeline.SwitchSettings{Global: c.cfg.Selection.NoPull, LabelWins: c.cfg.Selection.LabelTakePrecedence},
+		detect.NewTagFollower(c.registryClient(), c.labels, c.cfg.Policy.TagFollow), c.logger)
 }
 
 func registrySecrets(cfg config.Config, files registry.FileReader) redact.Source {

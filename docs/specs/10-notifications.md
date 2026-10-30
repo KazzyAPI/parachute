@@ -33,7 +33,7 @@ The notification title MUST be `Parachute on <hostname>`, where `<hostname>` is 
 - **Given** `--notifications-delay 10` **When** a cycle ends **Then** the webhook receives the report between 10 and 13 seconds later.
 
 ### NTF-006 Templates
-`--notification-template` MUST accept a Go `text/template`, given inline or as a file path (CFG-004). In report mode the template receives the report object (fields: `Title`, `Host` (Parachute's hostname), `CycleID`, `Armed`, `Hosts` (each with `Name`, `Reachable`, `Stacks`), stacks with `Name`, `Compose`, `Services`, services with `Name`, `Container`, `Image`, `CandidateDigest`, `State`, `Reason`, `HoldUntil`, `TransactionID`, `SnapshotID`; and counts `Scanned`, `Updated`, `Failed`, `Fresh`, `Skipped`, `Held`, `WouldUpdate`), already filtered by NTF-003. A template that fails to parse MUST be a startup error (exit code 2).
+`--notification-template` MUST accept a Go `text/template`, given inline or as a file path (CFG-004). In report mode the template receives the report object (fields: `Title`, `Host` (Parachute's hostname), `CycleID`, `Armed`, `Hosts` (each with `Name`, `Reachable`, `Stacks`), stacks with `Name`, `Compose`, `Services`, services with `Name`, `Container`, `Image`, `CandidateDigest`, `State`, `Reason`, `Detail`, `HoldUntil`, `TransactionID`, `SnapshotID`; and counts `Scanned`, `Updated`, `Failed`, `Fresh`, `Skipped`, `Held`, `WouldUpdate`), already filtered by NTF-003. A template that fails to parse MUST be a startup error (exit code 2).
 
 - **Given** template `{{range .Hosts}}{{range .Stacks}}{{.Name}};{{end}}{{end}}` and updates in stacks `a` and `b` **When** the cycle ends **Then** the body is `a;b;`.
 - **Given** template `{{.Nope` **When** Parachute starts **Then** it exits with code 2.

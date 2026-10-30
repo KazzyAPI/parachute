@@ -64,3 +64,7 @@ func isLoopback(host string) bool {
 func (r Reference) ManifestURL() string {
 	return r.Scheme() + "://" + r.APIHost() + "/v2/" + r.Repository + "/manifests/" + r.Tag
 }
+
+func (r Reference) TagsURL() string {
+	return r.Scheme() + "://" + r.APIHost() + "/v2/" + r.Repository + "/tags/list"
+}

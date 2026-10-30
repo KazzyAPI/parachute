@@ -138,9 +138,13 @@ func (d *FakeTLSDaemon) handle(conn net.Conn, certificate tls.Certificate) {
 type HTTPEngineProxy struct {
 	Endpoint string
 	engineID string
+	onlyKey  string
+	onlyVal  string
 	forward  *httputil.ReverseProxy
 	lock     sync.Mutex
 	failing  []string
+	failOnce []string
+	deferred []deferredFailure
 	requests []string
 }
 
@@ -151,6 +155,17 @@ func (e *Env) HTTPEngineProxy() *HTTPEngineProxy {
 		e.T.Fatal(err)
 	}
 	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "")
+	e.serveHTTP(listener, proxy)
+	return proxy
+}
+
+func (e *Env) DistinctEngineProxy() *HTTPEngineProxy {
+	e.T.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	proxy := newHTTPEngineProxy("tcp://"+listener.Addr().String(), "e2e-engine-"+randomID())
 	e.serveHTTP(listener, proxy)
 	return proxy
 }
@@ -183,6 +198,20 @@ func (p *HTTPEngineProxy) Fail(pathPart string) {
 	p.failing = append(p.failing, pathPart)
 }
 
+type deferredFailure struct{ trigger, part string }
+
+func (p *HTTPEngineProxy) FailFirstAfter(trigger, pathPart string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.deferred = append(p.deferred, deferredFailure{trigger: trigger, part: pathPart})
+}
+
+func (p *HTTPEngineProxy) FailFirst(pathPart string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.failOnce = append(p.failOnce, pathPart)
+}
+
 func (p *HTTPEngineProxy) Requests() []string {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -192,7 +221,15 @@ func (p *HTTPEngineProxy) Requests() []string {
 func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	p.lock.Lock()
 	p.requests = append(p.requests, request.Method+" "+request.URL.Path)
+	if index := slices.IndexFunc(p.deferred, func(item deferredFailure) bool { return strings.Contains(request.URL.RequestURI(), item.trigger) }); index >= 0 {
+		p.failOnce = append(p.failOnce, p.deferred[index].part)
+		p.deferred = slices.Delete(p.deferred, index, index+1)
+	}
 	failing := slices.ContainsFunc(p.failing, func(part string) bool { return strings.Contains(request.URL.Path, part) })
+	if index := slices.IndexFunc(p.failOnce, func(part string) bool { return strings.Contains(request.URL.Path, part) }); index >= 0 {
+		p.failOnce = slices.Delete(p.failOnce, index, index+1)
+		failing = true
+	}
 	p.lock.Unlock()
 	if !failing {
 		p.forward.ServeHTTP(response, request)
@@ -203,7 +240,49 @@ func (p *HTTPEngineProxy) ServeHTTP(response http.ResponseWriter, request *http.
 	_, _ = io.WriteString(response, `{"message":"injected engine failure"}`)
 }
 
+func (p *HTTPEngineProxy) OnlyContainersLabelled(key, value string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.onlyKey, p.onlyVal = key, value
+}
+
+func (p *HTTPEngineProxy) filterContainers(response *http.Response) error {
+	p.lock.Lock()
+	key, value := p.onlyKey, p.onlyVal
+	p.lock.Unlock()
+	if key == "" || !strings.HasSuffix(response.Request.URL.Path, "/containers/json") {
+		return nil
+	}
+	var listed []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&listed); err != nil {
+		return err
+	}
+	_ = response.Body.Close()
+	kept := []map[string]any{}
+	for _, item := range listed {
+		labels, _ := item["Labels"].(map[string]any)
+		if labels[key] == value {
+			kept = append(kept, item)
+		}
+	}
+	return p.replaceBody(response, kept)
+}
+
+func (p *HTTPEngineProxy) replaceBody(response *http.Response, document any) error {
+	body, err := json.Marshal(document)
+	if err != nil {
+		return err
+	}
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
+}
+
 func (p *HTTPEngineProxy) rewriteEngineID(response *http.Response) error {
+	if err := p.filterContainers(response); err != nil {
+		return err
+	}
 	if p.engineID == "" || !strings.HasSuffix(response.Request.URL.Path, "/info") {
 		return nil
 	}
@@ -213,12 +292,5 @@ func (p *HTTPEngineProxy) rewriteEngineID(response *http.Response) error {
 	}
 	_ = response.Body.Close()
 	info["ID"] = p.engineID
-	body, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	response.Body = io.NopCloser(bytes.NewReader(body))
-	response.ContentLength = int64(len(body))
-	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
-	return nil
+	return p.replaceBody(response, info)
 }

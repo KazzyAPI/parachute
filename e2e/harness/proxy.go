@@ -58,7 +58,7 @@ func (r *Registry) Proxy(options ProxyOptions) *RegistryProxy {
 			return nil
 		}
 	}
-	return r.env.Server(func(response http.ResponseWriter, request *http.Request) {
+	proxy := r.env.Server(func(response http.ResponseWriter, request *http.Request) {
 		if options.RejectHead && request.Method == http.MethodHead && strings.Contains(request.URL.Path, "/manifests/") {
 			http.Error(response, "HEAD not allowed", http.StatusMethodNotAllowed)
 			return
@@ -69,6 +69,11 @@ func (r *Registry) Proxy(options ProxyOptions) *RegistryProxy {
 		time.Sleep(options.Delay)
 		forward.ServeHTTP(response, request)
 	})
+	if suite.desktop {
+		r.env.Docker("run", "-d", "--network", "host", "--label", "parachute-e2e="+r.env.ID, "--label", "parachute.enable=false",
+			suite.fixtureImage, "forward", proxy.Host, "host.docker.internal:"+proxy.Port)
+	}
+	return proxy
 }
 
 func (e *Env) Server(handler http.HandlerFunc) *RegistryProxy {

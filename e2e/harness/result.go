@@ -129,6 +129,15 @@ func (r *Result) Entry(container string) map[string]any {
 	return nil
 }
 
+func (r *Result) Detail(container string) string {
+	for _, log := range r.Logs() {
+		if log.Msg() == "container checked" && log.Get("container") == container {
+			return log.Get("detail")
+		}
+	}
+	return ""
+}
+
 func (r *Result) Candidates() []string {
 	var names []string
 	for _, object := range r.Porcelain() {
