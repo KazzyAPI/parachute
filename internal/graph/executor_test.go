@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,16 +20,27 @@ import (
 type fakeEngine struct {
 	stops, removes, pulls int
 	started               []string
+	calls                 []string
 	local                 engine.Image
+	health                []string
 }
 
-func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) { return engine.Spec{}, nil }
-func (f *fakeEngine) Stop(context.Context, string, string, time.Duration) error {
+func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) {
+	if len(f.health) == 0 {
+		return engine.Spec{}, nil
+	}
+	status := f.health[0]
+	f.health = f.health[1:]
+	return engine.Spec{HealthStatus: status}, nil
+}
+func (f *fakeEngine) Stop(_ context.Context, id string, _ string, _ time.Duration) error {
 	f.stops++
+	f.calls = append(f.calls, "stop "+id)
 	return nil
 }
 func (f *fakeEngine) Start(_ context.Context, id string) error {
 	f.started = append(f.started, id)
+	f.calls = append(f.calls, "start "+id)
 	return nil
 }
 func (f *fakeEngine) Rename(context.Context, string, string) error { return nil }
@@ -251,6 +263,43 @@ func TestDEP_003_restarted_dependent_shares_transaction(t *testing.T) {
 	}
 }
 
+func TestDEP_005_service_healthy_dependent_starts_after_dependency_is_healthy(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	db := container("db", "shop", "db", nil, nil, "")
+	db.ID, db.ImageRef = "db-id", "repo/db:1"
+	app := container("app", "shop", "app", map[string]string{"com.docker.compose.depends_on": "db:service_healthy:true"}, nil, "")
+	app.ID = "app-id"
+	h.containers = []domain.Container{app, db}
+	h.candidates = []*pipeline.Candidate{
+		{Container: db, Result: domain.NewResult("local", db).Available("sha256:new")},
+		{Container: app, Result: domain.NewResult("local", app)},
+	}
+	h.engine.health = []string{"starting", "healthy"}
+	h.run(t)
+	if got := h.engine.started; len(got) != 2 || got[0] != "replacement" || got[1] != "app-id" || len(h.engine.health) != 0 {
+		t.Fatalf("started %v, unread health %v", got, h.engine.health)
+	}
+}
+
+func TestDEP_005_start_order_follows_dependencies_across_updated_and_restarted(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	a := container("a", "", "", nil, nil, "")
+	b := container("b", "", "", map[string]string{"parachute.depends-on": "a"}, nil, "")
+	c := container("c", "", "", map[string]string{"parachute.depends-on": "b"}, nil, "")
+	a.ID, b.ID, c.ID = "a-id", "b-id", "c-id"
+	a.ImageRef, c.ImageRef = "repo/a:1", "repo/c:1"
+	h.containers = []domain.Container{a, b, c}
+	h.candidates = []*pipeline.Candidate{
+		{Container: a, Result: domain.NewResult("local", a).Available("sha256:new")},
+		{Container: b, Result: domain.NewResult("local", b)},
+		{Container: c, Result: domain.NewResult("local", c).Available("sha256:new")},
+	}
+	h.run(t)
+	if got := h.engine.started; len(got) != 3 || got[0] != "replacement" || got[1] != "b-id" || got[2] != "replacement" {
+		t.Fatalf("started %v, want a, b, c", got)
+	}
+}
+
 func stoppedHarness(options Options) *harness {
 	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
 	h.containers[0].State = "exited"
@@ -374,5 +423,23 @@ func TestUPD_019_ceiling_before_update_phase_aborts_with_failed(t *testing.T) {
 	h.run(t)
 	if h.rollbacker.reason != "transaction_timeout" || h.rollbacker.final != domain.StateFailed || h.journal.outcome.State != txn.StateAborted || h.engine.stops != 0 {
 		t.Fatalf("rollback %+v journal %+v stops %d", h.rollbacker, h.journal.outcome, h.engine.stops)
+	}
+}
+
+func TestUPD_013_rolling_restart_stops_and_starts_each_replica_in_turn(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	labels := map[string]string{"com.docker.compose.project": "shop", "com.docker.compose.service": "worker"}
+	h.containers = nil
+	h.candidates = nil
+	for _, name := range []string{"a", "b", "c"} {
+		container := domain.Container{ID: name + "-id", Name: name, State: "running", ImageRef: "repo/w:1", Labels: labels}
+		h.containers = append(h.containers, container)
+		h.candidates = append(h.candidates, &pipeline.Candidate{Container: container, Result: domain.NewResult("local", container).Available("sha256:new")})
+	}
+	h.executor.options.Rolling = true
+	h.run(t)
+	want := []string{"stop a-id", "start replacement", "stop b-id", "start replacement", "stop c-id", "start replacement"}
+	if !slices.Equal(h.engine.calls, want) {
+		t.Fatalf("calls %v want %v", h.engine.calls, want)
 	}
 }

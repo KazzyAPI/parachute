@@ -129,3 +129,12 @@ func TestReplacementOfNetworkModeDependentDropsHostname(t *testing.T) {
 		t.Fatalf("created hostname %q domain %q", fake.created.Config.Hostname, fake.created.Config.Domainname)
 	}
 }
+
+func TestFollowRenamedLinksRestoresOriginalTargetName(t *testing.T) {
+	host := &container.HostConfig{Links: []string{"/db-parachute-77bb95:/web/db", "/cache:/web/cache"}}
+	followRenamedLinks(host, "txn-20261030T094910Z-77bb95")
+	want := []string{"/db:/web/db", "/cache:/web/cache"}
+	if len(host.Links) != 2 || host.Links[0] != want[0] || host.Links[1] != want[1] {
+		t.Fatalf("links = %v, want %v", host.Links, want)
+	}
+}
