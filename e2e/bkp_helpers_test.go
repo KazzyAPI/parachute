@@ -176,6 +176,10 @@ func pushRealImage(env *harness.Env, repo, tag, source string) string {
 func postgresReady(env *harness.Env, container string) {
 	env.T.Helper()
 	env.Eventually(2*time.Minute, "postgres ready", func() bool {
+		logs, _ := env.DockerMayFail("logs", container)
+		if !strings.Contains(logs, "PostgreSQL init process complete") {
+			return false
+		}
 		_, err := env.DockerMayFail("exec", container, "pg_isready", "-U", "postgres")
 		return err == nil
 	})
