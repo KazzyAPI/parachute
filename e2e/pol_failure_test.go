@@ -63,6 +63,60 @@ func (s frozenShop) update(t *testing.T) *harness.Result {
 	return runArmed(s.env, "--backup", "none")
 }
 
+type joinedFreeze struct {
+	env         *harness.Env
+	app         string
+	cache       string
+	appStack    string
+	cacheStack  string
+	transaction string
+	cacheApp    updatable
+	appApp      updatable
+}
+
+func freezeJoinedStacks(t *testing.T, env *harness.Env) joinedFreeze {
+	t.Helper()
+	signalDir := filepath.Join(env.Dir, "signal")
+	if err := os.MkdirAll(signalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cacheApp := newUpdatable(env, "cache")
+	appApp := newUpdatable(env, "app")
+	cache := env.RunContainer("cache", cacheApp.ref, harness.ContainerOptions{})
+	app := env.RunContainer("app", appApp.ref, harness.ContainerOptions{
+		Extra:  []string{"-v", signalDir + ":" + signalDir},
+		Labels: map[string]string{"parachute.depends-on": cache, "parachute.verify.cmd": verifyFailLabels(signalDir)["parachute.verify.cmd"]},
+	})
+	verifyFailUpdate(env, "app")
+	cacheApp.publishNewer()
+	done := runArmedAsync(env, "--backup", "none")
+	original := waitRenamedOriginal(env, app)
+	env.Docker("rm", "-f", original)
+	if err := os.WriteFile(filepath.Join(signalDir, "go"), []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := <-done
+	entry := assertState(t, result, app, "rollback_failed", "restore_failed")
+	transaction, _ := entry["txn"].(string)
+	if !strings.HasPrefix(transaction, "txn-") {
+		t.Fatalf("rollback_failed entry has no transaction: %v", entry)
+	}
+	return joinedFreeze{
+		env: env, app: app, cache: cache, appStack: app, cacheStack: cache,
+		transaction: transaction, cacheApp: cacheApp, appApp: appApp,
+	}
+}
+
+func (j joinedFreeze) publishNewer() {
+	j.cacheApp.publishNewer()
+	j.appApp.registry.Push(refRepo(j.appApp.ref), "1", "3")
+}
+
+func (j joinedFreeze) update(t *testing.T) *harness.Result {
+	t.Helper()
+	return runArmed(j.env, "--backup", "none")
+}
+
 func TestPOL_010_rolled_back_digest_is_held_until_a_new_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	app := newUpdatable(env, "app")
@@ -96,12 +150,27 @@ func TestPOL_010_approval_retries_a_rolled_back_digest(t *testing.T) {
 func TestPOL_010_rollback_failed_freezes_the_stack_whatever_the_digest(t *testing.T) {
 	env := harness.NewEnv(t)
 	shop := freezeShop(t, env)
+	failedID, failedImage := env.ContainerState(shop.failed)
+	siblingID, siblingImage := env.ContainerState(shop.sibling)
 	shop.publishSibling("2")
-	first := assertState(t, shop.update(t), shop.sibling, "held", "previous_attempt_failed")
+	first := shop.update(t)
+	assertState(t, first, shop.failed, "held", "previous_attempt_failed")
+	siblingEntry := assertState(t, first, shop.sibling, "held", "previous_attempt_failed")
+	assertUnchanged(env, shop.failed, failedID, failedImage)
+	assertUnchanged(env, shop.sibling, siblingID, siblingImage)
+	stack := statusStack(t, env, shop.project)
+	frozen, _ := stack["frozen"].([]any)
+	if len(frozen) != 1 {
+		t.Fatalf("frozen %v, want one entry", frozen)
+	}
+	frozenEntry := frozen[0].(map[string]any)
+	if frozenEntry["transaction"] != shop.transaction {
+		t.Errorf("frozen entry %v", frozenEntry)
+	}
 	shop.publishSibling("3")
 	second := assertState(t, shop.update(t), shop.sibling, "held", "previous_attempt_failed")
-	if first["candidate_digest"] == second["candidate_digest"] {
-		t.Errorf("the candidate digest did not change: %v", first["candidate_digest"])
+	if siblingEntry["candidate_digest"] == second["candidate_digest"] {
+		t.Errorf("the candidate digest did not change: %v", siblingEntry["candidate_digest"])
 	}
 }
 
@@ -115,6 +184,97 @@ func TestPOL_010_release_ends_the_freeze(t *testing.T) {
 	assertResponse(t, response, http.StatusOK)
 	stopDaemon(process)
 	assertState(t, shop.update(t), shop.sibling, "updated", "")
+}
+
+func TestPOL_010_joined_stacks_freeze_lists_both_and_release_clears(t *testing.T) {
+	env := harness.NewEnv(t)
+	join := freezeJoinedStacks(t, env)
+	appID, appImage := env.ContainerState(join.app)
+	cacheID, cacheImage := env.ContainerState(join.cache)
+	join.publishNewer()
+	result := join.update(t)
+	assertState(t, result, join.app, "held", "previous_attempt_failed")
+	assertState(t, result, join.cache, "held", "previous_attempt_failed")
+	assertUnchanged(env, join.app, appID, appImage)
+	assertUnchanged(env, join.cache, cacheID, cacheImage)
+	for _, stackName := range []string{join.appStack, join.cacheStack} {
+		frozen, _ := statusStack(t, env, stackName)["frozen"].([]any)
+		if len(frozen) != 1 {
+			t.Fatalf("stack %s frozen %v", stackName, frozen)
+		}
+		entry := frozen[0].(map[string]any)
+		if entry["transaction"] != join.transaction {
+			t.Errorf("stack %s frozen entry %v", stackName, entry)
+		}
+		containers, _ := entry["containers"].([]any)
+		if len(containers) != 2 {
+			t.Errorf("stack %s frozen containers %v", stackName, containers)
+		}
+	}
+	_, api := startAPI(env, "--http-api-update")
+	response := approve(api, url.Values{"container": {join.cache}})
+	assertResponse(t, response, http.StatusOK)
+	body := response.JSON()
+	if transactions, _ := body["transactions"].([]any); len(transactions) != 1 || transactions[0] != join.transaction {
+		t.Errorf("released transactions %v, want [%s]", body["transactions"], join.transaction)
+	}
+	for _, stackName := range []string{join.appStack, join.cacheStack} {
+		if frozen, _ := statusStack(t, env, stackName)["frozen"].([]any); len(frozen) != 0 {
+			t.Errorf("stack %s frozen after release %v", stackName, frozen)
+		}
+	}
+}
+
+func TestPOL_010_recreated_stack_stays_frozen_until_release(t *testing.T) {
+	env := harness.NewEnv(t)
+	if _, err := env.DockerMayFail("compose", "version"); err != nil {
+		t.Skip("docker compose is not installed")
+	}
+	shop := freezeShop(t, env)
+	shop.publishSibling("2")
+	assertState(t, shop.update(t), shop.sibling, "held", "previous_attempt_failed")
+	compose := env.WriteFile("compose/shop.yaml", `services:
+  a:
+    container_name: `+shop.failed+`
+    image: `+shop.siblingApp.ref+`
+    labels: {parachute.scope: "`+env.Scope()+`", parachute-e2e: "`+env.ID+`", com.docker.compose.project: "`+shop.project+`", com.docker.compose.service: "a"}
+  b:
+    container_name: `+shop.sibling+`
+    image: `+shop.siblingApp.ref+`
+    labels: {parachute.scope: "`+env.Scope()+`", parachute-e2e: "`+env.ID+`", com.docker.compose.project: "`+shop.project+`", com.docker.compose.service: "b"}
+`, 0o644)
+	beforeFailed, _ := env.ContainerState(shop.failed)
+	beforeSibling, _ := env.ContainerState(shop.sibling)
+	env.Docker("compose", "-p", shop.project, "-f", compose, "down")
+	env.Docker("compose", "-p", shop.project, "-f", compose, "up", "-d")
+	_ = os.Remove(compose)
+	afterFailed, _ := env.ContainerState(shop.failed)
+	afterSibling, _ := env.ContainerState(shop.sibling)
+	if afterFailed == beforeFailed || afterSibling == beforeSibling {
+		t.Fatalf("stack was not recreated: failed %s->%s sibling %s->%s", beforeFailed, afterFailed, beforeSibling, afterSibling)
+	}
+	shop.publishSibling("3")
+	result := shop.update(t)
+	assertState(t, result, shop.failed, "held", "previous_attempt_failed")
+	assertState(t, result, shop.sibling, "held", "previous_attempt_failed")
+	frozen, _ := statusStack(t, env, shop.project)["frozen"].([]any)
+	if len(frozen) != 1 {
+		t.Fatalf("frozen %v", frozen)
+	}
+	entry := frozen[0].(map[string]any)
+	containers, _ := entry["containers"].([]any)
+	if len(containers) != 2 {
+		t.Errorf("frozen containers %v", containers)
+	}
+	if entry["transaction"] != shop.transaction {
+		t.Errorf("frozen entry %v", entry)
+	}
+	process, api := startAPI(env, "--http-api-update")
+	assertResponse(t, approve(api, url.Values{"container": {shop.sibling}}), http.StatusOK)
+	stopDaemon(process)
+	if frozen, _ := statusStack(t, env, shop.project)["frozen"].([]any); len(frozen) != 0 {
+		t.Errorf("frozen after release %v", frozen)
+	}
 }
 
 func TestPOL_011_release_record_must_match_the_freeze(t *testing.T) {
