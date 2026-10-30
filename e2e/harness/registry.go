@@ -3,6 +3,7 @@ package harness
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -138,6 +139,30 @@ func (r *Registry) ParachuteRequests() []RegistryRequest {
 		}
 	}
 	return requests
+}
+
+func (r *Registry) Manifest(repo, reference string) []byte {
+	r.env.T.Helper()
+	request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/v2/%s/%s/manifests/%s", r.Host, r.env.ID, repo, reference), nil)
+	if err != nil {
+		r.env.T.Fatal(err)
+	}
+	request.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		r.env.T.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	if closeErr := response.Body.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		r.env.T.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		r.env.T.Fatalf("manifest %s/%s: %s", repo, reference, response.Status)
+	}
+	return body
 }
 
 func (e *Env) FreePort() int {
