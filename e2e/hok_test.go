@@ -189,3 +189,50 @@ func TestHOK_001_environment_variable_enables_hooks(t *testing.T) {
 	result := env.Parachute("--run-once").Setenv("PARACHUTE_ENABLE_LIFECYCLE_HOOKS", "true").Run(runTimeout)
 	assertExit(t, result, 0)
 }
+
+func TestHOK_003_updated_container_runs_hooks_in_order(t *testing.T) {
+	env := harness.NewEnv(t)
+	hostDir, mount := hookVolume(env)
+	mark := filepath.Join(mount, "order")
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
+		Extra:  hookContainerExtra(hostDir, mount),
+		Labels: hookOrderLabels(mark),
+	})
+	app.publishNewer()
+	result := runOnce(env, armedHooks(env)...)
+	assertState(t, result, a, "updated", "")
+	if got := readHookOrder(t, filepath.Join(hostDir, "order")); got != "pre-check pre-update post-update post-check" {
+		t.Fatalf("hook order %q", got)
+	}
+}
+
+func TestHOK_003_no_update_runs_check_hooks_only(t *testing.T) {
+	env := harness.NewEnv(t)
+	hostDir, mount := hookVolume(env)
+	mark := filepath.Join(mount, "order")
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
+		Extra:  hookContainerExtra(hostDir, mount),
+		Labels: hookOrderLabels(mark),
+	})
+	result := runOnce(env, armedHooks(env)...)
+	assertState(t, result, a, "would_update", "")
+	if got := readHookOrder(t, filepath.Join(hostDir, "order")); got != "pre-check post-check" {
+		t.Fatalf("hook order %q", got)
+	}
+}
+
+func TestHOK_006_pre_update_75_defers_without_stopping(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
+		Labels: hookLabel("pre-update", "exit 75"),
+	})
+	id, image := env.ContainerState(a)
+	app.publishNewer()
+	result := runOnce(env, armedHooks(env)...)
+	assertExit(t, result, 0)
+	assertState(t, result, a, "held", "hook_deferred")
+	assertUnchanged(env, a, id, image)
+}

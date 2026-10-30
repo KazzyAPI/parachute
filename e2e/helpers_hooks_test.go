@@ -3,6 +3,7 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/KazzyAPI/parachute/e2e/harness"
@@ -48,4 +49,21 @@ func armedHooks(env *harness.Env, args ...string) []string {
 		"--enable-lifecycle-hooks",
 	}
 	return append(base, args...)
+}
+
+func hookOrderLabels(mark string) map[string]string {
+	labels := map[string]string{}
+	for _, hook := range []string{"pre-check", "pre-update", "post-update", "post-check"} {
+		labels["parachute.lifecycle."+hook] = "echo -n '" + hook + " ' >> " + mark
+	}
+	return labels
+}
+
+func readHookOrder(t *testing.T, hostPath string) string {
+	t.Helper()
+	data, err := os.ReadFile(hostPath)
+	if err != nil {
+		t.Fatalf("read hook order: %v", err)
+	}
+	return strings.TrimSpace(string(data))
 }
