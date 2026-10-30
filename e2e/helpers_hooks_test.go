@@ -39,6 +39,28 @@ func assertHookFile(t *testing.T, hostPath string, want bool) {
 	}
 }
 
+func hookAppender(mount, name string) string {
+	return "echo -n '" + name + " ' >> " + hookFile(mount)
+}
+
+func allLifecycleHookLabels(mount string) map[string]string {
+	return map[string]string{
+		"parachute.lifecycle.pre-check":   hookAppender(mount, "pre-check"),
+		"parachute.lifecycle.pre-update":  hookAppender(mount, "pre-update"),
+		"parachute.lifecycle.post-update": hookAppender(mount, "post-update"),
+		"parachute.lifecycle.post-check":  hookAppender(mount, "post-check"),
+	}
+}
+
+func readHookLog(t *testing.T, hostDir string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(hostDir, "ran"))
+	if err != nil {
+		t.Fatalf("read hook log: %v", err)
+	}
+	return strings.TrimSpace(string(data))
+}
+
 func armedHooks(env *harness.Env, args ...string) []string {
 	env.T.Helper()
 	base := []string{

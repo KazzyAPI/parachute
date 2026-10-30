@@ -184,6 +184,42 @@ func TestHOK_001_enable_lifecycle_hooks_is_not_startup_error(t *testing.T) {
 	assertExit(t, result, 0)
 }
 
+func TestHOK_004_monitor_only_runs_check_hooks_only(t *testing.T) {
+	env := harness.NewEnv(t)
+	hostDir, mount := hookVolume(env)
+	app := newUpdatable(env, "app")
+	labels := allLifecycleHookLabels(mount)
+	labels["parachute.monitor-only"] = "true"
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
+		Extra:  hookContainerExtra(hostDir, mount),
+		Labels: labels,
+	})
+	app.publishNewer()
+	result := runOnce(env, armedHooks(env)...)
+	assertState(t, result, a, "held", "monitor_only")
+	if got := readHookLog(t, hostDir); got != "pre-check post-check" {
+		t.Fatalf("hook log %q", got)
+	}
+}
+
+func TestHOK_003_held_container_runs_check_hooks_only(t *testing.T) {
+	env := harness.NewEnv(t)
+	hostDir, mount := hookVolume(env)
+	app := newUpdatable(env, "app")
+	labels := allLifecycleHookLabels(mount)
+	labels["parachute.approval"] = "required"
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
+		Extra:  hookContainerExtra(hostDir, mount),
+		Labels: labels,
+	})
+	app.publishNewer()
+	result := runOnce(env, armedHooks(env)...)
+	assertState(t, result, a, "held", "approval_required")
+	if got := readHookLog(t, hostDir); got != "pre-check post-check" {
+		t.Fatalf("hook log %q", got)
+	}
+}
+
 func TestHOK_001_environment_variable_enables_hooks(t *testing.T) {
 	env := harness.NewEnv(t)
 	result := env.Parachute("--run-once").Setenv("PARACHUTE_ENABLE_LIFECYCLE_HOOKS", "true").Run(runTimeout)
