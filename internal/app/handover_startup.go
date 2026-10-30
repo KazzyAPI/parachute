@@ -329,7 +329,7 @@ func (x *RollbackFinisher) RollbackSelfHandover(ctx context.Context, record txn.
 	if _, err := x.removeReplacements(ctx, record.ID); err != nil {
 		return txn.Outcome{}, nil, err
 	}
-	if _, err := x.restoreOriginals(ctx, plan, record.Originals); err != nil {
+	if _, _, err := x.restoreOriginals(ctx, plan, record.Originals); err != nil {
 		return txn.Outcome{}, nil, err
 	}
 	var candidates []*pipeline.Candidate

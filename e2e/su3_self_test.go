@@ -112,16 +112,16 @@ func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
 		}}
 	})
 	webhook := env.Webhook()
-	env.StartParachuteContainer("successor", harness.ContainerRun{
+	successor := env.StartParachuteContainer("successor", harness.ContainerRun{
 		Image:  ref,
 		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
 		Args: []string{
-			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.URL(), "--notifications-level", "error",
+			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
 			"--interval", "8760h", "--scope", env.Scope(),
 		},
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
-	notifications := webhook.WaitFor(30*time.Second, 1)
+	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
 	if len(notifications) == 0 || !strings.Contains(notifications[0].Message, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
@@ -150,16 +150,16 @@ func TestNTF_012_interrupted_handover_sends_error_notification(t *testing.T) {
 		}}
 	})
 	webhook := env.Webhook()
-	env.StartParachuteContainer("handover-successor", harness.ContainerRun{
+	successor := env.StartParachuteContainer("handover-successor", harness.ContainerRun{
 		Image:  ref,
 		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
 		Args: []string{
-			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.URL(), "--notifications-level", "error",
+			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
 			"--interval", "8760h", "--scope", env.Scope(),
 		},
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
-	notifications := webhook.WaitFor(30*time.Second, 1)
+	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
 	if len(notifications) == 0 || !strings.Contains(notifications[0].Message, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
