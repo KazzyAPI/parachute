@@ -25,6 +25,7 @@ func ownWithSibling(t *testing.T, env *harness.Env) (own string, sibling string,
 
 func injectSelfUpdateFreeze(t *testing.T, env *harness.Env, own, txn string) {
 	t.Helper()
+	assertExit(t, env.Parachute("--run-once").Run(runTimeout), 0)
 	editState(t, env, func(document map[string]any) {
 		document["freezes"] = []any{map[string]any{
 			"transaction": txn,
