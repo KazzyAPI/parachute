@@ -72,6 +72,12 @@ func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string
 	}
 	timeout := v.labels.Duration(containerID, labels, "verify.timeout", v.settings.Timeout)
 	stable := v.labels.Duration(containerID, labels, "verify.stable", v.settings.Stable)
+	if baseOnly {
+		stable = 0
+	}
+	if baseOnly {
+		stable = 0
+	}
 	health := mergedHealth(spec)
 	deadline = EffectiveDeadline(timeout, health)
 	deadlineAt := v.deadlineStart(runtime).Add(deadline)
