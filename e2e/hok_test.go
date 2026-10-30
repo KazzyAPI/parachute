@@ -13,7 +13,7 @@ func TestHOK_001_disabled_hook_does_not_run(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
 	mark := hookFile(mount)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  hookContainerExtra(hostDir, mount),
 		Labels: hookLabel("pre-update", "touch "+mark),
@@ -28,7 +28,7 @@ func TestHOK_001_enabled_hook_runs(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
 	mark := hookFile(mount)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  hookContainerExtra(hostDir, mount),
 		Labels: hookLabel("pre-update", "touch "+mark),
@@ -43,7 +43,7 @@ func TestHOK_002_stopped_candidate_hook_skipped_and_still_checked(t *testing.T) 
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
 	mark := hookFile(mount)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  hookContainerExtra(hostDir, mount),
 		Labels: hookLabel("pre-check", "touch "+mark),
@@ -63,7 +63,7 @@ func TestHOK_002_stopped_candidate_hook_skipped_and_still_checked(t *testing.T) 
 
 func TestHOK_005_pre_check_timeout_continues_after_60s_with_warn(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: hookLabel("pre-check", "sleep 90"),
 	})
@@ -87,7 +87,7 @@ func TestHOK_005_pre_check_timeout_continues_after_60s_with_warn(t *testing.T) {
 
 func TestHOK_005_pre_update_timeout_label_allows_long_hook(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: map[string]string{
 			"parachute.lifecycle.pre-update":         "sleep 90",
@@ -104,7 +104,7 @@ func TestHOK_005_pre_update_timeout_label_allows_long_hook(t *testing.T) {
 
 func TestHOK_005_zero_timeout_bounded_by_transaction_ceiling(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: map[string]string{
 			"parachute.lifecycle.pre-update":         "sleep 3600",
@@ -129,7 +129,7 @@ func TestHOK_005_zero_timeout_bounded_by_transaction_ceiling(t *testing.T) {
 
 func TestHOK_006_post_update_failure_commits_and_warns(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: hookLabel("post-update", "exit 1"),
 	})
@@ -146,7 +146,7 @@ func TestHOK_006_post_update_failure_commits_and_warns(t *testing.T) {
 
 func TestHOK_006_post_check_75_is_silent_success(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: hookLabel("post-check", "exit 75"),
 	})
@@ -163,7 +163,7 @@ func TestHOK_006_post_check_75_is_silent_success(t *testing.T) {
 func TestHOK_008_secret_not_in_log_report_or_webhook(t *testing.T) {
 	env := harness.NewEnv(t)
 	webhook := env.Webhook()
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  []string{"-e", "API_KEY=hunter2-secret"},
 		Labels: hookLabel("post-update", `echo "$API_KEY"; exit 1`),
@@ -187,7 +187,7 @@ func TestHOK_001_enable_lifecycle_hooks_is_not_startup_error(t *testing.T) {
 func TestHOK_004_monitor_only_runs_check_hooks_only(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	labels := allLifecycleHookLabels(mount)
 	labels["parachute.monitor-only"] = "true"
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
@@ -205,7 +205,7 @@ func TestHOK_004_monitor_only_runs_check_hooks_only(t *testing.T) {
 func TestHOK_003_held_container_runs_check_hooks_only(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	labels := allLifecycleHookLabels(mount)
 	labels["parachute.approval"] = "required"
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
@@ -230,7 +230,7 @@ func TestHOK_003_updated_container_runs_hooks_in_order(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
 	mark := filepath.Join(mount, "order")
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  hookContainerExtra(hostDir, mount),
 		Labels: hookOrderLabels(mark),
@@ -247,7 +247,7 @@ func TestHOK_003_no_update_runs_check_hooks_only(t *testing.T) {
 	env := harness.NewEnv(t)
 	hostDir, mount := hookVolume(env)
 	mark := filepath.Join(mount, "order")
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Extra:  hookContainerExtra(hostDir, mount),
 		Labels: hookOrderLabels(mark),
@@ -261,7 +261,7 @@ func TestHOK_003_no_update_runs_check_hooks_only(t *testing.T) {
 
 func TestHOK_006_pre_update_75_defers_without_stopping(t *testing.T) {
 	env := harness.NewEnv(t)
-	app := newUpdatable(env, "app")
+	app := newShellUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{
 		Labels: hookLabel("pre-update", "exit 75"),
 	})
