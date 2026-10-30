@@ -180,3 +180,17 @@ func TestOperatorLabels_drops_labels_inherited_from_the_image(t *testing.T) {
 		t.Fatalf("labels %v", got)
 	}
 }
+
+func TestVER_010_rollback_verification_does_not_wait_the_stable_window(t *testing.T) {
+	start := time.Unix(0, 0)
+	clock := &fakeClock{now: start}
+	inspector := &fakeInspector{
+		spec:    engine.Spec{Config: &container.Config{}},
+		runtime: engine.Runtime{Status: "running", Running: true, StartedAt: start},
+	}
+	verifier := New(inspector, nil, nil, &fakeLabels{}, Settings{Timeout: time.Minute, Stable: 30 * time.Second}, clock)
+	verdict, err := verifier.VerifyBase(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
+	if err != nil || !verdict.Passed || clock.now.Sub(start) != 0 {
+		t.Fatalf("verdict %+v err %v waited %s", verdict, err, clock.now.Sub(start))
+	}
+}

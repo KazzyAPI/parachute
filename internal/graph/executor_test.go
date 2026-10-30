@@ -301,3 +301,63 @@ func TestBKP_008_retention_runs_after_completed_rollback(t *testing.T) {
 		t.Fatalf("rollback %v retained %v", h.rollbacker.called, retained)
 	}
 }
+
+type steppingClock struct{ now time.Time }
+
+func (c *steppingClock) Now() time.Time { return c.now }
+
+type slowVerifier struct {
+	clock  *steppingClock
+	step   time.Duration
+	budget time.Duration
+}
+
+func (v *slowVerifier) Verify(ctx context.Context, _ txn.Plan, _ string) (txn.Verdict, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		v.budget = time.Until(deadline)
+	}
+	v.clock.now = v.clock.now.Add(v.step)
+	return txn.Verdict{Passed: true}, nil
+}
+
+func (v *slowVerifier) VerifyBase(context.Context, txn.Plan, string) (txn.Verdict, error) {
+	return txn.Verdict{Passed: true}, nil
+}
+
+func TestUPD_019_ceiling_hit_during_verification_rolls_back_within_bound(t *testing.T) {
+	clock := &steppingClock{now: time.Unix(0, 0)}
+	verifier := &slowVerifier{clock: clock, step: 25 * time.Second}
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{})
+	h.executor.clock = clock
+	h.executor.verifier = verifier
+	h.executor.options = Options{TransactionTimeout: 20 * time.Second}
+	h.run(t)
+	if !h.rollbacker.called || h.rollbacker.reason != "transaction_timeout" || h.rollbacker.final != domain.StateRolledBack {
+		t.Fatalf("rollback %+v", h.rollbacker)
+	}
+	if verifier.budget <= 0 || verifier.budget > 20*time.Second {
+		t.Fatalf("verify budget %s exceeds ceiling", verifier.budget)
+	}
+}
+
+type expiringSnapshots struct {
+	fakeSnapshots
+	clock *steppingClock
+}
+
+func (s expiringSnapshots) Take(context.Context, txn.Plan) (string, error) {
+	s.clock.now = s.clock.now.Add(time.Minute)
+	return "snap-1", nil
+}
+
+func TestUPD_019_ceiling_before_update_phase_aborts_with_failed(t *testing.T) {
+	clock := &steppingClock{now: time.Unix(0, 0)}
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{})
+	h.executor.clock = clock
+	h.executor.snapshot = expiringSnapshots{clock: clock}
+	h.executor.options = Options{TransactionTimeout: 20 * time.Second}
+	h.run(t)
+	if h.rollbacker.reason != "transaction_timeout" || h.rollbacker.final != domain.StateFailed || h.journal.outcome.State != txn.StateAborted || h.engine.stops != 0 {
+		t.Fatalf("rollback %+v journal %+v stops %d", h.rollbacker, h.journal.outcome, h.engine.stops)
+	}
+}
