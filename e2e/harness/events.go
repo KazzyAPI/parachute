@@ -2,7 +2,6 @@ package harness
 
 import (
 	"bufio"
-	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -96,5 +95,12 @@ func (r *EventRecorder) AssertOrder(want ...string) {
 
 func (r *EventRecorder) Wait(timeout time.Duration, want ...string) {
 	r.env.T.Helper()
-	r.env.Eventually(timeout, fmt.Sprintf("events %q", want), func() bool { return inOrder(r.Events(), want) })
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if inOrder(r.Events(), want) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	r.env.T.Fatalf("timed out after %s waiting for events %q, recorded %q", timeout, want, r.Events())
 }

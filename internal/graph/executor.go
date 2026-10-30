@@ -16,6 +16,11 @@ import (
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
 
+const (
+	dependencyWait = 2 * time.Minute
+	dependencyPoll = 250 * time.Millisecond
+)
+
 type Engine interface {
 	Inspect(ctx context.Context, id string) (engine.Spec, error)
 	Stop(ctx context.Context, id, signal string, timeout time.Duration) error
@@ -376,17 +381,64 @@ func (e *Executor) batchUpdate(ctx context.Context, plan txn.Plan, group Group, 
 			return err
 		}
 	}
-	suffix := plan.ID[len(plan.ID)-6:]
-	for _, member := range group.Members {
-		if member.Update || member.Recreate {
-			if err := e.engine.Rename(ctx, member.Container.ID, member.Container.Name+"-parachute-"+suffix); err != nil {
+	if err := e.renameOriginals(ctx, plan, group, names); err != nil {
+		return err
+	}
+	return e.startAll(ctx, plan, group, names, edges, candidates, nil)
+}
+
+func (e *Executor) rollingUpdate(ctx context.Context, plan txn.Plan, group Group, edges []Edge, candidates []*pipeline.Candidate, ceiling *txn.Ceiling) error {
+	names := MemberNames(group.Members)
+	for _, batch := range RollingGroups(names, edges) {
+		batchEdges := FilterEdges(edges, batch)
+		for _, name := range StopOrder(batch, batchEdges) {
+			if err := e.stopContainer(ctx, name, indexName(group, name)); err != nil {
 				return err
 			}
 		}
+		if err := e.renameOriginals(ctx, plan, group, batch); err != nil {
+			return err
+		}
+		verify := func(name string) error { return e.verifyMember(ctx, plan, name, ceiling) }
+		if err := e.startAll(ctx, plan, group, batch, batchEdges, candidates, verify); err != nil {
+			return err
+		}
 	}
-	for _, name := range StartSequence(names, edges) {
+	return nil
+}
+
+func (e *Executor) renameOriginals(ctx context.Context, plan txn.Plan, group Group, names []string) error {
+	suffix := plan.ID[len(plan.ID)-6:]
+	for _, name := range names {
 		member := memberOf(group, name)
 		if member == nil || !member.Update && !member.Recreate {
+			continue
+		}
+		if err := e.engine.Rename(ctx, member.Container.ID, member.Container.Name+"-parachute-"+suffix); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Executor) startAll(ctx context.Context, plan txn.Plan, group Group, names []string, edges []Edge, candidates []*pipeline.Candidate, verify func(string) error) error {
+	running := map[string]string{}
+	for _, name := range StartSequence(names, edges) {
+		member := memberOf(group, name)
+		if member == nil {
+			continue
+		}
+		if err := e.awaitDependencies(ctx, name, edges, running); err != nil {
+			return err
+		}
+		if !member.Update && !member.Recreate {
+			if !wasRunning(*member) {
+				continue
+			}
+			if err := e.engine.Start(ctx, member.Container.ID); err != nil {
+				return err
+			}
+			running[name] = member.Container.ID
 			continue
 		}
 		replacement, err := e.recreator.Replacement(ctx, plan, member.Container.ID, member.Container.Name)
@@ -403,57 +455,58 @@ func (e *Executor) batchUpdate(ctx context.Context, plan txn.Plan, group Group, 
 				break
 			}
 		}
+		running[name] = replacement
+		if verify != nil {
+			if err := verify(name); err != nil {
+				return err
+			}
+		}
 	}
-	for _, name := range StartSequence(names, edges) {
-		if err := e.startMember(ctx, group, name); err != nil {
+	return nil
+}
+
+func (e *Executor) awaitDependencies(ctx context.Context, name string, edges []Edge, running map[string]string) error {
+	for _, edge := range edges {
+		id, ok := running[edge.Dependency]
+		if edge.Dependent != name || edge.Condition == ConditionStarted || !ok {
+			continue
+		}
+		if err := e.awaitCondition(ctx, id, edge.Condition); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *Executor) rollingUpdate(ctx context.Context, plan txn.Plan, group Group, edges []Edge, candidates []*pipeline.Candidate, ceiling *txn.Ceiling) error {
-	names := MemberNames(group.Members)
-	for _, batch := range RollingGroups(names, edges) {
-		batchEdges := FilterEdges(edges, batch)
-		for _, name := range StopOrder(batch, batchEdges) {
-			if err := e.stopContainer(ctx, name, indexName(group, name)); err != nil {
-				return err
-			}
+func (e *Executor) awaitCondition(ctx context.Context, id string, condition Condition) error {
+	ctx, cancel := context.WithTimeout(ctx, dependencyWait)
+	defer cancel()
+	for {
+		spec, err := e.engine.Inspect(ctx, id)
+		if err != nil {
+			return dependencyFailure(ctx, err)
 		}
-		for _, name := range StartSequence(batch, batchEdges) {
-			member := memberOf(group, name)
-			if member == nil || (!member.Update && !member.Recreate) {
-				continue
-			}
-			if err := e.engine.Rename(ctx, member.Container.ID, member.Container.Name+"-parachute-"+plan.ID[len(plan.ID)-6:]); err != nil {
-				return err
-			}
-			replacement, err := e.recreator.Replacement(ctx, plan, member.Container.ID, member.Container.Name)
-			if err != nil {
-				return err
-			}
-			if err := e.startReplacement(ctx, *member, replacement); err != nil {
-				return err
-			}
-			e.setReplacement(candidates, member.Container.Name, replacement)
-			for _, candidate := range candidates {
-				if candidate.Container.Name == member.Container.Name {
-					e.runPostUpdateHook(ctx, candidate.Container)
-					break
-				}
-			}
-			if err := e.verifyMember(ctx, plan, member.Container.Name, ceiling); err != nil {
-				return err
-			}
+		if condition == ConditionHealthy && spec.HealthStatus == "healthy" ||
+			condition == ConditionExitOK && spec.Status == "exited" && spec.ExitCode == 0 {
+			return nil
 		}
-		for _, name := range StartSequence(batch, batchEdges) {
-			if err := e.startMember(ctx, group, name); err != nil {
-				return err
-			}
+		if condition == ConditionHealthy && spec.HealthStatus == "unhealthy" ||
+			condition == ConditionExitOK && spec.Status == "exited" {
+			return recreate.Failure{State: string(domain.StateRolledBack), Reason: "verify_failed", Detail: "dependency " + spec.Name + " did not reach its start condition"}
+		}
+		select {
+		case <-ctx.Done():
+			return dependencyFailure(ctx, ctx.Err())
+		case <-time.After(dependencyPoll):
 		}
 	}
-	return nil
+}
+
+func dependencyFailure(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return recreate.Failure{State: string(domain.StateRolledBack), Reason: "verify_timeout", Detail: "dependency start condition"}
+	}
+	return err
 }
 
 func (e *Executor) pull(ctx context.Context, container domain.Container, targets []txn.Target) error {
@@ -500,14 +553,6 @@ func (e *Executor) startReplacement(ctx context.Context, member Member, replacem
 		return nil
 	}
 	return e.engine.Start(ctx, replacement)
-}
-
-func (e *Executor) startMember(ctx context.Context, group Group, name string) error {
-	member := memberOf(group, name)
-	if member == nil || member.Update || member.Recreate || !wasRunning(*member) {
-		return nil
-	}
-	return e.engine.Start(ctx, member.Container.ID)
 }
 
 func indexName(group Group, name string) *Member {

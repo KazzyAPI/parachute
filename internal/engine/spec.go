@@ -13,6 +13,8 @@ type Spec struct {
 	Name         string
 	ImageID      string
 	HealthStatus string
+	Status       string
+	ExitCode     int
 	Config       *container.Config
 	HostConfig   *container.HostConfig
 	Networks     map[string]*network.EndpointSettings
