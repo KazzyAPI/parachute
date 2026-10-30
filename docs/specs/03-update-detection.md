@@ -1,6 +1,6 @@
 # 03 Update detection
 
-**Status:** Draft
+**Status:** Accepted
 
 How Parachute decides that a candidate has an update. Detection never changes containers. Results of detection feed policies ([09-update-policies.md](09-update-policies.md)) and the transaction ([04-update-transaction.md](04-update-transaction.md)).
 

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"testing"
 	"time"
@@ -12,6 +13,21 @@ import (
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
+
+type memoryFiles map[string][]byte
+
+func (m memoryFiles) ReadFile(path string) ([]byte, error) {
+	contents, ok := m[path]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	return contents, nil
+}
+
+func (m memoryFiles) WriteAtomic(path string, data []byte) error {
+	m[path] = data
+	return nil
+}
 
 type recordingJournal struct {
 	open     []txn.OpenRecord
@@ -101,5 +117,32 @@ func TestUPD_016_handover_and_self_update_are_left_open(t *testing.T) {
 	journal, finisher, _ := recoverWith(record(txn.StateHandover))
 	if journal.finished || finisher.reason != "" {
 		t.Fatal("handover transaction must not be recovered here")
+	}
+}
+
+func TestRecoveryInterruptedRollbackRecordsFailedDigest(t *testing.T) {
+	const digest = "sha256:candidate"
+	const txnID = "txn-20260101T000000Z-abc123"
+	journal := &recordingJournal{open: []txn.OpenRecord{record(txn.StateVerify)}}
+	finisher := &recordingFinisher{}
+	lister := staticLister{
+		{ID: "orig", Name: "web-parachute-abc123"},
+		{ID: "repl", Name: "web", ImageID: digest, Labels: map[string]string{"parachute.transaction": txnID}},
+	}
+	recovery := NewRecovery(map[string]RecoveryHost{"local": {Lister: lister, Finisher: finisher}}, journal, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recovery.Recover(context.Background())
+	if len(recovery.results) != 1 || recovery.results[0].CandidateDigest != digest || recovery.results[0].State != domain.StateRolledBack {
+		t.Fatalf("results %+v", recovery.results)
+	}
+	files := memoryFiles{}
+	store := state.NewStore("/s", files, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := store.Open(); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.NewRecorder(store).Publish(context.Background(), domain.Report{Hosts: []domain.HostReport{{Results: recovery.results}}}); err != nil {
+		t.Fatal(err)
+	}
+	if !store.Current().Failed("local", "web", digest) {
+		t.Fatalf("failed digests %+v", store.Current().FailedDigests)
 	}
 }

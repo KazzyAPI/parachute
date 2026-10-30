@@ -1,6 +1,6 @@
 # 07 Backup before update
 
-**Status:** Draft
+**Status:** Accepted
 
 Every transaction takes a **snapshot** before it changes anything, so that rollback has a restore point. Format and storage are proposed in [ADR-0009](../adr/0009-snapshot-format-and-storage.md).
 
