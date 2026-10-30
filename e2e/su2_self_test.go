@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/KazzyAPI/parachute/e2e/harness"
@@ -42,8 +43,11 @@ func TestUPD_018_published_port_fails_config_unreproducible(t *testing.T) {
 		document["approvals"] = []any{map[string]any{"host": "local", "container": beforeID, "digest": digest}}
 	})
 	second := env.StartAttached(own, runTimeout)
-	assertExit(t, second, 0)
+	assertExit(t, second, 1)
 	assertState(t, second, own, "failed", "config_unreproducible")
+	if !strings.Contains(second.Stderr, "published port 8080") {
+		t.Errorf("stderr does not name the published port:\n%s", second.Stderr)
+	}
 	afterID, _ := env.ContainerState(own)
 	if afterID != beforeID {
 		t.Fatalf("container id changed %s -> %s", beforeID, afterID)

@@ -15,10 +15,13 @@ func SideBySideField(spec engine.Spec) (string, bool) {
 					return fmt.Sprintf("%s:%d", binding.HostPort, containerPort.Num()), true
 				}
 			}
+			if len(bindings) > 0 {
+				return fmt.Sprintf("published port %d", containerPort.Num()), true
+			}
 		}
 	}
 	for name, settings := range spec.Networks {
-		if settings != nil && settings.IPAddress.IsValid() {
+		if settings != nil && settings.IPAMConfig != nil && (settings.IPAMConfig.IPv4Address.IsValid() || settings.IPAMConfig.IPv6Address.IsValid()) {
 			if name == "" {
 				return "IPAddress", true
 			}
