@@ -125,6 +125,7 @@ func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
 	if len(notifications) == 0 || !strings.Contains(notifications[0].Message, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
+	env.OpenStateDir()
 	document := env.StateDocument()
 	instances, _ := document["superseded_instances"].([]any)
 	if len(instances) != 1 || instances[0] != oldID {
