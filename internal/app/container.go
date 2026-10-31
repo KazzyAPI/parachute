@@ -105,6 +105,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 		}
 	}
 	recovery := c.recovery(connected, journal, helper)
+	c.cleanupRestoreVerify(ctx, connected)
 	c.cleanupHelpers(ctx, connected, journal)
 	recovery.Recover(ctx)
 	collector := metrics.NewCollector(hostNames(hosts))

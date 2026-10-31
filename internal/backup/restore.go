@@ -12,6 +12,14 @@ func (s *Snapshotter) Restore(ctx context.Context, snapshot string) error {
 	return s.restore(ctx, snapshot, restoreOptions{rollback: true})
 }
 
+func (s *Snapshotter) BeginRestoreVerify(runID string) func() {
+	s.run.restoreVerify = runID
+	s.run.txn = ""
+	return func() {
+		s.run.restoreVerify = ""
+	}
+}
+
 func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, volume string) error {
 	root, err := s.store.Root(ctx)
 	if err != nil {
@@ -28,8 +36,6 @@ func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, vo
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
 	target := mount.Mount{Type: mount.TypeVolume, Source: volume, Target: "/target"}
-	s.run.restoreVerify = snapshot
-	defer func() { s.run.restoreVerify = "" }()
 	return s.extractArchive(ctx, root, snapshot, "", archive, target)
 }
 

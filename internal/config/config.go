@@ -25,6 +25,7 @@ type Config struct {
 	Update         Update
 	StartupMessage bool
 	Verify         Verify
+	RestoreVerify  RestoreVerify
 	NoRestart      bool
 	Hooks          Hooks
 }
@@ -36,6 +37,11 @@ type Hooks struct {
 type Verify struct {
 	Timeout time.Duration
 	Stable  time.Duration
+}
+
+type RestoreVerify struct {
+	Stack string
+	Host  string
 }
 
 type Backup struct {

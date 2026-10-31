@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-var idPattern = regexp.MustCompile(`^(txn|snap)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$`)
+var (
+	idPattern              = regexp.MustCompile(`^(txn|snap)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$`)
+	restoreVerifyIDPattern = regexp.MustCompile(`^rv-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$`)
+)
 
 type IDGenerator struct {
 	now func() time.Time
@@ -27,3 +30,12 @@ func (g *IDGenerator) New(prefix string) (string, error) {
 }
 
 func ValidID(id string) bool { return idPattern.MatchString(id) }
+
+func ValidRestoreVerifyID(id string) bool { return restoreVerifyIDPattern.MatchString(id) }
+
+func RunSuffix(runID string) string {
+	if len(runID) < 6 {
+		return runID
+	}
+	return runID[len(runID)-6:]
+}

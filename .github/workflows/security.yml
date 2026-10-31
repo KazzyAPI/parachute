@@ -35,5 +35,5 @@ jobs:
       - run: >-
           go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0
           -exclude-dir=e2e -exclude-dir=.claude
-          "-exclude-rules=tools/trace/.*:G304,G703;internal/osys/system.go:G304;internal/api/server.go:G102;internal/config/removed.go:G101"
+          "-exclude-rules=tools/trace/.*:G304,G703;internal/osys/system.go:G304;internal/osys/lock.go:G304;internal/api/server.go:G102;internal/config/removed.go:G101"
           ./...

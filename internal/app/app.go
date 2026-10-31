@@ -12,6 +12,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/health"
 	"github.com/KazzyAPI/parachute/internal/logging"
 	"github.com/KazzyAPI/parachute/internal/redact"
+	"github.com/KazzyAPI/parachute/internal/restoreverify"
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
@@ -22,6 +23,7 @@ type System interface {
 	health.FileSystem
 	health.Process
 	drift.FileReader
+	restoreverify.FileSystem
 }
 
 type Dependencies struct {

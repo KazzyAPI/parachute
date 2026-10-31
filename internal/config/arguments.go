@@ -38,6 +38,9 @@ func (p *ArgumentParser) Parse(args []string) (Arguments, error) {
 			continue
 		}
 		name, value, hasValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+		if parsed.Command == CommandRestoreVerify && name == "host" {
+			name = "managed-host"
+		}
 		setting, err := p.lookup(name)
 		if err != nil {
 			return Arguments{}, err
