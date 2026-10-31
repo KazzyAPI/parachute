@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -13,16 +14,18 @@ import (
 )
 
 type rollbackFakeEngine struct {
-	running map[string]bool
-	started []string
+	running    map[string]bool
+	started    []string
+	containers []domain.Container
+	runtimeErr error
 }
 
 func (f *rollbackFakeEngine) Containers(context.Context) ([]domain.Container, error) {
-	return nil, nil
+	return f.containers, nil
 }
 
 func (f *rollbackFakeEngine) Runtime(_ context.Context, id string) (engine.Runtime, error) {
-	return engine.Runtime{Running: f.running[id]}, nil
+	return engine.Runtime{Running: f.running[id]}, f.runtimeErr
 }
 
 func (f *rollbackFakeEngine) Inspect(_ context.Context, id string) (engine.Spec, error) {
@@ -38,13 +41,18 @@ func (f *rollbackFakeEngine) Start(_ context.Context, id string) error {
 	return nil
 }
 
-type rollbackFakeSnapshots struct{}
+type rollbackFakeSnapshots struct{ restored *bool }
 
 func (rollbackFakeSnapshots) ValidateTransaction(context.Context, string, string, string, string) error {
 	return nil
 }
 
-func (rollbackFakeSnapshots) Restore(context.Context, string) error { return nil }
+func (f rollbackFakeSnapshots) Restore(context.Context, string) error {
+	if f.restored != nil {
+		*f.restored = true
+	}
+	return nil
+}
 
 func (rollbackFakeSnapshots) SkippedFromSnapshot(context.Context, string) ([]backup.SkippedRecord, error) {
 	return nil, nil
@@ -80,5 +88,21 @@ func TestRollbackVerifiesOnlyRestartedOriginals(t *testing.T) {
 	}
 	if outcome.State != txn.StateRollbackFail {
 		t.Fatalf("restarted failing original must fail rollback, got %s", outcome.State)
+	}
+}
+
+func TestRollbackRestoresDataWhenRuntimeLookupFails(t *testing.T) {
+	const transaction = "txn-20261030T000000Z-abcdef"
+	fake := &rollbackFakeEngine{
+		runtimeErr: errors.New("engine unavailable"),
+		containers: []domain.Container{{ID: "repl", Name: "web", Labels: map[string]string{"parachute.transaction": transaction}}},
+	}
+	var restored bool
+	finisher := NewRollbackFinisher(fake, rollbackFakeSnapshots{restored: &restored}, &rollbackFakeVerifier{}, rollbackFakeLabels{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if _, err := finisher.FinishRollback(context.Background(), txn.Plan{ID: transaction, Host: "local", Stacks: []string{"s"}, Snapshot: "snap-1"}, nil, nil, domain.StateFailed, "verify_failed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !restored {
+		t.Fatal("data must be restored when the replacement's runtime cannot be read")
 	}
 }

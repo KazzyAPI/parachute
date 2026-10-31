@@ -117,7 +117,7 @@ func (x *RollbackFinisher) removeReplacements(ctx context.Context, transaction s
 		if container.Labels["parachute.transaction"] != transaction || container.Labels["parachute.helper"] == "true" {
 			continue
 		}
-		if runtime, err := x.engine.Runtime(ctx, container.ID); err == nil && runtime.Status != "created" {
+		if runtime, err := x.engine.Runtime(ctx, container.ID); err != nil || runtime.Status != "created" {
 			started = true
 		}
 		if err := x.engine.Remove(ctx, container.ID, false, true); err != nil && failure == nil {
