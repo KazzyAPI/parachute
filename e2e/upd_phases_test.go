@@ -58,7 +58,7 @@ func TestUPD_002_transaction_id_is_on_every_log_line_and_the_replacement(t *test
 	id := ""
 	for _, entry := range result.Logs() {
 		phase := entry.Get("phase")
-		if entry.Get("container") != a || phase == "" || phase == "detect" || phase == "policy" {
+		if phase == "" || phase == "detect" || phase == "policy" {
 			continue
 		}
 		if id == "" {
