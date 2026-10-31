@@ -3,6 +3,7 @@ package recreate
 import (
 	"context"
 	"encoding/hex"
+	cerrdefs "github.com/containerd/errdefs"
 	"maps"
 	"slices"
 	"strings"
@@ -23,21 +24,27 @@ type Settings struct {
 	CommittedAt   time.Time
 }
 
-func checkReproducible(ctx context.Context, e Engine, spec engine.Spec) (string, bool) {
+func checkReproducible(ctx context.Context, e Engine, spec engine.Spec) error {
 	if spec.HostConfig != nil && spec.HostConfig.AutoRemove {
-		return "AutoRemove", false
+		return unreproducible("AutoRemove")
 	}
 	if spec.Config != nil && spec.Config.Labels[swarmServiceLabel] != "" {
-		return swarmServiceLabel, false
+		return unreproducible(swarmServiceLabel)
 	}
 	if spec.HostConfig == nil || !strings.HasPrefix(string(spec.HostConfig.NetworkMode), "container:") {
-		return "", true
+		return nil
 	}
 	peer := strings.TrimPrefix(string(spec.HostConfig.NetworkMode), "container:")
-	if _, err := e.Inspect(ctx, peer); err != nil {
-		return "NetworkMode", false
+	if _, err := e.Inspect(ctx, peer); cerrdefs.IsNotFound(err) {
+		return unreproducible("NetworkMode")
+	} else if err != nil {
+		return err
 	}
-	return "", true
+	return nil
+}
+
+func unreproducible(field string) error {
+	return Failure{State: "failed", Reason: "config_unreproducible", Detail: field}
 }
 
 func buildReplacement(original engine.Spec, oldImage, newImage *dockerspec.DockerOCIImageConfig, planID, snapshot, previousImage string, settings Settings) engine.Spec {

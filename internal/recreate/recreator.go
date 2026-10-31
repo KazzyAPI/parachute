@@ -29,10 +29,7 @@ func (r *Recreator) Reproducible(ctx context.Context, container string) error {
 	if err != nil {
 		return err
 	}
-	if field, ok := checkReproducible(ctx, r.engine, original); !ok {
-		return Failure{State: "failed", Reason: "config_unreproducible", Detail: field}
-	}
-	return nil
+	return checkReproducible(ctx, r.engine, original)
 }
 
 func (r *Recreator) Replacement(ctx context.Context, plan txn.Plan, id, name string) (string, error) {
@@ -45,8 +42,8 @@ func (r *Recreator) Replacement(ctx context.Context, plan txn.Plan, id, name str
 }
 
 func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original engine.Spec, settings Settings) (string, error) {
-	if field, ok := checkReproducible(ctx, r.engine, original); !ok {
-		return "", Failure{State: "failed", Reason: "config_unreproducible", Detail: field}
+	if err := checkReproducible(ctx, r.engine, original); err != nil {
+		return "", err
 	}
 	target := targetFor(plan, original.Name)
 	reference := target.Image
