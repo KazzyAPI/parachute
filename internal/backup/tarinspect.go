@@ -51,10 +51,7 @@ func inspectTar(reader io.Reader) error {
 	}
 }
 
-// throughSymlink reports whether name is, or lies under, a symlink seen earlier in the archive.
-// The lexical in-target check cannot see where a chained link really lands, so no member may use one.
 func throughSymlink(symlinks map[string]bool, name string) bool {
-	// name is deliberately not cleaned: cleaning would fold "link/.." away before the link is seen.
 	parts := strings.Split(strings.TrimPrefix(name, "./"), "/")
 	for end := range parts {
 		if symlinks[strings.Join(parts[:end+1], "/")] {

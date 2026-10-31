@@ -104,7 +104,7 @@ func NewServer(parts Parts) *Server {
 }
 
 func (s *Server) Serve(ctx context.Context) error {
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(s.parts.Settings.Port)) // #nosec G102 -- the API runs in a container and is published by the operator
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(s.parts.Settings.Port))
 	if err != nil {
 		return fmt.Errorf("listen for the HTTP API: %w", err)
 	}
