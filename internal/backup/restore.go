@@ -28,7 +28,9 @@ func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, vo
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
 	target := mount.Mount{Type: mount.TypeVolume, Source: volume, Target: "/target"}
-	return s.extractArchive(ctx, root, snapshot, snapshot, archive, target)
+	s.run.restoreVerify = snapshot
+	defer func() { s.run.restoreVerify = "" }()
+	return s.extractArchive(ctx, root, snapshot, "", archive, target)
 }
 
 type restoreOptions struct {

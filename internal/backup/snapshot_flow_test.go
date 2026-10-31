@@ -58,3 +58,11 @@ func TestRestartStoppedLogsFailuresAndTracksStopBeforeStopReturns(t *testing.T) 
 		t.Fatalf("started %v log %q", fake.started, log.String())
 	}
 }
+
+func TestRunnerLabelsRestoreVerifyHelpersSeparatelyFromTransactions(t *testing.T) {
+	r := &runner{restoreVerify: "snap-1"}
+	labels := r.spec(nil, nil).Labels
+	if labels["parachute.restore-verify"] != "snap-1" || labels["parachute.transaction"] != "" {
+		t.Fatalf("labels %v", labels)
+	}
+}
