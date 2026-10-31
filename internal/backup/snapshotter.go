@@ -75,6 +75,28 @@ func (s *Snapshotter) BackupMode(container domain.Container) string {
 }
 
 func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error) {
+	total, err := s.measure(ctx, plan)
+	if err != nil {
+		return 0, err
+	}
+	if all, err := s.allUnbacked(ctx, plan); err != nil || all {
+		return total, err
+	}
+	root, err := s.store.Root(ctx)
+	if err != nil {
+		return 0, err
+	}
+	free, err := s.store.FreeBytes(ctx, root)
+	if err != nil {
+		return 0, fmt.Errorf("free space: %w", err)
+	}
+	if required := total + total/10 + 1<<30; free < required {
+		return 0, fmt.Errorf("%s: estimated %d free %d", reasonInsufficientSpace, total, free)
+	}
+	return total, nil
+}
+
+func (s *Snapshotter) measure(ctx context.Context, plan txn.Plan) (int64, error) {
 	s.run.txn = plan.ID
 	var total int64
 	for _, target := range plan.Targets {
@@ -119,19 +141,8 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	estimate, err := s.Estimate(ctx, plan)
-	if err != nil {
+	if _, err := s.Estimate(ctx, plan); err != nil {
 		return "", err
-	}
-	if estimate > 0 {
-		free, err := s.store.FreeBytes(ctx, root)
-		if err != nil {
-			return "", fmt.Errorf("free space: %w", err)
-		}
-		required := estimate + estimate/10 + 1<<30
-		if free < required {
-			return "", fmt.Errorf("%s: estimated %d free %d", reasonInsufficientSpace, estimate, free)
-		}
 	}
 	if err := s.store.MkDir(ctx, root, id); err != nil {
 		return "", err
@@ -186,10 +197,10 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 		}
 		if mode == "stop" && len(mounts) > 0 {
 			signal, timeout := spec.StopParams(s.settings.StopTimeout)
+			s.stopped = append(s.stopped, container.ID)
 			if err := s.engine.Stop(ctx, container.ID, signal, timeout); err != nil {
 				return "", err
 			}
-			s.stopped = append(s.stopped, container.ID)
 		}
 		for _, item := range mounts {
 			if item.Consistency == "live" {
@@ -241,6 +252,7 @@ func (s *Snapshotter) Validate(ctx context.Context, snapshot string) error {
 }
 
 func (s *Snapshotter) Discard(ctx context.Context, snapshot string) error {
+	s.restartStopped(context.WithoutCancel(ctx))
 	root, err := s.store.Root(ctx)
 	if err != nil {
 		return err
@@ -250,7 +262,9 @@ func (s *Snapshotter) Discard(ctx context.Context, snapshot string) error {
 
 func (s *Snapshotter) restartStopped(ctx context.Context) {
 	for _, id := range s.stopped {
-		_ = s.engine.Start(ctx, id)
+		if err := s.engine.Start(ctx, id); err != nil {
+			s.logger.Error("cannot restart container stopped for the snapshot", "id", id, "error", err.Error())
+		}
 	}
 	s.stopped = nil
 }

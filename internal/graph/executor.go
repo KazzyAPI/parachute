@@ -190,6 +190,7 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 		return e.rollback(ctx, plan, affected, originals, txn.StateSnapshot, timeoutFailure())
 	}
 	if err := e.journal.Advance(ctx, id, txn.StateUpdate); err != nil {
+		_ = e.snapshot.Discard(context.WithoutCancel(ctx), snapshot)
 		return err
 	}
 	e.logger.Info("update", "phase", "update", "txn", id)
