@@ -34,12 +34,12 @@ func (s *Syntax) Parse(setting Setting, raw string) (Value, error) {
 		value.Bool, err = s.parseBool(raw)
 	case KindPositiveInt, KindNonNegativeInt:
 		value.Int, err = s.parseInt(raw)
-		if err == nil && setting.Kind == KindPositiveInt && value.Int <= 0 {
+		if err == nil && (setting.Kind == KindPositiveInt && value.Int <= 0 || setting.Max > 0 && value.Int > setting.Max) {
 			err = errSyntax
 		}
 	case KindDecimal, KindPositiveDecimal:
 		value.Decimal, err = s.parseDecimal(raw)
-		if err == nil && setting.Kind == KindPositiveDecimal && value.Decimal <= 0 {
+		if err == nil && (setting.Kind == KindPositiveDecimal && value.Decimal <= 0 || setting.Max > 0 && value.Decimal > float64(setting.Max)) {
 			err = errSyntax
 		}
 	case KindDuration, KindPositiveDuration:

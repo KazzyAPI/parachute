@@ -1,6 +1,6 @@
 # Result states and reason codes
 
-**Status:** Draft
+**Status:** Accepted
 
 The one table of result states and reason codes. Requirements name these codes; this file is the single list of them. A code not listed here MUST NOT be emitted. Reports, notifications, porcelain output (`reason` key), the status view, and metrics use exactly these strings.
 

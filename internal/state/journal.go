@@ -34,6 +34,11 @@ func (j *Journal) Advance(ctx context.Context, id string, state txn.State) error
 			if record.ID != id {
 				continue
 			}
+			if txn.State(record.State) != state {
+				if err := txn.CheckAdvance(txn.State(record.State), state); err != nil {
+					return err
+				}
+			}
 			document.Transactions[index].State = string(state)
 			return nil
 		}

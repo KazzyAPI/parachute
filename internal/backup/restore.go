@@ -28,7 +28,9 @@ func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, vo
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
 	target := mount.Mount{Type: mount.TypeVolume, Source: volume, Target: "/target"}
-	return s.extractArchive(ctx, root, snapshot, snapshot, archive, target, data)
+	s.run.restoreVerify = snapshot
+	defer func() { s.run.restoreVerify = "" }()
+	return s.extractArchive(ctx, root, snapshot, "", archive, target)
 }
 
 type restoreOptions struct {
@@ -51,7 +53,12 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 	if err != nil {
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
-	for _, record := range manifest.Mounts {
+	skipped := skippedByContainer(manifest)
+	targets := make([]mount.Mount, len(manifest.Mounts))
+	for index, record := range manifest.Mounts {
+		if destinations, ok := skipped[record.Container]; ok && destinations[record.Destination] {
+			return fmt.Errorf("%s: skipped mount %s", reasonSnapshotInvalid, record.Destination)
+		}
 		archive, err := s.store.ReadFile(ctx, root, snapshot, record.File)
 		if err != nil {
 			return err
@@ -67,9 +74,40 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		if err != nil {
 			return err
 		}
-		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, target, archive); err != nil {
+		if err := s.guardRestoreTarget(ctx, target); err != nil {
 			return err
 		}
+		targets[index] = target
+	}
+	for index, record := range manifest.Mounts {
+		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, targets[index]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func skippedByContainer(manifest Manifest) map[string]map[string]bool {
+	byContainer := map[string]map[string]bool{}
+	for _, record := range manifest.Skipped {
+		if byContainer[record.Container] == nil {
+			byContainer[record.Container] = map[string]bool{}
+		}
+		byContainer[record.Container][record.Destination] = true
+	}
+	return byContainer
+}
+
+func (s *Snapshotter) guardRestoreTarget(ctx context.Context, target mount.Mount) error {
+	if target.Type != mount.TypeBind {
+		return nil
+	}
+	resolved, err := s.hostFS.Resolve(ctx, target.Source)
+	if err != nil {
+		return err
+	}
+	if systemMount(resolved.Path, s.settings.Volume) {
+		return fmt.Errorf("%s: restore into system mount %s", reasonSnapshotInvalid, resolved.Path)
 	}
 	return nil
 }
@@ -95,16 +133,15 @@ func (s *Snapshotter) containerSpec(ctx context.Context, name, transaction strin
 	return engine.Spec{}, fmt.Errorf("container %s not found", name)
 }
 
-func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount, archive []byte) error {
-	if err := validateArchive(archive); err != nil {
-		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
-	}
+const extractScript = `find /target -mindepth 1 -maxdepth 1 -exec rm -rf {} + && gzip -dc "/snap/$1/$2" | tar -x -C /target`
+
+func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount) error {
 	if err := entryPath(snapshot, file); err != nil {
 		return err
 	}
 	s.run.txn = transaction
 	if _, err := s.run.run(ctx, []mount.Mount{root.mount(true), target}, smallOutput,
-		`gzip -dc "/snap/$1/$2" | tar -x -C /target`, snapshot, file); err != nil {
+		extractScript, snapshot, file); err != nil {
 		return fmt.Errorf("restore extract: %w", err)
 	}
 	return nil

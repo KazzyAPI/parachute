@@ -56,6 +56,9 @@ func (s StartupSummary) Text() string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "Parachute started\nversion: %s\nhosts: %s\nschedule: %s\nscope: %s\narmed: %t\nprofile: %s\n",
 		s.Version, s.hosts(), s.Schedule, s.scope(), s.Settings.Armed, s.Settings.Profile)
+	if !s.Settings.Armed {
+		text.WriteString("hint: reporting only, nothing is changed. Review the report, then restart with PARACHUTE_ARMED=true (or --armed) to apply updates\n")
+	}
 	if relaxed := s.relaxed(); len(relaxed) > 0 {
 		fmt.Fprintf(&text, "relaxed safety defaults: %s\n", strings.Join(relaxed, ", "))
 	}

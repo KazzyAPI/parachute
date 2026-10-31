@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/txn"
@@ -144,5 +145,39 @@ func TestRecoveryInterruptedRollbackRecordsFailedDigest(t *testing.T) {
 	}
 	if !store.Current().Failed("local", "web", digest) {
 		t.Fatalf("failed digests %+v", store.Current().FailedDigests)
+	}
+}
+
+type staticImages map[string]engine.Image
+
+func (s staticImages) Image(_ context.Context, reference string) (engine.Image, bool, error) {
+	image, ok := s[reference]
+	return image, ok, nil
+}
+
+func TestRecoveryHoldUsesManifestDigestNotImageID(t *testing.T) {
+	const txnID = "txn-20260101T000000Z-abc123"
+	lister := staticLister{{ID: "repl", Name: "web", ImageID: "sha256:config", Labels: map[string]string{"parachute.transaction": txnID}}}
+	images := staticImages{"sha256:config": {Digests: []string{"sha256:manifest"}}}
+	digests := replacementDigests(context.Background(), images, txnID, lister)
+	if digests["web"] != "sha256:manifest" {
+		t.Fatalf("digests %+v", digests)
+	}
+}
+
+func TestRecoveryRetainsSnapshotsAfterRolledBackRecovery(t *testing.T) {
+	var retained []string
+	journal := &recordingJournal{open: []txn.OpenRecord{record(txn.StateVerify)}}
+	host := RecoveryHost{
+		Lister:   staticLister{{ID: "orig", Name: "web-parachute-abc123", Labels: map[string]string{}}},
+		Finisher: &recordingFinisher{},
+		Retain: func(_ context.Context, name, stack string) error {
+			retained = append(retained, name+"/"+stack)
+			return nil
+		},
+	}
+	NewRecovery(map[string]RecoveryHost{"local": host}, journal, slog.New(slog.NewTextHandler(io.Discard, nil))).Recover(context.Background())
+	if len(retained) != 1 || retained[0] != "local/web" {
+		t.Fatalf("retained %v", retained)
 	}
 }

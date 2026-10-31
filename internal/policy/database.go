@@ -22,11 +22,15 @@ func NewDatabases() *Databases {
 }
 
 func (d *Databases) Recognised(reference string) bool {
+	return d.names[RepositoryName(reference)]
+}
+
+func RepositoryName(reference string) string {
 	repository, _, _ := strings.Cut(reference, "@")
 	if slash, colon := strings.LastIndex(repository, "/"), strings.LastIndex(repository, ":"); colon > slash {
 		repository = repository[:colon]
 	}
-	return d.names[repository[strings.LastIndex(repository, "/")+1:]]
+	return repository[strings.LastIndex(repository, "/")+1:]
 }
 
 func (d *Databases) Is(s Subject) bool {

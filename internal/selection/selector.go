@@ -33,7 +33,6 @@ func NewSelector(settings config.Selection, labels LabelReader, logger *slog.Log
 }
 
 func (s *Selector) Admit(containers []domain.Container) []domain.Container {
-	s.warnUnmatchedNames(containers)
 	var admitted []domain.Container
 	for _, container := range containers {
 		if s.stateAllowed(container.State) && s.nameAllowed(container) &&
@@ -111,7 +110,7 @@ func (s *Selector) scopeAllowed(container domain.Container) bool {
 	return labelled && scope == s.settings.Scope
 }
 
-func (s *Selector) warnUnmatchedNames(containers []domain.Container) {
+func (s *Selector) WarnUnmatchedNames(containers []domain.Container) {
 	for name := range s.names {
 		matched := slices.ContainsFunc(containers, func(container domain.Container) bool { return container.Name == name })
 		if !matched {

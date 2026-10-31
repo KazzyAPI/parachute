@@ -126,6 +126,16 @@ Log lines at every level except `trace`, startup and error messages (including t
 - **Given** API token `T0ken-api`, status token `T0ken-ro`, a notification URL `generic://bob:hunter2@127.0.0.1:1/hook?token=q5ecret` that fails, registry credentials `user:s3cret-value` in `config.json`, and a monitored container with environment `DB_PASSWORD=pw-9z7`, `--log-level debug`, `--log-format json`, and `--porcelain v1 --run-once` **When** Parachute runs **Then** neither stdout nor stderr contains `T0ken-api`, `T0ken-ro`, `hunter2`, `q5ecret`, `s3cret-value`, its base64 form, or `pw-9z7`.
 - **Given** `--notification-url 'generic://bob:hunter2@exa mple'` (invalid) **When** Parachute starts **Then** it exits with code 2, the message names `notification-url`, and stderr does not contain `hunter2`.
 
+
+### CFG-013 First-run guidance
+`parachute --help` (or `-h`, `help`) MUST print usage to stdout and exit 0: the commands, the arming switch, and the most common settings. `parachute version` (or `--version`, `-v`) MUST print `parachute <version>` to stdout and exit 0. Both are recognised when they are the first argument, before any other setting is read, so they work with no Docker engine and no state directory. When the state file cannot be written because the state directory does not exist or is not writable, the startup error (exit code 2) MUST name the directory and say to mount a writable volume there (for example `-v parachute-state:/var/lib/parachute`). While unarmed (CFG-006), the startup message MUST end with a hint that says how to arm (`PARACHUTE_ARMED=true` or `--armed`); an armed Parachute MUST NOT carry the hint.
+
+- **Given** no engine **When** `parachute --help` runs **Then** it exits 0 and stdout lists the commands `status` and `healthcheck` and the flag `--armed`.
+- **Given** no engine **When** `parachute version` runs **Then** it exits 0 and stdout starts with `parachute `.
+- **Given** `--state-dir /nonexistent/parachute` **When** Parachute starts **Then** it exits with code 2 and the message names that directory and `-v parachute-state:`.
+- **Given** an unarmed Parachute and a webhook **When** the startup message is sent **Then** it contains `PARACHUTE_ARMED=true`.
+- **Given** an armed Parachute and a webhook **When** the startup message is sent **Then** it does not contain `PARACHUTE_ARMED=true`.
+
 ## Settings reference
 
 | Flag | Default | Spec |

@@ -26,7 +26,7 @@ func (c *Container) policyStage(store *state.Store) (pipeline.Stage, error) {
 		policy.NewDelayRule(store, settings.DelayDays),
 		window,
 	)
-	return pipeline.NewPolicyStage(evaluator, policy.NewRecords(store, c.logger), c.deps.Clock), nil
+	return pipeline.NewPolicyStage(evaluator, policy.NewRecords(store, c.logger), c.deps.Clock, c.logger), nil
 }
 
 func (c *Container) Approver(store *state.Store, hosts []pipeline.Host) *approval.Service {

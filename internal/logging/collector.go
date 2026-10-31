@@ -17,6 +17,8 @@ type Entry struct {
 	Fields  map[string]string
 }
 
+const maxCollected = 10000
+
 type entries struct {
 	lock  sync.Mutex
 	items []Entry
@@ -47,6 +49,9 @@ func (c *Collector) Handle(_ context.Context, record slog.Record) error {
 	c.shared.lock.Lock()
 	defer c.shared.lock.Unlock()
 	c.shared.items = append(c.shared.items, entry)
+	if overflow := len(c.shared.items) - maxCollected; overflow > 0 {
+		c.shared.items = slices.Clone(c.shared.items[overflow:])
+	}
 	return nil
 }
 

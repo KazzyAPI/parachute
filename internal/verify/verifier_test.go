@@ -43,10 +43,12 @@ func (f *fakeInspector) Runtime(context.Context, string) (engine.Runtime, error)
 }
 
 type fakeCommander struct {
-	exit int
+	exit   int
+	limits []time.Duration
 }
 
-func (f *fakeCommander) Exec(context.Context, string, []string, []string, time.Duration, int64) (engine.ExecResult, error) {
+func (f *fakeCommander) Exec(_ context.Context, _ string, _ []string, _ []string, limit time.Duration, _ int64) (engine.ExecResult, error) {
+	f.limits = append(f.limits, limit)
 	return engine.ExecResult{ExitCode: f.exit}, nil
 }
 
@@ -192,5 +194,41 @@ func TestVER_010_rollback_verification_does_not_wait_the_stable_window(t *testin
 	verdict, err := verifier.VerifyBase(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
 	if err != nil || !verdict.Passed || clock.now.Sub(start) != 0 {
 		t.Fatalf("verdict %+v err %v waited %s", verdict, err, clock.now.Sub(start))
+	}
+}
+
+func TestVerifier_redacts_container_env_values_in_output(t *testing.T) {
+	inspector := &fakeInspector{
+		spec: engine.Spec{Config: &container.Config{
+			Env:         []string{"DB_PASSWORD=pw-9z7"},
+			Healthcheck: &container.HealthConfig{Test: []string{"CMD", "false"}},
+		}},
+		runtime: engine.Runtime{
+			Status:  "running",
+			Running: true,
+			Health:  &engine.Health{Status: "unhealthy", Log: "login failed with pw-9z7"},
+		},
+	}
+	verifier := New(inspector, nil, nil, &fakeLabels{}, Settings{Timeout: time.Minute, Stable: time.Second}, &fakeClock{now: time.Unix(0, 0)})
+	verdict, err := verifier.Verify(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid")
+	if err != nil || verdict.Output != "login failed with [REDACTED]" {
+		t.Fatalf("verdict %+v err %v", verdict, err)
+	}
+}
+
+func TestVerifier_cmd_limit_never_exceeds_remaining_deadline(t *testing.T) {
+	start := time.Unix(0, 0)
+	inspector := &fakeInspector{
+		spec:    engine.Spec{Config: &container.Config{}},
+		runtime: engine.Runtime{Status: "running", Running: true, StartedAt: start},
+	}
+	commander := &fakeCommander{}
+	labels := &fakeLabels{values: map[string]string{"verify.cmd": "true", "verify.stable": "0s"}}
+	verifier := New(inspector, commander, nil, labels, Settings{Timeout: 5 * time.Second}, &fakeClock{now: start})
+	if _, err := verifier.Verify(context.Background(), txn.Plan{ID: "txn-20260101T000000Z-abcdef"}, "cid"); err != nil {
+		t.Fatal(err)
+	}
+	if len(commander.limits) != 1 || commander.limits[0] > 5*time.Second {
+		t.Fatalf("limits %v", commander.limits)
 	}
 }

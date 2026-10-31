@@ -55,15 +55,17 @@ func Edges(index Index, container domain.Container) []Edge {
 
 func AllEdges(index Index) []Edge {
 	var edges []Edge
-	seen := map[string]bool{}
+	position := map[string]int{}
 	for _, container := range index.All {
 		for _, edge := range Edges(index, container) {
 			key := edge.Dependent + "->" + edge.Dependency
-			if seen[key] {
-				continue
+			at, seen := position[key]
+			if !seen {
+				position[key] = len(edges)
+				edges = append(edges, edge)
+			} else if edges[at].Condition == ConditionStarted {
+				edges[at].Condition = edge.Condition
 			}
-			seen[key] = true
-			edges = append(edges, edge)
 		}
 	}
 	return edges
@@ -81,7 +83,7 @@ func networkContainer(mode string, index Index) (domain.Container, bool) {
 	if !strings.HasPrefix(mode, prefix) {
 		return domain.Container{}, false
 	}
-	return index.Resolve(strings.TrimPrefix(mode, prefix))
+	return index.ResolveContainerRef(strings.TrimPrefix(mode, prefix))
 }
 
 func composeDependsOn(container domain.Container, index Index) []Edge {

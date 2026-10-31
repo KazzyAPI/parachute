@@ -9,6 +9,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
+	"github.com/KazzyAPI/parachute/internal/policy"
 	"github.com/KazzyAPI/parachute/internal/txn"
 	"github.com/moby/moby/api/types/container"
 )
@@ -64,7 +65,7 @@ func TestTakeReturnsNoSnapshotWhenEveryTargetIsUnbacked(t *testing.T) {
 
 func TestRunDumpLogsStderrWithoutContainerEnvValues(t *testing.T) {
 	var logged strings.Builder
-	fake := &dumpEngine{result: engine.ExecResult{ExitCode: 1, Output: []byte("s3cr3t-pw\n")}}
+	fake := &dumpEngine{result: engine.ExecResult{ExitCode: 1, Stderr: []byte("s3cr3t-pw\n")}}
 	s := &Snapshotter{engine: fake, labels: dumpLabels{}, logger: slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug}))}
 	spec := engine.Spec{Config: &container.Config{Env: []string{"MYSQL_ROOT_PASSWORD=s3cr3t-pw"}}}
 	if _, err := s.runDump(context.Background(), txn.Plan{}, storeRoot{}, "snap-1", domain.Container{Name: "a"}, spec, "stop"); err == nil {
@@ -72,5 +73,28 @@ func TestRunDumpLogsStderrWithoutContainerEnvValues(t *testing.T) {
 	}
 	if strings.Contains(logged.String(), "s3cr3t-pw") || !strings.Contains(logged.String(), "[REDACTED]") {
 		t.Fatalf("logged %s", logged.String())
+	}
+}
+
+func TestDumpCommandUsesRepositoryName(t *testing.T) {
+	cases := map[string]string{
+		"postgres.corp/team/mysql:8": "mysqldump",
+		"timescale/timescaledb:2":    "pg_dumpall",
+		"postgis/postgis:16":         "pg_dumpall",
+		"mariadb:11":                 "mariadb-dump",
+	}
+	s := &Snapshotter{databases: policy.NewDatabases()}
+	for reference, tool := range cases {
+		var cmd, env []string
+		if !s.dumpCommand(domain.Container{ImageRef: reference}, engine.Spec{}, &cmd, &env) || cmd[0] != tool {
+			t.Fatalf("%s: cmd %v", reference, cmd)
+		}
+	}
+}
+
+func TestExecResultCombinedAppendsStderr(t *testing.T) {
+	result := engine.ExecResult{Output: []byte("CREATE TABLE t();\n"), Stderr: []byte("warn\n")}
+	if got := string(result.Combined()); got != "CREATE TABLE t();\nwarn\n" {
+		t.Fatalf("combined %q", got)
 	}
 }

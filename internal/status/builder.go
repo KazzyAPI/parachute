@@ -65,6 +65,7 @@ func (b *Builder) Build(ctx context.Context, saved state.Document, generated tim
 			host.Stacks = b.place(host.Stacks, container, service)
 		}
 		host.Stacks = b.freeze(host.Stacks, run, saved.ActiveFreezes())
+		b.backups(host.Stacks, run.Host.Name, saved.Snapshots)
 		document.Hosts = append(document.Hosts, host)
 	}
 	return document, nil
@@ -126,6 +127,21 @@ func optional(text string) *string {
 		return nil
 	}
 	return &text
+}
+
+func (b *Builder) backups(stacks []Stack, host string, snapshots []state.SnapshotRecord) {
+	for _, record := range snapshots {
+		if record.Host != host || record.ID == state.NoSnapshot {
+			continue
+		}
+		name := b.redactor.Redact(record.Stack)
+		for index := range stacks {
+			last := stacks[index].LastBackup
+			if stacks[index].Name == name && (last == nil || !record.Time.Before(last.Time)) {
+				stacks[index].LastBackup = &Backup{Snapshot: record.ID, Time: record.Time, Valid: true}
+			}
+		}
+	}
 }
 
 func (b *Builder) freeze(stacks []Stack, run *pipeline.HostRun, freezes []state.Freeze) []Stack {

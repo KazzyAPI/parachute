@@ -151,3 +151,13 @@ func TestDMN_006_healthcheck_without_daemon_exits_1(t *testing.T) {
 		t.Fatalf("healthcheck: %v %s", err, out)
 	}
 }
+
+func TestDMN_013_runtime_managed_container_is_skipped(t *testing.T) {
+	env := harness.NewEnv(t)
+	app := newUpdatable(env, "app")
+	a := env.RunContainer("a", app.ref, harness.ContainerOptions{Labels: map[string]string{"io.containers.autoupdate": "registry"}})
+	app.publishNewer()
+	id, image := env.ContainerState(a)
+	assertState(t, armedOnce(env), a, "skipped", "managed_by_runtime")
+	assertUnchanged(env, a, id, image)
+}

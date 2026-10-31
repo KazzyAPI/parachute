@@ -10,7 +10,11 @@ import (
 	"github.com/KazzyAPI/parachute/internal/registry"
 )
 
-const reasonEngineError = "engine_error"
+const (
+	reasonEngineError      = "engine_error"
+	reasonManagedByRuntime = "managed_by_runtime"
+	runtimeAutoUpdateLabel = "io.containers.autoupdate"
+)
 
 type CredentialLoader interface {
 	Load() (registry.Credentials, error)
@@ -42,6 +46,7 @@ func NewDetectStage(credentials CredentialLoader, labels LabelSwitch, noPull Swi
 }
 
 func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
+	s.logger.Info("detect", "phase", "detect", "cycle", cycle.ID)
 	credentials, err := s.credentials.Load()
 	if err != nil {
 		s.logger.Warn("registry credentials not loaded, using anonymous access", "cycle", cycle.ID, "error", err.Error())
@@ -50,6 +55,10 @@ func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
 	for _, host := range cycle.ReachableHosts() {
 		for _, candidate := range host.Candidates {
 			if candidate.Result.State != "" {
+				continue
+			}
+			if _, managed := candidate.Container.Labels[runtimeAutoUpdateLabel]; managed {
+				candidate.Result = candidate.Result.Conclude(domain.StateSkipped, reasonManagedByRuntime, "")
 				continue
 			}
 			noPull := s.labels.Switch(candidate.Container, "no-pull", s.noPull.Global, s.noPull.LabelWins)

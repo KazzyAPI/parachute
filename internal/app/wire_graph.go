@@ -28,6 +28,7 @@ func (r recordingSnapshotter) Take(ctx context.Context, plan txn.Plan) (string, 
 	}
 	for _, stack := range plan.Stacks {
 		if err := r.journal.RecordSnapshot(plan.Host, stack, plan.ID, snapshot); err != nil {
+			_ = r.Discard(ctx, snapshot)
 			return "", err
 		}
 	}
@@ -35,14 +36,14 @@ func (r recordingSnapshotter) Take(ctx context.Context, plan txn.Plan) (string, 
 }
 
 func (c *Container) hostSnapshotter(host connectedHost, journal *state.Journal, helper string, ids *txn.IDGenerator) *backup.Snapshotter {
-	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper}
+	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper, StopTimeout: c.cfg.Update.StopTimeout}
 	snapshotter := backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
 	snapshotter.SetCatalog(catalogFor(journal))
 	return snapshotter
 }
 
 func (c *Container) hostFinisher(host connectedHost, snapshotter *backup.Snapshotter) *RollbackFinisher {
-	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.labels, c.logger)
+	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.logger)
 }
 
 func (c *Container) graphStages(store *state.Store, connected []connectedHost, helper string, selfRunner graph.SelfRunner) (pipeline.Stage, pipeline.Stage) {
@@ -115,7 +116,11 @@ func (c *Container) recovery(connected []connectedHost, journal *state.Journal, 
 		if host.docker == nil || host.err != nil {
 			continue
 		}
-		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Finisher: c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))}
+		snapshotter := c.hostSnapshotter(host, journal, helper, ids)
+		retain := func(ctx context.Context, name, stack string) error {
+			return snapshotter.Retain(ctx, name, stack, c.cfg.Backup.Retention)
+		}
+		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Images: host.docker, Finisher: c.hostFinisher(host, snapshotter), Retain: retain}
 	}
 	return NewRecovery(hosts, journal, c.logger)
 }

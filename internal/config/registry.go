@@ -1,5 +1,7 @@
 package config
 
+import "math"
+
 const (
 	ProfileSafe       = "safe"
 	ProfileConvenient = "convenient"
@@ -67,7 +69,7 @@ func DefaultSettings() []Setting {
 		{Name: "include-stopped", Kind: KindBool, Default: "false"},
 		{Name: "revive-stopped", Kind: KindBool, Default: "false"},
 		{Name: "scope", Kind: KindString},
-		{Name: "interval", Kind: KindPositiveInt, Default: "86400"},
+		{Name: "interval", Kind: KindPositiveInt, Default: "86400", Max: math.MaxInt32},
 		{Name: "schedule", Kind: KindString},
 		{Env: "TZ", Kind: KindString, Default: "UTC"},
 		{Name: "run-once", Kind: KindBool, Default: "false"},
@@ -87,7 +89,7 @@ func DefaultSettings() []Setting {
 		{Name: "helper-image", Kind: KindString},
 		{Name: "verify-timeout", Kind: KindDuration, Default: "120s"},
 		{Name: "verify-stable", Kind: KindDuration, Default: "30s"},
-		{Name: "delay-days", Kind: KindDecimal, Default: "2", ConvenientDefault: convenient("0")},
+		{Name: "delay-days", Kind: KindDecimal, Default: "2", ConvenientDefault: convenient("0"), Max: 36500},
 		{Name: "protect-databases", Kind: KindBool, Default: "true", ConvenientDefault: convenient("false")},
 		{Name: "tag-follow", Kind: KindEnum, Default: "none", Choices: []string{"none", "patch", "minor"}},
 		{Name: "maintenance-window", Kind: KindString},
@@ -102,7 +104,7 @@ func DefaultSettings() []Setting {
 		{Name: "notification-template", Kind: KindString, FromFile: true},
 		{Name: "notification-log-stdout", Kind: KindBool, Default: "false"},
 		{Name: "approval-reminder-days", Kind: KindPositiveDecimal, Default: "7"},
-		{Name: "http-api-port", Kind: KindPositiveInt, Default: "8080"},
+		{Name: "http-api-port", Kind: KindPositiveInt, Default: "8080", Max: 65535},
 		{Name: "http-api-update", Kind: KindBool, Default: "false"},
 		{Name: "http-api-metrics", Kind: KindBool, Default: "false"},
 		{Name: "http-api-status", Kind: KindBool, Default: "false"},

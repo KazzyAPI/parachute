@@ -89,8 +89,15 @@ func (s *Store) Update(change func(*Document) error) error {
 		return fmt.Errorf("encode state file %s: %w", s.path, err)
 	}
 	if err := s.files.WriteAtomic(s.path, append(contents, '\n')); err != nil {
-		return fmt.Errorf("cannot write state file %s: %w", s.path, err)
+		return fmt.Errorf("cannot write state file %s: %w%s", s.path, err, mountHint(err, filepath.Dir(s.path)))
 	}
 	s.current = document
 	return nil
+}
+
+func mountHint(err error, dir string) string {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
+		return fmt.Sprintf(" (mount a writable volume at %s, for example -v parachute-state:%s)", dir, dir)
+	}
+	return ""
 }

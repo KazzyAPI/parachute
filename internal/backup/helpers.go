@@ -18,6 +18,10 @@ func CleanupHelpers(ctx context.Context, engine Engine, allowedTransactions []st
 		txnID := ""
 		if spec.Config != nil && spec.Config.Labels != nil {
 			txnID = spec.Config.Labels["parachute.transaction"]
+			if spec.Config.Labels["parachute.restore-verify"] != "" {
+				_ = engine.Remove(ctx, id, false, true)
+				continue
+			}
 		}
 		if txnID == "" || !slices.Contains(allowedTransactions, txnID) {
 			continue

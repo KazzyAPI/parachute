@@ -14,7 +14,8 @@ func (fakeSystem) Hostname() (string, error) { return "box", nil }
 
 func (fakeSystem) TempDir() string { return "/tmp" }
 
-func (fakeSystem) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (fakeSystem) ReadFile(path string) ([]byte, error)                 { return os.ReadFile(path) }
+func (fakeSystem) ReadRegularFile(path string, _ int64) ([]byte, error) { return os.ReadFile(path) }
 
 func (fakeSystem) Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
 

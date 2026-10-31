@@ -19,6 +19,13 @@ func TestCFG_001_environment_variable_sets_interval(t *testing.T) {
 }
 
 func TestCFG_001_environment_variable_sets_stop_timeout(t *testing.T) {
+	assertKilledAfterStopTimeout(t, func(p *harness.Parachute) *harness.Parachute {
+		return p.Setenv("PARACHUTE_STOP_TIMEOUT", "5s")
+	}, 5*time.Second)
+}
+
+func assertKilledAfterStopTimeout(t *testing.T, configure func(*harness.Parachute) *harness.Parachute, want time.Duration) {
+	t.Helper()
 	env := harness.NewEnv(t)
 	registry := env.Registry()
 	spec := func(version string) harness.ImageSpec {
@@ -28,7 +35,7 @@ func TestCFG_001_environment_variable_sets_stop_timeout(t *testing.T) {
 	id, _ := env.ContainerState(a)
 	registry.PushSpec("stubborn", "1", spec("2"))
 	since := time.Now().Add(-time.Second).Unix()
-	result := armedParachute(env, "--backup", "none").Setenv("PARACHUTE_STOP_TIMEOUT", "5s").Run(runTimeout)
+	result := configure(armedParachute(env, "--backup", "none")).Run(runTimeout)
 	assertState(t, result, a, "updated", "")
 	events := env.Docker("events", "--since", strconv.FormatInt(since, 10), "--until", strconv.FormatInt(time.Now().Unix()+1, 10),
 		"--filter", "container="+id, "--filter", "event=kill", "--format", "{{.Actor.Attributes.signal}} {{.TimeNano}}")
@@ -48,7 +55,7 @@ func TestCFG_001_environment_variable_sets_stop_timeout(t *testing.T) {
 	if kill.IsZero() {
 		t.Fatalf("no SIGKILL event after the stop timeout:\n%s", events)
 	}
-	assertDuration(t, kill.Sub(stopBegan), 5*time.Second, 2*time.Second)
+	assertDuration(t, kill.Sub(stopBegan), want, 2*time.Second)
 }
 
 func updatePhaseStart(t *testing.T, stderr string) time.Time {

@@ -267,6 +267,15 @@ func cycles(affected map[string]Member, edges []Edge) []string {
 			remaining[name] = true
 		}
 	}
+	for pruned := true; pruned; {
+		pruned = false
+		for name := range remaining {
+			if !slices.ContainsFunc(graph[name], func(dependent string) bool { return remaining[dependent] }) {
+				delete(remaining, name)
+				pruned = true
+			}
+		}
+	}
 	names := mapsKeys(remaining)
 	slices.Sort(names)
 	return names

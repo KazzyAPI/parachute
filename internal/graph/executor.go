@@ -190,6 +190,7 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 		return e.rollback(ctx, plan, affected, originals, txn.StateSnapshot, timeoutFailure())
 	}
 	if err := e.journal.Advance(ctx, id, txn.StateUpdate); err != nil {
+		_ = e.snapshot.Discard(context.WithoutCancel(ctx), snapshot)
 		return err
 	}
 	e.logger.Info("update", "phase", "update", "txn", id)
@@ -210,7 +211,7 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 	}
 	e.logger.Info("verify", "phase", "verify", "txn", id)
 	for _, member := range group.Members {
-		if !member.Update && !member.Recreate {
+		if e.options.Rolling || !member.Update && !member.Recreate {
 			continue
 		}
 		if err := e.verifyMember(ctx, plan, member.Container.Name, ceiling); err != nil {
@@ -315,7 +316,7 @@ func (e *Executor) rollback(ctx context.Context, plan txn.Plan, affected []*pipe
 	e.logger.Info("rollback", "phase", "rollback", "txn", plan.ID)
 	if from != txn.StateSnapshot {
 		if err := e.journal.Advance(ctx, plan.ID, txn.StateRollingBack); err != nil {
-			return err
+			e.logger.Error("cannot record rolling_back; continuing rollback", "txn", plan.ID, "error", err.Error())
 		}
 	}
 	outcome, err := e.rollbacker.FinishRollback(ctx, plan, originals, affected, final, reason, detail)
@@ -367,7 +368,9 @@ func (e *Executor) removeOriginals(ctx context.Context, group Group) {
 		if !member.Update && !member.Recreate {
 			continue
 		}
-		_ = e.engine.Remove(ctx, member.Container.ID, e.options.RemoveVolumes, true)
+		if err := e.engine.Remove(ctx, member.Container.ID, e.options.RemoveVolumes, true); err != nil {
+			e.logger.Warn("cannot remove renamed original", "container", member.Container.Name, "id", member.Container.ID, "error", err.Error())
+		}
 		if member.Update && e.options.Cleanup {
 			_ = e.engine.RemoveImage(ctx, member.Container.ImageID)
 		}
@@ -541,7 +544,12 @@ func (e *Executor) stopContainer(ctx context.Context, name string, member *Membe
 	if !wasRunning(*member) {
 		return nil
 	}
-	return e.engine.Stop(ctx, member.Container.ID, "", e.options.StopTimeout)
+	spec, err := e.engine.Inspect(ctx, member.Container.ID)
+	if err != nil {
+		return err
+	}
+	signal, timeout := spec.StopParams(e.options.StopTimeout)
+	return e.engine.Stop(ctx, member.Container.ID, signal, timeout)
 }
 
 func wasRunning(member Member) bool {
@@ -580,6 +588,7 @@ func (e *Executor) markUpdated(candidates []*pipeline.Candidate, name, id, snaps
 	for _, candidate := range candidates {
 		if candidate.Container.Name == name {
 			candidate.Result.State = domain.StateUpdated
+			candidate.Result.Reason = ""
 			candidate.Result.Transaction = id
 			candidate.Result.Snapshot = snapshot
 			for _, destination := range skipped {

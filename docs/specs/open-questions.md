@@ -109,7 +109,7 @@ Affects BKP-001, BKP-005. Should Parachute estimate snapshot size and refuse ear
 **Recommendation:** yes, as a SHOULD in a later revision: refuse when free space is below the sum of mount sizes plus 10 %. The current spec already fails safe (BKP-009).
 
 ### Q13 List settings and URLs that contain commas
-**Status:** Open.
+**Status:** Resolved 2026-10-31: As recommended. Repeated `--notification-url` flags are accepted and a comma inside a URL is written `%2C` (migration guide, section 2); the shared list syntax is unchanged.
 
 Affects CFG-003, NTF-001. Lists are split on spaces and commas (CFG-003), so a `--notification-url` whose query string contains a comma (for example `...?to=a@example.com,b@example.com`) is split into two broken URLs. Should URL lists split only on whitespace, accept a repeated flag instead, or require commas inside URLs to be percent-encoded?
 

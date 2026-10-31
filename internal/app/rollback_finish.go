@@ -26,22 +26,18 @@ type rollbackSnapshots interface {
 	ValidateTransaction(ctx context.Context, snapshot, host, stack, transaction string) error
 	Restore(ctx context.Context, snapshot string) error
 	SkippedFromSnapshot(ctx context.Context, snapshot string) ([]backup.SkippedRecord, error)
-}
-
-type labelValuer interface {
-	Value(container domain.Container, name string) (string, bool)
+	BackupMode(container domain.Container) string
 }
 
 type RollbackFinisher struct {
 	engine    rollbackEngine
 	snapshots rollbackSnapshots
 	verifier  txn.Verifier
-	labels    labelValuer
 	logger    *slog.Logger
 }
 
-func NewRollbackFinisher(engine rollbackEngine, snapshots rollbackSnapshots, verifier txn.Verifier, labels labelValuer, logger *slog.Logger) *RollbackFinisher {
-	return &RollbackFinisher{engine: engine, snapshots: snapshots, verifier: verifier, labels: labels, logger: logger}
+func NewRollbackFinisher(engine rollbackEngine, snapshots rollbackSnapshots, verifier txn.Verifier, logger *slog.Logger) *RollbackFinisher {
+	return &RollbackFinisher{engine: engine, snapshots: snapshots, verifier: verifier, logger: logger}
 }
 
 type restoreReport struct {
@@ -76,7 +72,7 @@ func (x *RollbackFinisher) FinishRollback(ctx context.Context, plan txn.Plan, or
 			candidate.Container.ID = id
 		}
 		details := detail
-		mode, _ := x.labels.Value(candidate.Container, "backup")
+		mode := x.snapshots.BackupMode(candidate.Container)
 		switch {
 		case mode == "none":
 			details = joinDetail(details, "data not restored: backup=none")
@@ -117,7 +113,7 @@ func (x *RollbackFinisher) removeReplacements(ctx context.Context, transaction s
 		if container.Labels["parachute.transaction"] != transaction || container.Labels["parachute.helper"] == "true" {
 			continue
 		}
-		if runtime, err := x.engine.Runtime(ctx, container.ID); err == nil && runtime.Status != "created" {
+		if runtime, err := x.engine.Runtime(ctx, container.ID); err != nil || runtime.Status != "created" {
 			started = true
 		}
 		if err := x.engine.Remove(ctx, container.ID, false, true); err != nil && failure == nil {

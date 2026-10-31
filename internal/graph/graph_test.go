@@ -112,3 +112,35 @@ func TestDEP_005_linked_dependent_is_recreated(t *testing.T) {
 	}
 	t.Fatalf("web not marked for recreation: %v", plan.Groups[0].Members)
 }
+
+func TestDEP_008_cycle_excludes_downstream_containers(t *testing.T) {
+	index := NewIndex([]domain.Container{
+		container("a", "", "", map[string]string{"parachute.depends-on": "b"}, nil, ""),
+		container("b", "", "", map[string]string{"parachute.depends-on": "a"}, nil, ""),
+		container("c", "", "", map[string]string{"parachute.depends-on": "a"}, nil, ""),
+	})
+	plan := NewBuilder().Plan(index, map[string]txn.Target{"a": {Container: "a"}, "b": {Container: "b"}, "c": {Container: "c"}}, "")
+	if len(plan.Cycles) != 1 || len(plan.Cycles[0].Containers) != 2 {
+		t.Fatalf("cycles %v", plan.Cycles)
+	}
+}
+
+func TestDEP_004_depends_on_label_ignores_container_id_prefix(t *testing.T) {
+	other := container("x", "", "", nil, nil, "")
+	other.ID = "db91ff00aa"
+	index := NewIndex([]domain.Container{container("a", "", "", map[string]string{"parachute.depends-on": "db"}, nil, ""), other})
+	if edges := Edges(index, index.ByName["a"]); len(edges) != 0 {
+		t.Fatalf("edges %v", edges)
+	}
+}
+
+func TestDEP_005_duplicate_edge_keeps_strongest_condition(t *testing.T) {
+	index := NewIndex([]domain.Container{
+		container("shop-db-1", "shop", "db", nil, nil, ""),
+		container("shop-app-1", "shop", "app", map[string]string{"com.docker.compose.depends_on": "db:service_healthy:true"}, []string{"shop-db-1"}, ""),
+	})
+	edges := AllEdges(index)
+	if len(edges) != 1 || edges[0].Condition != ConditionHealthy {
+		t.Fatalf("edges %v", edges)
+	}
+}
