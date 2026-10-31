@@ -543,7 +543,12 @@ func (e *Executor) stopContainer(ctx context.Context, name string, member *Membe
 	if !wasRunning(*member) {
 		return nil
 	}
-	return e.engine.Stop(ctx, member.Container.ID, "", e.options.StopTimeout)
+	spec, err := e.engine.Inspect(ctx, member.Container.ID)
+	if err != nil {
+		return err
+	}
+	signal, timeout := spec.StopParams(e.options.StopTimeout)
+	return e.engine.Stop(ctx, member.Container.ID, signal, timeout)
 }
 
 func wasRunning(member Member) bool {

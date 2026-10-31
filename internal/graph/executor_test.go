@@ -25,8 +25,8 @@ type fakeEngine struct {
 	health                []string
 }
 
-func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) {
-	if len(f.health) == 0 {
+func (f *fakeEngine) Inspect(_ context.Context, id string) (engine.Spec, error) {
+	if id != "replacement" || len(f.health) == 0 {
 		return engine.Spec{}, nil
 	}
 	status := f.health[0]

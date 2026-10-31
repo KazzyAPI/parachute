@@ -28,10 +28,11 @@ const (
 )
 
 type Settings struct {
-	Mode      string
-	Volume    string
-	Retention int
-	Helper    string
+	Mode        string
+	Volume      string
+	Retention   int
+	Helper      string
+	StopTimeout time.Duration
 }
 
 const NoSnapshot = "none"
@@ -180,7 +181,8 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 			continue
 		}
 		if mode == "stop" && len(mounts) > 0 {
-			if err := s.engine.Stop(ctx, container.ID, "SIGTERM", 10*time.Second); err != nil {
+			signal, timeout := spec.StopParams(s.settings.StopTimeout)
+			if err := s.engine.Stop(ctx, container.ID, signal, timeout); err != nil {
 				return "", err
 			}
 			s.stopped = append(s.stopped, container.ID)

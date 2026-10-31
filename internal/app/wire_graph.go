@@ -35,7 +35,7 @@ func (r recordingSnapshotter) Take(ctx context.Context, plan txn.Plan) (string, 
 }
 
 func (c *Container) hostSnapshotter(host connectedHost, journal *state.Journal, helper string, ids *txn.IDGenerator) *backup.Snapshotter {
-	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper}
+	settings := backup.Settings{Mode: c.cfg.Backup.Mode, Volume: c.cfg.Backup.Volume, Retention: c.cfg.Backup.Retention, Helper: helper, StopTimeout: c.cfg.Update.StopTimeout}
 	snapshotter := backup.NewSnapshotter(host.docker, settings, c.labels, ids, c.deps.Clock, c.logger)
 	snapshotter.SetCatalog(catalogFor(journal))
 	return snapshotter

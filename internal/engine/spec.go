@@ -27,6 +27,17 @@ type Spec struct {
 
 type RegistryAuth string
 
+func (s Spec) StopParams(global time.Duration) (string, time.Duration) {
+	if s.Config == nil {
+		return "", global
+	}
+	timeout := global
+	if s.Config.StopTimeout != nil {
+		timeout = time.Duration(*s.Config.StopTimeout) * time.Second
+	}
+	return s.Config.Labels["parachute.stop-signal"], timeout
+}
+
 func (s Spec) RedactEnv(text string) string {
 	var values []string
 	if s.Config != nil {
