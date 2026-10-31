@@ -105,8 +105,8 @@ func TestReplacementOfDependentWithoutTargetKeepsItsOwnImage(t *testing.T) {
 	if _, err := NewRecreator(fake, func() Settings { return Settings{} }).Replacement(context.Background(), plan, "old-id", "sidecar"); err != nil {
 		t.Fatalf("Replacement: %v", err)
 	}
-	if fake.created.Config.Image != "sha256:old" {
-		t.Fatalf("created image = %q, want sha256:old", fake.created.Config.Image)
+	if fake.created.Config.Image != "reg/app:1" {
+		t.Fatalf("created image = %q, want reg/app:1", fake.created.Config.Image)
 	}
 }
 
