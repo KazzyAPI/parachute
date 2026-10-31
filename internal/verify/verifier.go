@@ -91,7 +91,7 @@ func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string
 	}
 	if cmd, ok := v.labels.String(containerID, labels, "verify.cmd"); ok {
 		if verdict := v.retryCheck(ctx, containerID, deadlineAt, checkCmd, func(ctx context.Context) (bool, string) {
-			result, err := v.commander.Exec(ctx, containerID, []string{"sh", "-c", cmd}, nil, execLimit, maxOutput)
+			result, err := v.commander.Exec(ctx, containerID, []string{"sh", "-c", cmd}, nil, max(min(execLimit, deadlineAt.Sub(v.clock.Now())), time.Millisecond), maxOutput)
 			if err != nil {
 				return false, err.Error()
 			}
