@@ -51,10 +51,10 @@ func (s *Server) update(ctx context.Context) http.HandlerFunc {
 
 func firstParameter(rawQuery string) (string, bool) {
 	for pair := range strings.SplitSeq(rawQuery, "&") {
-		name, _, _ := strings.Cut(pair, "=")
-		if name == "" {
+		if pair == "" {
 			continue
 		}
+		name, _, _ := strings.Cut(pair, "=")
 		if unescaped, err := url.QueryUnescape(name); err == nil {
 			name = unescaped
 		}

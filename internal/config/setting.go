@@ -24,6 +24,7 @@ type Setting struct {
 	Default           string
 	ConvenientDefault *string
 	Choices           []string
+	Max               int
 	FromFile          bool
 	EnvPresence       bool
 	Repeatable        bool

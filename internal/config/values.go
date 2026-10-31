@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const maxSecretFileBytes = 1 << 20
+
 type Source int
 
 const (
@@ -29,7 +31,7 @@ type Value struct {
 }
 
 type FileSystem interface {
-	ReadFile(path string) ([]byte, error)
+	ReadRegularFile(path string, limit int64) ([]byte, error)
 	Stat(path string) (fs.FileInfo, error)
 }
 
@@ -69,6 +71,9 @@ func (r *Resolver) resolveOne(setting Setting, args Arguments, env map[string]st
 		}
 		raw = contents
 	}
+	if source == SourceFlag && raw == "" && (setting.Kind == KindEnum || setting.Name == "schedule") {
+		return Value{}, fmt.Errorf("invalid value %q for %s: %w", raw, setting.Label(), errSyntax)
+	}
 	value, err := r.syntax.Parse(setting, raw)
 	if err != nil {
 		return Value{}, err
@@ -100,7 +105,7 @@ func (r *Resolver) fileContents(setting Setting, raw string) (string, error) {
 	if _, err := r.files.Stat(raw); errors.Is(err, fs.ErrNotExist) {
 		return raw, nil
 	}
-	contents, err := r.files.ReadFile(raw)
+	contents, err := r.files.ReadRegularFile(raw, maxSecretFileBytes)
 	if err != nil {
 		return "", fmt.Errorf("cannot read %s for %s: %w", raw, setting.Label(), err)
 	}
