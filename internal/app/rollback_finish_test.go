@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/KazzyAPI/parachute/internal/backup"
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
+	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
 
@@ -47,6 +49,8 @@ func (rollbackFakeSnapshots) ValidateTransaction(context.Context, string, string
 	return nil
 }
 
+func (rollbackFakeSnapshots) BackupMode(domain.Container) string { return "none" }
+
 func (f rollbackFakeSnapshots) Restore(context.Context, string) error {
 	if f.restored != nil {
 		*f.restored = true
@@ -69,14 +73,10 @@ func (f *rollbackFakeVerifier) VerifyBase(_ context.Context, _ txn.Plan, id stri
 	return txn.Verdict{Passed: false, Check: "stable"}, nil
 }
 
-type rollbackFakeLabels struct{}
-
-func (rollbackFakeLabels) Value(domain.Container, string) (string, bool) { return "", false }
-
 func TestRollbackVerifiesOnlyRestartedOriginals(t *testing.T) {
 	fake := &rollbackFakeEngine{running: map[string]bool{"untouched": true}}
 	verifier := &rollbackFakeVerifier{}
-	finisher := NewRollbackFinisher(fake, rollbackFakeSnapshots{}, verifier, rollbackFakeLabels{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	finisher := NewRollbackFinisher(fake, rollbackFakeSnapshots{}, verifier, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	plan := txn.Plan{ID: "txn-20261030T000000Z-abcdef", Snapshot: "none"}
 	originals := []txn.Original{{ID: "untouched", Running: true}, {ID: "stopped", Running: true}}
 	outcome, err := finisher.FinishRollback(context.Background(), plan, originals, nil, domain.StateFailed, "transaction_timeout", "")
@@ -98,11 +98,29 @@ func TestRollbackRestoresDataWhenRuntimeLookupFails(t *testing.T) {
 		containers: []domain.Container{{ID: "repl", Name: "web", Labels: map[string]string{"parachute.transaction": transaction}}},
 	}
 	var restored bool
-	finisher := NewRollbackFinisher(fake, rollbackFakeSnapshots{restored: &restored}, &rollbackFakeVerifier{}, rollbackFakeLabels{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	finisher := NewRollbackFinisher(fake, rollbackFakeSnapshots{restored: &restored}, &rollbackFakeVerifier{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if _, err := finisher.FinishRollback(context.Background(), txn.Plan{ID: transaction, Host: "local", Stacks: []string{"s"}, Snapshot: "snap-1"}, nil, nil, domain.StateFailed, "verify_failed", ""); err != nil {
 		t.Fatal(err)
 	}
 	if !restored {
 		t.Fatal("data must be restored when the replacement's runtime cannot be read")
+	}
+}
+
+type modeSnapshots struct{ rollbackFakeSnapshots }
+
+func (modeSnapshots) BackupMode(domain.Container) string { return "none" }
+
+func TestRollbackReportsBackupNoneFromEffectiveMode(t *testing.T) {
+	fake := &rollbackFakeEngine{}
+	finisher := NewRollbackFinisher(fake, modeSnapshots{}, &rollbackFakeVerifier{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	web := domain.Container{ID: "web-id", Name: "web"}
+	candidate := &pipeline.Candidate{Container: web, Result: domain.NewResult("local", web)}
+	plan := txn.Plan{ID: "txn-20261030T000000Z-abcdef", Snapshot: "none"}
+	if _, err := finisher.FinishRollback(context.Background(), plan, nil, []*pipeline.Candidate{candidate}, domain.StateFailed, "verify_failed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(candidate.Result.Detail, "data not restored: backup=none") {
+		t.Fatalf("detail %q", candidate.Result.Detail)
 	}
 }

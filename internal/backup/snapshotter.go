@@ -70,6 +70,10 @@ func NewSnapshotter(engine Engine, settings Settings, labels LabelReader, ids *t
 	}
 }
 
+func (s *Snapshotter) BackupMode(container domain.Container) string {
+	return s.ownBackup(container)
+}
+
 func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error) {
 	s.run.txn = plan.ID
 	var total int64

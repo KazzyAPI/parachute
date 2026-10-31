@@ -42,7 +42,7 @@ func (c *Container) hostSnapshotter(host connectedHost, journal *state.Journal, 
 }
 
 func (c *Container) hostFinisher(host connectedHost, snapshotter *backup.Snapshotter) *RollbackFinisher {
-	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.labels, c.logger)
+	return NewRollbackFinisher(host.docker, snapshotter, c.verifier(host.docker), c.logger)
 }
 
 func (c *Container) graphStages(store *state.Store, connected []connectedHost, helper string, selfRunner graph.SelfRunner) (pipeline.Stage, pipeline.Stage) {
