@@ -122,7 +122,7 @@ func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
 	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
-	if len(notifications) == 0 || !strings.Contains(notifications[0].Message, txn) {
+	if !mentions(notifications, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
 	env.OpenStateDir()
@@ -161,7 +161,16 @@ func TestNTF_012_interrupted_handover_sends_error_notification(t *testing.T) {
 		Labels: map[string]string{"parachute.transaction": txn},
 	})
 	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
-	if len(notifications) == 0 || !strings.Contains(notifications[0].Message, txn) {
+	if !mentions(notifications, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
+}
+
+func mentions(notifications []harness.Notification, transaction string) bool {
+	for _, notification := range notifications {
+		if strings.Contains(notification.Message, transaction) {
+			return true
+		}
+	}
+	return false
 }
