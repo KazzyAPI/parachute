@@ -1,6 +1,6 @@
 # 06 Lifecycle hooks
 
-**Status:** Draft
+**Status:** Accepted
 
 Operator-defined commands that run inside monitored containers around checks and updates.
 

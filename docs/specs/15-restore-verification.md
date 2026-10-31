@@ -1,6 +1,6 @@
 # 15 Restore verification
 
-**Status:** Draft
+**Status:** Deferred
 
 An optional, scheduled proof that the latest snapshot of each stack can actually be restored and booted. It never touches live containers or volumes.
 

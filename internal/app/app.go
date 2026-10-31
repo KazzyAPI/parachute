@@ -43,6 +43,12 @@ func New(deps Dependencies) *App {
 }
 
 func (a *App) Run(ctx context.Context, args, environ []string) int {
+	if print, ok := informational(args); ok {
+		if err := print(a.deps.Stdout, a.deps.Version); err != nil {
+			return domain.ExitConfiguration
+		}
+		return domain.ExitSuccess
+	}
 	redactor := redact.New()
 	cfg, err := a.loader().Load(args, environ)
 	if err != nil {

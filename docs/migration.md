@@ -27,7 +27,7 @@ services:
 # after
 services:
   parachute:
-    image: <parachute image>
+    image: ghcr.io/kazzyapi/parachute:latest
     environment:
       PARACHUTE_SCHEDULE: "0 0 4 * * *"
       PARACHUTE_CLEANUP: "true"
@@ -39,7 +39,7 @@ volumes:
   parachute-state:
 ```
 
-Notification URLs are unchanged: both tools use the same URL format.
+Notification URLs are unchanged: both tools use the same URL format. A comma inside a URL (for example several recipients) is written `%2C`, or give `--notification-url` more than once.
 
 To arm it, add one of these and recreate the Parachute container. Arming is read at every start from these sources only, never from the state file, so removing the setting disarms it again:
 
@@ -135,7 +135,7 @@ Also: the endpoint is still `/v1/metrics`, but a token is now required and sent 
 | After an update | Nothing checked | Waits for the container to become healthy (120 s, or longer when its health check's start period needs it); **rolls back** if not, with reason `verify_timeout` when time ran out | `--verify-timeout`, `--verify-stable`, `parachute.verify.timeout` per container |
 | Free disk space | Not checked | Update **refused** (`insufficient_space`, nothing stopped) when the snapshot store has less than the estimated snapshot size + 10 % + 1 GiB free | Free space, `--backup-volume`, `--backup-retention`, or `parachute.backup=none` |
 | Databases | Updated like any container | **Held for approval** (`held` / `approval_required`) until `POST /v1/approve` | `--protect-databases=false` or `parachute.database=false` |
-| Parachute's own container | Updates itself | **Always held for approval** (`approval_required`); no setting or profile removes this | n/a (approve with `POST /v1/approve`) |
+| Parachute's own container | Updates itself | **Reported and held** (`approval_required`); Parachute never changes its own container, so recreate it yourself | n/a |
 | New releases | Updated at once | Waits `--delay-days` (default 2) after Parachute first sees the digest (`held` / `delay`) | `PARACHUTE_DELAY_DAYS=0` |
 | Version tags (`app:1.2.0`) | Re-pulled on the same tag only | Same: a rebuilt image on the same tag is an ordinary update. Optionally moves to the highest `MAJOR.MINOR.PATCH` tag in the same minor (`patch`) or major (`minor`) line; tags of any other form, such as `1.2` or `latest`, are never moved | `--tag-follow patch\|minor` or `parachute.tag-follow` |
 | A failed update | Retried at the next check | That image digest is **not retried** (`held` / `previous_attempt_failed`) until a newer image appears or it is approved; after `rollback_failed` the stack is frozen until you release it (for a Parachute self-update, only Parachute's own container) | `POST /v1/approve` (releases a freeze with 200, no held update needed; a second call approves a held update) |
@@ -149,7 +149,7 @@ Also: the endpoint is still `/v1/metrics`, but a token is now required and sent 
 | Exit codes (run-once) | Check its docs | 0 ok (including `held`, `skipped`, `would_update`), 1 a `failed` or `rolled_back` result or an unreachable host, 2 configuration or startup error, 3 a `rollback_failed` result, 4 no host reachable at startup; the highest applicable code wins | n/a |
 | Results | Updated / failed / skipped | Every container ends each cycle in one [result state](specs/reasons.md) with one reason code, in notifications, `--porcelain v1`, status, and metrics | n/a |
 
-If you want the old "update everything immediately" experience, set `PARACHUTE_PROFILE=convenient`. It arms Parachute, removes the update delay, and stops holding databases for approval. Updates of Parachute's own container are still held for approval. You still get backups and rollback; turn backups off separately with `--backup none` if you really want to.
+If you want the old "update everything immediately" experience, set `PARACHUTE_PROFILE=convenient`. It arms Parachute, removes the update delay, and stops holding databases for approval. Parachute's own container is still never changed. You still get backups and rollback; turn backups off separately with `--backup none` if you really want to.
 
 ## 7. Checklist
 
@@ -162,5 +162,5 @@ If you want the old "update everything immediately" experience, set `PARACHUTE_P
 - [ ] Dashboards and alerts use `parachute_*` metrics (section 4)
 - [ ] API clients send a Bearer token (section 5)
 - [ ] First report read, then Parachute armed (`PARACHUTE_ARMED=true`)
-- [ ] Approval flow known for databases and Parachute itself (`POST /v1/approve`)
+- [ ] Approval flow known for databases (`POST /v1/approve`), and Parachute itself recreated by hand
 - [ ] Old Watchtower container stopped and removed (run only one updater against the same containers)

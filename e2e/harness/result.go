@@ -54,7 +54,7 @@ func (l Log) Time() time.Time {
 }
 
 func isCommand(arg string) bool {
-	return slices.Contains([]string{"healthcheck", "status", "restore-verify"}, arg)
+	return slices.Contains([]string{"healthcheck", "status", "restore-verify", "version", "help"}, arg)
 }
 
 func (e *Env) runCommand(timeout time.Duration, environ []string, name string, args ...string) *Result {

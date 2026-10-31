@@ -33,3 +33,7 @@ Rule 4: the digests compared are HMAC-SHA256 digests under a random per-process 
 
 ## Specs affected
 All (test names and traceability), NTF-001, API-011.
+
+## Amendment 2026-10-31
+
+The statement above that every spec file is `Draft` is out of date: the specs for features that are built are `Accepted`, so the `Accepted`-file rule is enforced for them. Self-update, restore verification and Podman are `Deferred` files and are not checked.
