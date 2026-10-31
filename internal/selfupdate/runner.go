@@ -1,6 +1,7 @@
 package selfupdate
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -70,7 +71,7 @@ func (r *Runner) Handover(ctx context.Context, host string, own *pipeline.Candid
 	originalName := own.Container.Name
 	target := txn.Target{
 		Container: own.Container.Name,
-		Image:     own.Result.TargetImage,
+		Image:     cmp.Or(own.Result.TargetImage, own.Container.ImageRef),
 		Digest:    own.Result.CandidateDigest,
 	}
 	stack := own.Container.Stack()
