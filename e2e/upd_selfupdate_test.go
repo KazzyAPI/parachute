@@ -45,7 +45,7 @@ func createSelfUpdateOwn(env *harness.Env, ref string, extra []string, labels ma
 		Labels: labels,
 		Mounts: selfUpdateMounts(env),
 	}
-	return env.CreateParachuteContainer("parachute", ref, extra, run)
+	return env.CreateParachuteContainer("parachute", ref, append([]string{"--network", "host"}, extra...), run)
 }
 
 func startSelfUpdateAttachedAsync(env *harness.Env, own string) chan *harness.Result {
@@ -303,7 +303,7 @@ func TestUPD_018_kill_old_during_verification_interrupts_with_freeze(t *testing.
 	webhook := env.Webhook()
 	port := env.FreePort()
 	portText := strconv.Itoa(port)
-	own := createSelfUpdateOwn(env, ref, []string{"--restart=no", "-p", "127.0.0.1:" + portText + ":" + portText}, scoped(env),
+	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env),
 		"--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
 		"--http-api-port", portText, "--http-api-token", apiToken)
 	publishDelayedHealthy(env, ref)
