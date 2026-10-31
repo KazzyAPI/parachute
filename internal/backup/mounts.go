@@ -2,10 +2,12 @@ package backup
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/api/types/mount"
 )
 
@@ -103,8 +105,11 @@ func outsiderVolumes(ctx context.Context, engine Engine, affected map[string]boo
 			continue
 		}
 		spec, err := engine.Inspect(ctx, container.ID)
-		if err != nil {
+		if cerrdefs.IsNotFound(err) {
 			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("inspect %s: %w", container.Name, err)
 		}
 		for _, item := range specMounts(spec) {
 			if item.Type == mount.TypeVolume {

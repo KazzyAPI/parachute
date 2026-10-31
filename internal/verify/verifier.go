@@ -53,12 +53,14 @@ func (v *Verifier) VerifyBase(ctx context.Context, plan txn.Plan, containerID st
 
 func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string, baseOnly bool) (verdict txn.Verdict, err error) {
 	var deadline time.Duration
+	var spec engine.Spec
 	defer func() {
 		if err == nil && !verdict.Passed {
 			verdict.Deadline = deadline
+			verdict.Output = spec.RedactEnv(verdict.Output)
 		}
 	}()
-	spec, err := v.inspector.Inspect(ctx, containerID)
+	spec, err = v.inspector.Inspect(ctx, containerID)
 	if err != nil {
 		return txn.Verdict{}, err
 	}
@@ -89,11 +91,11 @@ func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string
 	}
 	if cmd, ok := v.labels.String(containerID, labels, "verify.cmd"); ok {
 		if verdict := v.retryCheck(ctx, containerID, deadlineAt, checkCmd, func(ctx context.Context) (bool, string) {
-			result, err := v.commander.Exec(ctx, containerID, []string{"sh", "-c", cmd}, nil, execLimit, maxOutput)
+			result, err := v.commander.Exec(ctx, containerID, []string{"sh", "-c", cmd}, nil, max(min(execLimit, deadlineAt.Sub(v.clock.Now())), time.Millisecond), maxOutput)
 			if err != nil {
 				return false, err.Error()
 			}
-			return result.ExitCode == 0, string(result.Output)
+			return result.ExitCode == 0, string(result.Combined())
 		}); !verdict.Passed {
 			return verdict, nil
 		}

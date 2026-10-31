@@ -34,7 +34,12 @@ func NewIndex(containers []domain.Container) Index {
 }
 
 func (i Index) Resolve(name string) (domain.Container, bool) {
-	if container, ok := i.ByName[name]; ok {
+	container, ok := i.ByName[name]
+	return container, ok
+}
+
+func (i Index) ResolveContainerRef(name string) (domain.Container, bool) {
+	if container, ok := i.Resolve(name); ok {
 		return container, true
 	}
 	for _, container := range i.All {

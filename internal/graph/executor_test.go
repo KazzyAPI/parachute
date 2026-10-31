@@ -25,8 +25,8 @@ type fakeEngine struct {
 	health                []string
 }
 
-func (f *fakeEngine) Inspect(context.Context, string) (engine.Spec, error) {
-	if len(f.health) == 0 {
+func (f *fakeEngine) Inspect(_ context.Context, id string) (engine.Spec, error) {
+	if id != "replacement" || len(f.health) == 0 {
 		return engine.Spec{}, nil
 	}
 	status := f.health[0]
@@ -462,5 +462,34 @@ func TestUPD_013_rolling_restart_stops_and_starts_each_replica_in_turn(t *testin
 	want := []string{"stop a-id", "start replacement", "stop b-id", "start replacement", "stop c-id", "start replacement"}
 	if !slices.Equal(h.engine.calls, want) {
 		t.Fatalf("calls %v want %v", h.engine.calls, want)
+	}
+}
+
+type countingVerifier struct {
+	fakeVerifier
+	calls *int
+}
+
+func (c countingVerifier) Verify(ctx context.Context, plan txn.Plan, name string) (txn.Verdict, error) {
+	*c.calls++
+	return c.fakeVerifier.Verify(ctx, plan, name)
+}
+
+func TestUPD_013_rolling_restart_verifies_each_replacement_once(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	var calls int
+	h.executor.verifier = countingVerifier{fakeVerifier: fakeVerifier{txn.Verdict{Passed: true}}, calls: &calls}
+	h.executor.options.Rolling = true
+	h.run(t)
+	if want := len(h.candidates); calls != want {
+		t.Fatalf("verify calls %d, want %d", calls, want)
+	}
+}
+
+func TestMarkUpdatedClearsStaleReason(t *testing.T) {
+	candidate := &pipeline.Candidate{Container: domain.Container{Name: "web"}, Result: domain.Result{State: domain.StateHeld, Reason: "monitor_only"}}
+	(&Executor{}).markUpdated([]*pipeline.Candidate{candidate}, "web", "txn-1", "snap-1", nil)
+	if candidate.Result.State != domain.StateUpdated || candidate.Result.Reason != "" {
+		t.Fatalf("result %+v", candidate.Result)
 	}
 }

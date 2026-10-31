@@ -100,14 +100,15 @@ func (d *Docker) Exec(ctx context.Context, id string, cmd, env []string, limit t
 	stop := context.AfterFunc(attempt, attached.Close)
 	defer stop()
 	output := &cappedBuffer{limit: maxOutput}
-	if _, err := stdcopy.StdCopy(output, output, attached.Reader); err != nil {
+	stderr := &cappedBuffer{limit: stderrLimit}
+	if _, err := stdcopy.StdCopy(output, stderr, attached.Reader); err != nil {
 		return fail("read exec output", err)
 	}
 	inspected, err := d.client.ExecInspect(attempt, created.ID, client.ExecInspectOptions{})
 	if err != nil {
 		return fail("inspect exec", err)
 	}
-	return ExecResult{ExitCode: inspected.ExitCode, Output: output.Bytes(), Truncated: output.truncated}, nil
+	return ExecResult{ExitCode: inspected.ExitCode, Output: output.Bytes(), Stderr: stderr.Bytes(), Truncated: output.truncated}, nil
 }
 
 func (d *Docker) Events(ctx context.Context, since time.Time, filters map[string][]string) (<-chan Event, <-chan error) {
@@ -166,6 +167,8 @@ func (d *Docker) RemoveVolume(ctx context.Context, name string) error {
 	_, err := d.client.VolumeRemove(ctx, name, client.VolumeRemoveOptions{Force: true})
 	return writeError("remove volume", err)
 }
+
+const stderrLimit = 64 << 10
 
 type cappedBuffer struct {
 	bytes.Buffer

@@ -15,7 +15,6 @@ import (
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/policy"
-	"github.com/KazzyAPI/parachute/internal/redact"
 	"github.com/KazzyAPI/parachute/internal/txn"
 	"github.com/moby/moby/api/types/mount"
 )
@@ -24,15 +23,16 @@ const (
 	reasonSnapshotFailed    = "snapshot_failed"
 	reasonInsufficientSpace = "insufficient_space"
 	reasonDumpFailed        = "dump_failed"
-	dumpLimit               = 64 << 20
+	dumpLimit               = 1 << 30
 	reasonSnapshotInvalid   = "snapshot_invalid"
 )
 
 type Settings struct {
-	Mode      string
-	Volume    string
-	Retention int
-	Helper    string
+	Mode        string
+	Volume      string
+	Retention   int
+	Helper      string
+	StopTimeout time.Duration
 }
 
 const NoSnapshot = "none"
@@ -70,7 +70,33 @@ func NewSnapshotter(engine Engine, settings Settings, labels LabelReader, ids *t
 	}
 }
 
+func (s *Snapshotter) BackupMode(container domain.Container) string {
+	return s.ownBackup(container)
+}
+
 func (s *Snapshotter) Estimate(ctx context.Context, plan txn.Plan) (int64, error) {
+	total, err := s.measure(ctx, plan)
+	if err != nil {
+		return 0, err
+	}
+	if all, err := s.allUnbacked(ctx, plan); err != nil || all {
+		return total, err
+	}
+	root, err := s.store.Root(ctx)
+	if err != nil {
+		return 0, err
+	}
+	free, err := s.store.FreeBytes(ctx, root)
+	if err != nil {
+		return 0, fmt.Errorf("free space: %w", err)
+	}
+	if required := total + total/10 + 1<<30; free < required {
+		return 0, fmt.Errorf("%s: estimated %d free %d", reasonInsufficientSpace, total, free)
+	}
+	return total, nil
+}
+
+func (s *Snapshotter) measure(ctx context.Context, plan txn.Plan) (int64, error) {
 	s.run.txn = plan.ID
 	var total int64
 	for _, target := range plan.Targets {
@@ -115,19 +141,8 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	estimate, err := s.Estimate(ctx, plan)
-	if err != nil {
+	if _, err := s.Estimate(ctx, plan); err != nil {
 		return "", err
-	}
-	if estimate > 0 {
-		free, err := s.store.FreeBytes(ctx, root)
-		if err != nil {
-			return "", fmt.Errorf("free space: %w", err)
-		}
-		required := estimate + estimate/10 + 1<<30
-		if free < required {
-			return "", fmt.Errorf("%s: estimated %d free %d", reasonInsufficientSpace, estimate, free)
-		}
 	}
 	if err := s.store.MkDir(ctx, root, id); err != nil {
 		return "", err
@@ -181,10 +196,11 @@ func (s *Snapshotter) Take(ctx context.Context, plan txn.Plan) (string, error) {
 			continue
 		}
 		if mode == "stop" && len(mounts) > 0 {
-			if err := s.engine.Stop(ctx, container.ID, "SIGTERM", 10*time.Second); err != nil {
+			signal, timeout := spec.StopParams(s.settings.StopTimeout)
+			s.stopped = append(s.stopped, container.ID)
+			if err := s.engine.Stop(ctx, container.ID, signal, timeout); err != nil {
 				return "", err
 			}
-			s.stopped = append(s.stopped, container.ID)
 		}
 		for _, item := range mounts {
 			if item.Consistency == "live" {
@@ -236,6 +252,7 @@ func (s *Snapshotter) Validate(ctx context.Context, snapshot string) error {
 }
 
 func (s *Snapshotter) Discard(ctx context.Context, snapshot string) error {
+	s.restartStopped(context.WithoutCancel(ctx))
 	root, err := s.store.Root(ctx)
 	if err != nil {
 		return err
@@ -245,7 +262,9 @@ func (s *Snapshotter) Discard(ctx context.Context, snapshot string) error {
 
 func (s *Snapshotter) restartStopped(ctx context.Context) {
 	for _, id := range s.stopped {
-		_ = s.engine.Start(ctx, id)
+		if err := s.engine.Start(ctx, id); err != nil {
+			s.logger.Error("cannot restart container stopped for the snapshot", "id", id, "error", err.Error())
+		}
 	}
 	s.stopped = nil
 }
@@ -268,6 +287,8 @@ func (s *Snapshotter) loadTarget(ctx context.Context, host, name string) (domain
 	return domain.Container{}, engine.Spec{}, "", fmt.Errorf("container %s not found", name)
 }
 
+const copyScript = `tar -C /src -cf "/snap/$1/$2.part" . && gzip -1 < "/snap/$1/$2.part" > "/snap/$1/$2" && rm "/snap/$1/$2.part"`
+
 func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, root storeRoot, snapshot string, item plannedMount, index int) (MountRecord, error) {
 	file := fmt.Sprintf("%s-%d.tar.gz", sanitize(item.Container), index)
 	if ceiling := txn.CeilingFrom(ctx); ceiling != nil {
@@ -276,7 +297,7 @@ func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, root storeRo
 	}
 	s.run.txn = plan.ID
 	_, err := s.run.run(ctx, []mount.Mount{item.SrcMount, root.mount(false)}, smallOutput,
-		`tar -C /src -cf "/snap/$1/$2.part" . && gzip -1 < "/snap/$1/$2.part" > "/snap/$1/$2" && rm "/snap/$1/$2.part"`, snapshot, file)
+		copyScript, snapshot, file)
 	if err != nil {
 		return MountRecord{}, fmt.Errorf("copy mount %s: %w", item.Destination, err)
 	}
@@ -325,7 +346,7 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 		return DumpRecord{}, err
 	}
 	if result.ExitCode != 0 {
-		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", redactEnvValues(string(result.Output), spec))
+		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", spec.RedactEnv(string(result.Stderr)))
 		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
 	}
 	if result.Truncated {
@@ -339,25 +360,13 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 	return DumpRecord{Container: container.Name, File: file, SHA256: sum, Size: size}, nil
 }
 
-func redactEnvValues(text string, spec engine.Spec) string {
-	var values []string
-	if spec.Config != nil {
-		for _, pair := range spec.Config.Env {
-			if _, value, ok := strings.Cut(pair, "="); ok {
-				values = append(values, value)
-			}
-		}
-	}
-	return redact.New(redact.Static(values...)).Redact(text)
-}
-
 func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, cmd, env *[]string) bool {
 	if !s.databases.Recognised(container.ImageRef) {
 		return false
 	}
-	repo := strings.ToLower(container.ImageRef)
-	switch {
-	case strings.Contains(repo, "postgres"):
+	name := policy.RepositoryName(container.ImageRef)
+	switch name {
+	case "postgres", "postgresql", "postgis", "timescaledb":
 		user := "postgres"
 		if spec.Config != nil {
 			for _, item := range spec.Config.Env {
@@ -371,7 +380,7 @@ func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, 
 		}
 		*cmd = []string{"pg_dumpall", "-U", user}
 		return true
-	case strings.Contains(repo, "mysql"), strings.Contains(repo, "mariadb"):
+	case "mysql", "mariadb":
 		if spec.Config != nil {
 			for _, item := range spec.Config.Env {
 				switch {
@@ -383,7 +392,7 @@ func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, 
 			}
 		}
 		tool := "mysqldump"
-		if strings.Contains(repo, "mariadb") {
+		if name == "mariadb" {
 			tool = "mariadb-dump"
 		}
 		*cmd = []string{tool, "--all-databases", "-uroot"}

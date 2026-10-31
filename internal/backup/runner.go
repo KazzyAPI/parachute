@@ -12,15 +12,19 @@ import (
 const smallOutput = 1 << 20
 
 type runner struct {
-	engine Engine
-	image  string
-	txn    string
+	engine        Engine
+	image         string
+	txn           string
+	restoreVerify string
 }
 
 func (r *runner) spec(mounts []mount.Mount, command []string) engine.HelperSpec {
 	labels := map[string]string{"parachute.helper": "true"}
 	if r.txn != "" {
 		labels["parachute.transaction"] = r.txn
+	}
+	if r.restoreVerify != "" {
+		labels["parachute.restore-verify"] = r.restoreVerify
 	}
 	return engine.HelperSpec{
 		Image: r.image, Command: command, Mounts: mounts, Labels: labels,

@@ -13,6 +13,7 @@ import (
 type Selector interface {
 	Admit(containers []domain.Container) []domain.Container
 	Select(containers []domain.Container) []domain.Container
+	WarnUnmatchedNames(containers []domain.Container)
 }
 
 type SelectStage struct {
@@ -30,6 +31,11 @@ func NewSelectStage(selector Selector, logger *slog.Logger) *SelectStage {
 }
 
 func (s *SelectStage) Run(ctx context.Context, cycle *Cycle) error {
+	var all []domain.Container
+	for _, host := range cycle.ReachableHosts() {
+		all = append(all, host.Containers...)
+	}
+	s.selector.WarnUnmatchedNames(all)
 	for _, host := range cycle.ReachableHosts() {
 		if err := s.selectHost(ctx, cycle, host); err != nil {
 			return err

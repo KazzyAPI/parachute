@@ -1,11 +1,14 @@
 package engine
 
 import (
+	"strings"
 	"time"
 
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
+
+	"github.com/KazzyAPI/parachute/internal/redact"
 )
 
 type Spec struct {
@@ -24,10 +27,38 @@ type Spec struct {
 
 type RegistryAuth string
 
+func (s Spec) StopParams(global time.Duration) (string, time.Duration) {
+	if s.Config == nil {
+		return "", global
+	}
+	timeout := global
+	if s.Config.StopTimeout != nil {
+		timeout = time.Duration(*s.Config.StopTimeout) * time.Second
+	}
+	return s.Config.Labels["parachute.stop-signal"], timeout
+}
+
+func (s Spec) RedactEnv(text string) string {
+	var values []string
+	if s.Config != nil {
+		for _, pair := range s.Config.Env {
+			if _, value, ok := strings.Cut(pair, "="); ok {
+				values = append(values, value)
+			}
+		}
+	}
+	return redact.New(redact.Static(values...)).Redact(text)
+}
+
 type ExecResult struct {
 	ExitCode  int
 	Output    []byte
+	Stderr    []byte
 	Truncated bool
+}
+
+func (r ExecResult) Combined() []byte {
+	return append(append([]byte{}, r.Output...), r.Stderr...)
 }
 
 type Event struct {
