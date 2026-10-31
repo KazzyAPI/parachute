@@ -92,6 +92,7 @@ func (l *Loader) bind(b *binder, parsed Arguments) (Config, error) {
 	}
 	cfg.Notify = notify
 	cfg.Verify = Verify{Timeout: b.duration("verify-timeout"), Stable: b.duration("verify-stable")}
+	cfg.RestoreVerify = RestoreVerify{Stack: b.raw("stack"), Host: b.raw("managed-host")}
 	cfg.NoRestart = b.boolean("no-restart")
 	cfg.Hooks = Hooks{Enabled: b.boolean("enable-lifecycle-hooks")}
 	return cfg, nil

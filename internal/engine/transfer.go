@@ -61,6 +61,7 @@ type Volume struct {
 	Driver     string
 	Mountpoint string
 	Options    map[string]string
+	Labels     map[string]string
 }
 
 func (d *Docker) Volume(ctx context.Context, name string) (Volume, error) {
@@ -69,7 +70,15 @@ func (d *Docker) Volume(ctx context.Context, name string) (Volume, error) {
 		return Volume{}, writeError("inspect volume", err)
 	}
 	volume := inspected.Volume
-	return Volume{Name: volume.Name, Driver: volume.Driver, Mountpoint: volume.Mountpoint, Options: volume.Options}, nil
+	return Volume{Name: volume.Name, Driver: volume.Driver, Mountpoint: volume.Mountpoint, Options: volume.Options, Labels: volume.Labels}, nil
+}
+
+func (d *Docker) VolumeLabels(ctx context.Context, name string) (map[string]string, error) {
+	volume, err := d.Volume(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return volume.Labels, nil
 }
 
 func (d *Docker) EnsureVolume(ctx context.Context, name string) error {
