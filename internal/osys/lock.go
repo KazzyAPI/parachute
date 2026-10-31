@@ -18,7 +18,7 @@ type FileLock struct {
 }
 
 func (System) OpenLockFile(path string) (LockFile, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}

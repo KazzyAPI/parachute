@@ -1,6 +1,7 @@
 package restoreverify
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestRecordOpenAndClose(t *testing.T) {
 	files := &memFS{System: *osys.New()}
 	runID := "rv-20260201T120000Z-fedcba"
 	open := Document{
-		Format: Format, ID: runID, Open: true, Started: time.Now().UTC(),
+		Format: Format, ID: runID, Open: true, Started: time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC),
 		Stacks: []StackRecord{{Host: "local", Stack: "shop", Snapshot: "snap-20260201T120000Z-abcdef"}},
 	}
 	if err := WriteRecord(files, dir, open); err != nil {
@@ -46,7 +47,7 @@ func TestRecordOpenAndClose(t *testing.T) {
 		t.Fatalf("open record %+v", read)
 	}
 	read.Open = false
-	read.Ended = time.Now().UTC()
+	read.Ended = time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 	read.Stacks[0].Result = resultPass
 	if err := WriteRecord(files, dir, read); err != nil {
 		t.Fatal(err)
@@ -74,7 +75,7 @@ func TestLockHeldWhenBusy(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected lock error")
 	}
-	if err != ErrLockHeld {
+	if !errors.Is(err, ErrLockHeld) {
 		t.Fatalf("err %v", err)
 	}
 	_ = first.Release()

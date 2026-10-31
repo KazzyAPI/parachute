@@ -60,7 +60,7 @@ func TestRST_002_throwaway_container_shape(t *testing.T) {
 	assertExit(t, result, 0)
 	ids := strings.Fields(env.Docker("ps", "-aq", "--filter", "label=parachute.restore-verify"))
 	if len(ids) > 0 {
-		t.Fatalf("leftover throwaways: %v", ids)
+		t.Fatalf("leftover throwaways: %v\n%s", ids, env.Docker("ps", "-a", "--filter", "label=parachute.restore-verify", "--format", "{{.Names}} {{.Status}} {{.Labels}}"))
 	}
 }
 
@@ -92,9 +92,9 @@ func TestRST_004_live_container_unchanged(t *testing.T) {
 	}
 	app := newUpdatable(env, "app")
 	a := env.RunContainer("a", app.ref, harness.ContainerOptions{})
-	id, image := env.ContainerState(a)
 	app.publishNewer()
 	runArmed(env, "--backup-volume", store)
+	id, image := env.ContainerState(a)
 	result := env.Parachute("restore-verify", "--stack", env.Name("a"), "--backup-volume", store, "--helper-image", env.ParachuteImage()).Run(runTimeout)
 	assertExit(t, result, 0)
 	assertUnchanged(env, a, id, image)
