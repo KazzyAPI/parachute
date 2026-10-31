@@ -355,9 +355,9 @@ func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, 
 	if !s.databases.Recognised(container.ImageRef) {
 		return false
 	}
-	repo := strings.ToLower(container.ImageRef)
-	switch {
-	case strings.Contains(repo, "postgres"):
+	name := policy.RepositoryName(container.ImageRef)
+	switch name {
+	case "postgres", "postgresql", "postgis", "timescaledb":
 		user := "postgres"
 		if spec.Config != nil {
 			for _, item := range spec.Config.Env {
@@ -371,7 +371,7 @@ func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, 
 		}
 		*cmd = []string{"pg_dumpall", "-U", user}
 		return true
-	case strings.Contains(repo, "mysql"), strings.Contains(repo, "mariadb"):
+	case "mysql", "mariadb":
 		if spec.Config != nil {
 			for _, item := range spec.Config.Env {
 				switch {
@@ -383,7 +383,7 @@ func (s *Snapshotter) dumpCommand(container domain.Container, spec engine.Spec, 
 			}
 		}
 		tool := "mysqldump"
-		if strings.Contains(repo, "mariadb") {
+		if name == "mariadb" {
 			tool = "mariadb-dump"
 		}
 		*cmd = []string{tool, "--all-databases", "-uroot"}

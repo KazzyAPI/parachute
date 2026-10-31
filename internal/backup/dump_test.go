@@ -9,6 +9,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/engine"
+	"github.com/KazzyAPI/parachute/internal/policy"
 	"github.com/KazzyAPI/parachute/internal/txn"
 	"github.com/moby/moby/api/types/container"
 )
@@ -72,5 +73,21 @@ func TestRunDumpLogsStderrWithoutContainerEnvValues(t *testing.T) {
 	}
 	if strings.Contains(logged.String(), "s3cr3t-pw") || !strings.Contains(logged.String(), "[REDACTED]") {
 		t.Fatalf("logged %s", logged.String())
+	}
+}
+
+func TestDumpCommandUsesRepositoryName(t *testing.T) {
+	cases := map[string]string{
+		"postgres.corp/team/mysql:8": "mysqldump",
+		"timescale/timescaledb:2":    "pg_dumpall",
+		"postgis/postgis:16":         "pg_dumpall",
+		"mariadb:11":                 "mariadb-dump",
+	}
+	s := &Snapshotter{databases: policy.NewDatabases()}
+	for reference, tool := range cases {
+		var cmd, env []string
+		if !s.dumpCommand(domain.Container{ImageRef: reference}, engine.Spec{}, &cmd, &env) || cmd[0] != tool {
+			t.Fatalf("%s: cmd %v", reference, cmd)
+		}
 	}
 }
