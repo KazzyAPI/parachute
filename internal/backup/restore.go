@@ -28,7 +28,7 @@ func (s *Snapshotter) RestoreToVolume(ctx context.Context, snapshot, archive, vo
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
 	target := mount.Mount{Type: mount.TypeVolume, Source: volume, Target: "/target"}
-	return s.extractArchive(ctx, root, snapshot, snapshot, archive, target, data)
+	return s.extractArchive(ctx, root, snapshot, snapshot, archive, target)
 }
 
 type restoreOptions struct {
@@ -52,20 +52,17 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
 	skipped := skippedByContainer(manifest)
-	archives := make([][]byte, len(manifest.Mounts))
+	targets := make([]mount.Mount, len(manifest.Mounts))
 	for index, record := range manifest.Mounts {
+		if destinations, ok := skipped[record.Container]; ok && destinations[record.Destination] {
+			return fmt.Errorf("%s: skipped mount %s", reasonSnapshotInvalid, record.Destination)
+		}
 		archive, err := s.store.ReadFile(ctx, root, snapshot, record.File)
 		if err != nil {
 			return err
 		}
 		if err := validateArchive(archive); err != nil {
 			return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
-		}
-		archives[index] = archive
-	}
-	for index, record := range manifest.Mounts {
-		if destinations, ok := skipped[record.Container]; ok && destinations[record.Destination] {
-			return fmt.Errorf("%s: skipped mount %s", reasonSnapshotInvalid, record.Destination)
 		}
 		spec, err := s.containerSpec(ctx, record.Container, manifest.Transaction)
 		if err != nil {
@@ -78,7 +75,10 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		if err := s.guardRestoreTarget(ctx, target); err != nil {
 			return err
 		}
-		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, target, archives[index]); err != nil {
+		targets[index] = target
+	}
+	for index, record := range manifest.Mounts {
+		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, targets[index]); err != nil {
 			return err
 		}
 	}
@@ -131,10 +131,7 @@ func (s *Snapshotter) containerSpec(ctx context.Context, name, transaction strin
 	return engine.Spec{}, fmt.Errorf("container %s not found", name)
 }
 
-func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount, archive []byte) error {
-	if err := validateArchive(archive); err != nil {
-		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
-	}
+func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount) error {
 	if err := entryPath(snapshot, file); err != nil {
 		return err
 	}

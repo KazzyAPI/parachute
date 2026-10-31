@@ -137,11 +137,7 @@ func replacementDigests(ctx context.Context, images imageLookup, transaction str
 		}
 		digest := listed.ImageID
 		if images != nil {
-			reference := listed.ImageRef
-			if reference == "" {
-				reference = listed.ImageID
-			}
-			if image, found, err := images.Image(ctx, reference); err == nil && found && len(image.Digests) > 0 {
+			if image, found, err := images.Image(ctx, listed.ImageID); err == nil && found && len(image.Digests) > 0 {
 				digest = image.Digests[0]
 			}
 		}
