@@ -15,9 +15,10 @@ import (
 type urlProber struct {
 	docker      *engine.Docker
 	helperImage string
+	ownerLabel  string
 }
 
-func (p *urlProber) Probe(ctx context.Context, transactionID, containerID, url string) (int, string, error) {
+func (p *urlProber) Probe(ctx context.Context, owner, containerID, url string) (int, string, error) {
 	if p.helperImage == "" {
 		return 0, "", fmt.Errorf("helper-image is not set")
 	}
@@ -25,7 +26,7 @@ func (p *urlProber) Probe(ctx context.Context, transactionID, containerID, url s
 		Image:       p.helperImage,
 		Command:     []string{"sleep", "300"},
 		NetworkMode: "container:" + containerID,
-		Labels:      map[string]string{"parachute.helper": "true", "parachute.transaction": transactionID},
+		Labels:      map[string]string{"parachute.helper": "true", p.ownerLabel: owner},
 	})
 	if err != nil {
 		return 0, "", err

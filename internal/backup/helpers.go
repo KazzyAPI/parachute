@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-func CleanupHelpers(ctx context.Context, engine Engine, allowedTransactions []string) error {
+func CleanupHelpers(ctx context.Context, engine Engine, allowedTransactions, allowedRestoreVerify []string) error {
 	ids, err := engine.Helpers(ctx, map[string][]string{"label": {"parachute.helper=true"}})
 	if err != nil {
 		return err
@@ -16,17 +16,17 @@ func CleanupHelpers(ctx context.Context, engine Engine, allowedTransactions []st
 			continue
 		}
 		txnID := ""
+		runID := ""
 		if spec.Config != nil && spec.Config.Labels != nil {
 			txnID = spec.Config.Labels["parachute.transaction"]
-			if spec.Config.Labels["parachute.restore-verify"] != "" {
-				_ = engine.Remove(ctx, id, false, true)
-				continue
-			}
+			runID = spec.Config.Labels["parachute.restore-verify"]
 		}
-		if txnID == "" || !slices.Contains(allowedTransactions, txnID) {
-			continue
+		switch {
+		case runID != "" && slices.Contains(allowedRestoreVerify, runID):
+			_ = engine.Remove(ctx, id, false, true)
+		case txnID != "" && slices.Contains(allowedTransactions, txnID):
+			_ = engine.Remove(ctx, id, false, true)
 		}
-		_ = engine.Remove(ctx, id, false, true)
 	}
 	return nil
 }

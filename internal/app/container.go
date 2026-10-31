@@ -78,6 +78,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	}
 	journal := state.NewJournal(store, c.deps.Clock.Now)
 	recovery := c.recovery(connected, journal, helper)
+	c.cleanupRestoreVerify(ctx, connected)
 	c.cleanupHelpers(ctx, connected, journal)
 	recovery.Recover(ctx)
 	collector := metrics.NewCollector(hostNames(hosts))

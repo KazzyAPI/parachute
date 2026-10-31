@@ -6,6 +6,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/backup"
 	"github.com/KazzyAPI/parachute/internal/engine"
+	"github.com/KazzyAPI/parachute/internal/restoreverify"
 	"github.com/KazzyAPI/parachute/internal/state"
 )
 
@@ -48,10 +49,16 @@ func catalogFor(journal *state.Journal) backup.SnapshotCatalog {
 
 func (c *Container) cleanupHelpers(ctx context.Context, hosts []connectedHost, journal *state.Journal) {
 	allowed := journal.OpenTransactionIDs()
+	var restoreRuns []string
+	if record, ok, err := restoreverify.ReadRecord(c.deps.System, c.cfg.StateDir); err == nil && ok {
+		if open := restoreverify.OpenRunID(record); open != "" {
+			restoreRuns = append(restoreRuns, open)
+		}
+	}
 	for _, host := range hosts {
 		if host.docker == nil {
 			continue
 		}
-		_ = backup.CleanupHelpers(ctx, host.docker, allowed)
+		_ = backup.CleanupHelpers(ctx, host.docker, allowed, restoreRuns)
 	}
 }

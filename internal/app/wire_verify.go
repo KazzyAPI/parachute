@@ -11,7 +11,7 @@ func (c *Container) verifier(docker *engine.Docker) txn.Verifier {
 	labels := verify.NewLabelAdapter(c.labels)
 	var prober verify.URLProber
 	if c.cfg.Backup.Helper != "" {
-		prober = &urlProber{docker: docker, helperImage: c.cfg.Backup.Helper}
+		prober = &urlProber{docker: docker, helperImage: c.cfg.Backup.Helper, ownerLabel: "parachute.transaction"}
 	}
 	return verify.New(docker, docker, prober, labels, settings, c.deps.Clock)
 }
