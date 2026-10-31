@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
+	"github.com/KazzyAPI/parachute/internal/engine"
 	"github.com/KazzyAPI/parachute/internal/graph"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/state"
@@ -23,8 +24,13 @@ type containerLister interface {
 	Containers(ctx context.Context) ([]domain.Container, error)
 }
 
+type imageLookup interface {
+	Image(ctx context.Context, reference string) (engine.Image, bool, error)
+}
+
 type RecoveryHost struct {
 	Lister   containerLister
+	Images   imageLookup
 	Finisher graph.Rollbacker
 }
 
@@ -71,7 +77,7 @@ func (r *Recovery) recover(ctx context.Context, host RecoveryHost, record txn.Op
 			return
 		}
 	}
-	candidates := recoveryCandidates(record, containers)
+	candidates := recoveryCandidates(ctx, host, record, containers)
 	plan := txn.Plan{ID: record.ID, Host: record.Host, Stacks: record.Stacks, Snapshot: r.snapshotOf(record)}
 	outcome, err := host.Finisher.FinishRollback(ctx, plan, record.Originals, candidates, final, "interrupted", "")
 	if err != nil {
@@ -101,9 +107,9 @@ func (r *Recovery) snapshotOf(record txn.OpenRecord) string {
 	return record.Snapshot
 }
 
-func recoveryCandidates(record txn.OpenRecord, containers []domain.Container) []*pipeline.Candidate {
+func recoveryCandidates(ctx context.Context, host RecoveryHost, record txn.OpenRecord, containers []domain.Container) []*pipeline.Candidate {
 	suffix := "-parachute-" + record.ID[len(record.ID)-6:]
-	digests := replacementDigests(record.ID, containers)
+	digests := replacementDigests(ctx, host.Images, record.ID, containers)
 	var candidates []*pipeline.Candidate
 	for _, original := range record.Originals {
 		if !original.Updated {
@@ -123,13 +129,23 @@ func recoveryCandidates(record txn.OpenRecord, containers []domain.Container) []
 	return candidates
 }
 
-func replacementDigests(transaction string, containers []domain.Container) map[string]string {
+func replacementDigests(ctx context.Context, images imageLookup, transaction string, containers []domain.Container) map[string]string {
 	digests := map[string]string{}
 	for _, listed := range containers {
 		if listed.Labels["parachute.transaction"] != transaction || listed.Labels["parachute.helper"] == "true" {
 			continue
 		}
-		digests[listed.Name] = listed.ImageID
+		digest := listed.ImageID
+		if images != nil {
+			reference := listed.ImageRef
+			if reference == "" {
+				reference = listed.ImageID
+			}
+			if image, found, err := images.Image(ctx, reference); err == nil && found && len(image.Digests) > 0 {
+				digest = image.Digests[0]
+			}
+		}
+		digests[listed.Name] = digest
 	}
 	return digests
 }

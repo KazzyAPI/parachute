@@ -77,6 +77,18 @@ func (f *fakeJournal) Finish(_ context.Context, _ string, outcome txn.Outcome) e
 }
 func (f *fakeJournal) Open(context.Context) ([]txn.OpenRecord, error) { return nil, nil }
 
+type failingAdvanceJournal struct {
+	*fakeJournal
+	err error
+}
+
+func (f *failingAdvanceJournal) Advance(ctx context.Context, id string, state txn.State) error {
+	if state == txn.StateRollingBack {
+		return f.err
+	}
+	return f.fakeJournal.Advance(ctx, id, state)
+}
+
 type fakeSnapshots struct {
 	err     error
 	skipped map[string][]string
@@ -153,6 +165,15 @@ func (h *harness) run(t *testing.T) {
 	t.Helper()
 	if _, err := h.executor.Run(context.Background(), "local", h.containers, h.candidates, ""); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUPD_016_rollback_continues_when_rolling_back_not_recorded(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Reason: "verify_failed"}})
+	h.executor.journal = &failingAdvanceJournal{fakeJournal: h.journal, err: errors.New("disk full")}
+	h.run(t)
+	if !h.rollbacker.called || h.rollbacker.final != domain.StateRolledBack {
+		t.Fatalf("rollback %+v", h.rollbacker)
 	}
 }
 

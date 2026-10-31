@@ -276,7 +276,7 @@ func (s *Snapshotter) copyMount(ctx context.Context, plan txn.Plan, root storeRo
 	}
 	s.run.txn = plan.ID
 	_, err := s.run.run(ctx, []mount.Mount{item.SrcMount, root.mount(false)}, smallOutput,
-		`tar -C /src -cf - . | gzip -1 > "/snap/$1/$2"`, snapshot, file)
+		`tar -C /src -cf "/snap/$1/$2.part" . && gzip -1 < "/snap/$1/$2.part" > "/snap/$1/$2" && rm "/snap/$1/$2.part"`, snapshot, file)
 	if err != nil {
 		return MountRecord{}, fmt.Errorf("copy mount %s: %w", item.Destination, err)
 	}

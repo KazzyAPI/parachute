@@ -315,7 +315,7 @@ func (e *Executor) rollback(ctx context.Context, plan txn.Plan, affected []*pipe
 	e.logger.Info("rollback", "phase", "rollback", "txn", plan.ID)
 	if from != txn.StateSnapshot {
 		if err := e.journal.Advance(ctx, plan.ID, txn.StateRollingBack); err != nil {
-			return err
+			e.logger.Error("cannot record rolling_back; continuing rollback", "txn", plan.ID, "error", err.Error())
 		}
 	}
 	outcome, err := e.rollbacker.FinishRollback(ctx, plan, originals, affected, final, reason, detail)

@@ -115,7 +115,7 @@ func (c *Container) recovery(connected []connectedHost, journal *state.Journal, 
 		if host.docker == nil || host.err != nil {
 			continue
 		}
-		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Finisher: c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))}
+		hosts[host.spec.Name] = RecoveryHost{Lister: host.docker, Images: host.docker, Finisher: c.hostFinisher(host, c.hostSnapshotter(host, journal, helper, ids))}
 	}
 	return NewRecovery(hosts, journal, c.logger)
 }
