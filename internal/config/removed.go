@@ -13,7 +13,7 @@ type RemovedSettings struct {
 
 func NewRemovedSettings() *RemovedSettings {
 	return &RemovedSettings{families: []removedFamily{
-		{prefix: "notification-email-", example: "smtp://user:password@host:587/?from=a@example.com&to=b@example.com"},
+		{prefix: "notification-email-", example: "smtp://user:password@host:587/?from=a@example.com&to=b@example.com"}, // #nosec G101 -- placeholder shown in an error message
 		{prefix: "notification-slack-", example: "slack://token@channel"},
 		{prefix: "notification-msteams-", example: "teams://group@tenant/altId/groupOwner?host=example.webhook.office.com"},
 		{prefix: "notification-gotify-", example: "gotify://host/token"},

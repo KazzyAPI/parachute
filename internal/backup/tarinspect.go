@@ -18,6 +18,7 @@ func inspectTar(reader io.Reader) error {
 	}
 	defer func() { _ = gzipReader.Close() }()
 	tarReader := tar.NewReader(gzipReader)
+	symlinks := map[string]bool{}
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -30,20 +31,37 @@ func inspectTar(reader io.Reader) error {
 		if path.IsAbs(name) || name == ".." || stringsHasDotDot(name) {
 			return errInvalidTarMember
 		}
+		if throughSymlink(symlinks, name) {
+			return errInvalidTarMember
+		}
 		switch header.Typeflag {
 		case tar.TypeReg, tar.TypeDir:
 		case tar.TypeSymlink:
-			if !linkTargetInside(name, header.Linkname) {
+			if !linkTargetInside(name, header.Linkname) || throughSymlink(symlinks, path.Dir(name)+"/"+header.Linkname) {
 				return errInvalidTarMember
 			}
+			symlinks[strings.TrimPrefix(name, "./")] = true
 		case tar.TypeLink:
-			if !hardLinkTargetInside(header.Linkname) {
+			if !hardLinkTargetInside(header.Linkname) || throughSymlink(symlinks, header.Linkname) {
 				return errInvalidTarMember
 			}
 		default:
 			return errInvalidTarMember
 		}
 	}
+}
+
+// throughSymlink reports whether name is, or lies under, a symlink seen earlier in the archive.
+// The lexical in-target check cannot see where a chained link really lands, so no member may use one.
+func throughSymlink(symlinks map[string]bool, name string) bool {
+	// name is deliberately not cleaned: cleaning would fold "link/.." away before the link is seen.
+	parts := strings.Split(strings.TrimPrefix(name, "./"), "/")
+	for end := range parts {
+		if symlinks[strings.Join(parts[:end+1], "/")] {
+			return true
+		}
+	}
+	return false
 }
 
 func hardLinkTargetInside(target string) bool {

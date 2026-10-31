@@ -51,7 +51,7 @@ func (t *Tracer) requirements() ([]requirement, error) {
 	}
 	var requirements []requirement
 	for _, file := range files {
-		contents, err := os.ReadFile(file)
+		contents, err := os.ReadFile(file) // #nosec G304 G703 -- dev tool reading repo files it just globbed
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func (t *Tracer) tested() (map[string]int, error) {
 	}
 	tests := map[string]int{}
 	for _, file := range files {
-		contents, err := os.ReadFile(file)
+		contents, err := os.ReadFile(file) // #nosec G304 G703 -- dev tool reading repo files it just globbed
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func (t *Tracer) tested() (map[string]int, error) {
 }
 
 func (t *Tracer) milestones() ([]milestone, error) {
-	contents, err := os.ReadFile(filepath.Join(t.root, "docs", "specs", "README.md"))
+	contents, err := os.ReadFile(filepath.Join(t.root, "docs", "specs", "README.md")) // #nosec G304 G703 -- dev tool reading a fixed repo path
 	if err != nil {
 		return nil, err
 	}

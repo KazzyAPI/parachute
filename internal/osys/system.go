@@ -14,7 +14,7 @@ type System struct{}
 
 func New() *System { return &System{} }
 
-func (System) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (System) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) } // #nosec G304 -- paths come from operator config
 
 func (System) Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
 
@@ -22,7 +22,7 @@ func (System) ReadRegularFile(path string, limit int64) ([]byte, error) {
 	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a readable regular file: %w", path, errors.Join(err, fs.ErrInvalid))
 	}
-	handle, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	handle, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) // #nosec G304 -- path is operator config, Lstat-checked as a regular file above
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
@@ -71,7 +71,7 @@ func (s System) WriteAtomic(path string, data []byte) error {
 }
 
 func (System) syncDirectory(directory string) error {
-	handle, err := os.Open(directory)
+	handle, err := os.Open(directory) // #nosec G304 -- directory is a parent of a path Parachute just wrote
 	if err != nil {
 		return fmt.Errorf("open %s: %w", directory, err)
 	}
