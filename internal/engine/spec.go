@@ -27,7 +27,12 @@ type RegistryAuth string
 type ExecResult struct {
 	ExitCode  int
 	Output    []byte
+	Stderr    []byte
 	Truncated bool
+}
+
+func (r ExecResult) Combined() []byte {
+	return append(append([]byte{}, r.Output...), r.Stderr...)
 }
 
 type Event struct {

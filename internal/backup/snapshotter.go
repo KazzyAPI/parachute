@@ -24,7 +24,7 @@ const (
 	reasonSnapshotFailed    = "snapshot_failed"
 	reasonInsufficientSpace = "insufficient_space"
 	reasonDumpFailed        = "dump_failed"
-	dumpLimit               = 64 << 20
+	dumpLimit               = 1 << 30
 	reasonSnapshotInvalid   = "snapshot_invalid"
 )
 
@@ -325,7 +325,7 @@ func (s *Snapshotter) runDump(ctx context.Context, plan txn.Plan, root storeRoot
 		return DumpRecord{}, err
 	}
 	if result.ExitCode != 0 {
-		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", redactEnvValues(string(result.Output), spec))
+		s.logger.Debug("dump failed", "container", container.Name, "exit", result.ExitCode, "stderr", redactEnvValues(string(result.Stderr), spec))
 		return DumpRecord{}, fmt.Errorf("%s: container %s exit %d", reasonDumpFailed, container.Name, result.ExitCode)
 	}
 	if result.Truncated {

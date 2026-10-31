@@ -93,7 +93,7 @@ func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string
 			if err != nil {
 				return false, err.Error()
 			}
-			return result.ExitCode == 0, string(result.Output)
+			return result.ExitCode == 0, string(result.Combined())
 		}); !verdict.Passed {
 			return verdict, nil
 		}

@@ -67,8 +67,8 @@ func (r *Runner) Run(ctx context.Context, name txn.HookName, container domain.Co
 		r.logger.Warn("transaction ceiling reached", "hook", name, "container", container.Name)
 	}
 	result, err := r.exec.Exec(ctx, container.ID, []string{"sh", "-c", script}, nil, limit, maxHookOutput)
-	if len(result.Output) > 0 {
-		r.logOutput(ctx, name, container, result.Output)
+	if output := result.Combined(); len(output) > 0 {
+		r.logOutput(ctx, name, container, output)
 	}
 	timedOut := timedOut(err, ctx)
 	if err != nil && !timedOut {
