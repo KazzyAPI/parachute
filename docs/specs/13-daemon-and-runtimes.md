@@ -72,3 +72,8 @@ A host that is unreachable, or whose transactions fail, MUST NOT stop or delay p
 Every report entry, porcelain line, status entry, and metric MUST name its host. Stacks, scopes, snapshots (BKP-005), and dependencies are per host; containers on different hosts are never in one stack or one transaction.
 
 - **Given** hosts `a` and `b` on two distinct engines, and stack `shop` on each, both with updates **When** a cycle runs **Then** the report has two `shop` entries, one under each host, with different transaction IDs.
+
+### DMN-013 Runtime-managed containers
+A container with Podman's `io.containers.autoupdate` label MUST be reported `skipped` with reason `managed_by_runtime`, so two updaters never act on one container.
+
+- **Given** a container labelled `io.containers.autoupdate=registry` **When** a cycle runs **Then** its result is `skipped` with reason `managed_by_runtime`.

@@ -43,7 +43,7 @@ IDs are `<DOMAIN>-NNN`. An ID is never changed and never reused; a removed requi
 | `RST` | Restore verification | [15-restore-verification.md](15-restore-verification.md) |
 | `CFG` | Configuration, output, exit codes, state | [16-configuration.md](16-configuration.md) |
 
-`UPD-018` lives in [17-self-update.md](17-self-update.md), `RST` in [15-restore-verification.md](15-restore-verification.md), and `DMN-011` to `DMN-014` in [18-podman.md](18-podman.md); the IDs did not change when those moved.
+`UPD-018` lives in [17-self-update.md](17-self-update.md), `RST` in [15-restore-verification.md](15-restore-verification.md), and `DMN-011`, `DMN-012` and `DMN-014` in [18-podman.md](18-podman.md); the IDs did not change when those moved.
 
 ## Keywords
 
@@ -67,7 +67,7 @@ Requirements that are built and tested. `make trace` fails when a `MUST` or `SHO
 | M2 | SCH-008, API-001, API-002, API-003, API-004, API-005, API-006, API-007, API-008, API-009, API-010, API-011, API-012, STS-003, STS-006, STS-007, DEP-011, POL-001, POL-002, POL-003, POL-006, POL-007, POL-008, POL-009, POL-011, SEL-013, DMN-003, DMN-005, DMN-007, DMN-008, DMN-009, DET-008, REG-005, REG-007, REG-008, NTF-007, NTF-009, NTF-011, NTF-014, CFG-012, REG-006 |
 | M3 | BKP-001, BKP-002, BKP-003, BKP-004, BKP-005, BKP-006, BKP-007, BKP-008, BKP-009, BKP-010, BKP-011, BKP-012, BKP-013, DMN-010, VER-001, VER-002, VER-003, VER-004, VER-005, VER-006, VER-007, VER-008, VER-009, VER-010, VER-011, VER-012, UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-009, UPD-010, UPD-011, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019, UPD-020, DEP-003, DEP-004, DEP-005, DEP-006, DEP-007, DEP-008, DEP-009, DEP-010, UPD-013, UPD-001, UPD-002, UPD-006, UPD-012 |
 | M3 policy | POL-004, POL-005, POL-010, POL-011, API-007, NTF-012, STS-002, STS-004 |
-| M4 hooks and onboarding | HOK-001, HOK-002, HOK-003, HOK-004, HOK-005, HOK-006, HOK-007, HOK-008, CFG-013 |
+| M4 hooks and onboarding | HOK-001, HOK-002, HOK-003, HOK-004, HOK-005, HOK-006, HOK-007, HOK-008, CFG-013, DMN-013 |
 
 ## Index
 
