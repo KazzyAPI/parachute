@@ -51,13 +51,21 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 	if err != nil {
 		return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
 	}
-	for _, record := range manifest.Mounts {
+	skipped := skippedByContainer(manifest)
+	archives := make([][]byte, len(manifest.Mounts))
+	for index, record := range manifest.Mounts {
 		archive, err := s.store.ReadFile(ctx, root, snapshot, record.File)
 		if err != nil {
 			return err
 		}
 		if err := validateArchive(archive); err != nil {
 			return fmt.Errorf("%s: %w", reasonSnapshotInvalid, err)
+		}
+		archives[index] = archive
+	}
+	for index, record := range manifest.Mounts {
+		if destinations, ok := skipped[record.Container]; ok && destinations[record.Destination] {
+			return fmt.Errorf("%s: skipped mount %s", reasonSnapshotInvalid, record.Destination)
 		}
 		spec, err := s.containerSpec(ctx, record.Container, manifest.Transaction)
 		if err != nil {
@@ -67,9 +75,37 @@ func (s *Snapshotter) restore(ctx context.Context, snapshot string, options rest
 		if err != nil {
 			return err
 		}
-		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, target, archive); err != nil {
+		if err := s.guardRestoreTarget(ctx, target); err != nil {
 			return err
 		}
+		if err := s.extractArchive(ctx, root, snapshot, manifest.Transaction, record.File, target, archives[index]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func skippedByContainer(manifest Manifest) map[string]map[string]bool {
+	byContainer := map[string]map[string]bool{}
+	for _, record := range manifest.Skipped {
+		if byContainer[record.Container] == nil {
+			byContainer[record.Container] = map[string]bool{}
+		}
+		byContainer[record.Container][record.Destination] = true
+	}
+	return byContainer
+}
+
+func (s *Snapshotter) guardRestoreTarget(ctx context.Context, target mount.Mount) error {
+	if target.Type != mount.TypeBind {
+		return nil
+	}
+	resolved, err := s.hostFS.Resolve(ctx, target.Source)
+	if err != nil {
+		return err
+	}
+	if systemMount(resolved.Path, s.settings.Volume) {
+		return fmt.Errorf("%s: restore into system mount %s", reasonSnapshotInvalid, resolved.Path)
 	}
 	return nil
 }
@@ -104,7 +140,7 @@ func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapsh
 	}
 	s.run.txn = transaction
 	if _, err := s.run.run(ctx, []mount.Mount{root.mount(true), target}, smallOutput,
-		`gzip -dc "/snap/$1/$2" | tar -x -C /target`, snapshot, file); err != nil {
+		`find /target -mindepth 1 -maxdepth 1 -exec rm -rf {} + && gzip -dc "/snap/$1/$2" | tar -x -C /target`, snapshot, file); err != nil {
 		return fmt.Errorf("restore extract: %w", err)
 	}
 	return nil

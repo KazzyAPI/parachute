@@ -32,12 +32,36 @@ func inspectTar(reader io.Reader) error {
 		}
 		switch header.Typeflag {
 		case tar.TypeReg, tar.TypeDir:
-		case tar.TypeSymlink, tar.TypeLink:
-			return errInvalidTarMember
+		case tar.TypeSymlink:
+			if !linkTargetInside(name, header.Linkname) {
+				return errInvalidTarMember
+			}
+		case tar.TypeLink:
+			if !hardLinkTargetInside(header.Linkname) {
+				return errInvalidTarMember
+			}
 		default:
 			return errInvalidTarMember
 		}
 	}
+}
+
+func hardLinkTargetInside(target string) bool {
+	if path.IsAbs(target) {
+		return false
+	}
+	return !stringsHasDotDot(path.Clean(target))
+}
+
+func linkTargetInside(member, target string) bool {
+	if path.IsAbs(target) {
+		return false
+	}
+	base := path.Clean(path.Dir(member))
+	if base == "." {
+		base = ""
+	}
+	return !stringsHasDotDot(path.Clean(path.Join(base, target)))
 }
 
 func stringsHasDotDot(name string) bool {

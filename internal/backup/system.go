@@ -5,8 +5,12 @@ import (
 	"strings"
 )
 
-func systemRoots() []string {
-	return []string{"/", "/etc", "/usr", "/boot", "/var", "/var/lib", "/proc", "/sys", "/dev", "/run", "/var/run", "/var/lib/docker", "/var/lib/containers"}
+func systemExactRoots() []string {
+	return []string{"/", "/etc", "/usr", "/boot", "/var", "/var/lib"}
+}
+
+func systemPrefixRoots() []string {
+	return []string{"/proc", "/sys", "/dev", "/run", "/var/run", "/var/lib/docker", "/var/lib/containers"}
 }
 
 func systemMount(resolved, storePath string) bool {
@@ -20,8 +24,14 @@ func systemMount(resolved, storePath string) bool {
 			return true
 		}
 	}
-	for _, root := range systemRoots() {
-		if clean == root || strings.HasPrefix(clean+string(filepath.Separator), root+string(filepath.Separator)) {
+	sep := string(filepath.Separator)
+	for _, root := range systemExactRoots() {
+		if clean == root {
+			return true
+		}
+	}
+	for _, root := range systemPrefixRoots() {
+		if clean == root || strings.HasPrefix(clean+sep, root+sep) {
 			return true
 		}
 	}
