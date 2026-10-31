@@ -1,7 +1,6 @@
 package recreate
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -46,13 +45,11 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 		return "", err
 	}
 	target := targetFor(plan, original.Name)
-	reference := target.Image
 	if target.Image == "" {
 		if original.Config == nil || original.ImageID == "" {
 			return "", fmt.Errorf("missing image for %s", original.Name)
 		}
 		target.Image = original.ImageID
-		reference = cmp.Or(original.Config.Image, original.ImageID)
 	}
 	oldImage, err := r.engine.ImageConfig(ctx, original.ImageID)
 	if err != nil {
@@ -67,7 +64,7 @@ func (r *Recreator) replaceSpec(ctx context.Context, plan txn.Plan, original eng
 		return "", err
 	}
 	replacement := buildReplacement(original, oldImage, newImage, plan.ID, plan.Snapshot, previousImage, settings)
-	replacement.Config.Image = reference
+	replacement.Config.Image = target.Image
 	r.followNetworkPeer(replacement.HostConfig)
 	followRenamedLinks(replacement.HostConfig, plan.ID)
 	created, err := r.engine.Create(ctx, replacement)

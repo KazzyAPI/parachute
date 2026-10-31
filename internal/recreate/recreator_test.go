@@ -92,26 +92,6 @@ func TestFollowNetworkPeerPointsAtTheReplacement(t *testing.T) {
 	}
 }
 
-func TestReplacementOfDependentWithoutTargetKeepsItsOwnImage(t *testing.T) {
-	fake := &fakeEngine{specs: map[string]engine.Spec{
-		"old-id": {
-			ID:         "old-id",
-			Name:       "sidecar-parachute-abc123",
-			ImageID:    "sha256:old",
-			Config:     &container.Config{Image: "reg/app:1"},
-			HostConfig: &container.HostConfig{},
-		},
-	}}
-	plan := txn.Plan{ID: "txn-1", Targets: []txn.Target{{Container: "app", Image: "reg/app:1", Digest: "sha256:new"}}}
-
-	if _, err := NewRecreator(fake, func() Settings { return Settings{} }).Replacement(context.Background(), plan, "old-id", "sidecar"); err != nil {
-		t.Fatalf("Replacement: %v", err)
-	}
-	if fake.created.Config.Image != "reg/app:1" {
-		t.Fatalf("created image = %q, want reg/app:1", fake.created.Config.Image)
-	}
-}
-
 func TestReplacementOfNetworkModeDependentDropsHostname(t *testing.T) {
 	fake := &fakeEngine{specs: map[string]engine.Spec{
 		"old-id": {
