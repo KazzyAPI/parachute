@@ -58,9 +58,9 @@ func TestRST_002_throwaway_container_shape(t *testing.T) {
 	runArmed(env, "--backup-volume", store)
 	result := env.Parachute("restore-verify", "--stack", env.Name("a"), "--backup-volume", store, "--helper-image", env.ParachuteImage()).Run(runTimeout)
 	assertExit(t, result, 0)
-	ids := strings.Fields(env.Docker("ps", "-aq", "--filter", "label=parachute.restore-verify"))
+	ids := strings.Fields(env.Docker("ps", "-aq", "--filter", "label=parachute.restore-verify", "--filter", "label=parachute-e2e="+env.ID))
 	if len(ids) > 0 {
-		t.Fatalf("leftover throwaways: %v\n%s", ids, env.Docker("ps", "-a", "--filter", "label=parachute.restore-verify", "--format", "{{.Names}} {{.Status}} {{.Labels}}"))
+		t.Fatalf("leftover throwaways: %v\n%s", ids, env.Docker("ps", "-a", "--filter", "label=parachute.restore-verify", "--filter", "label=parachute-e2e="+env.ID, "--format", "{{.Names}} {{.Status}} {{.Labels}}"))
 	}
 }
 
