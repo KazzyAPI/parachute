@@ -2,6 +2,7 @@ package restoreverify
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/KazzyAPI/parachute/internal/backup"
@@ -87,13 +88,11 @@ func CleanupRuns(ctx context.Context, engine Engine, allowed []string) error {
 	for _, id := range allowed {
 		allowedSet[id] = true
 	}
-	if err := cleanupContainers(ctx, engine, allowedSet); err != nil {
-		return err
-	}
-	if err := cleanupVolumes(ctx, engine, allowedSet); err != nil {
-		return err
-	}
-	return cleanupNetworks(ctx, engine, allowedSet)
+	return errors.Join(
+		cleanupContainers(ctx, engine, allowedSet),
+		cleanupVolumes(ctx, engine, allowedSet),
+		cleanupNetworks(ctx, engine, allowedSet),
+	)
 }
 
 func Removable(labels map[string]string, allowed map[string]bool) bool {
@@ -112,6 +111,7 @@ func cleanupContainers(ctx context.Context, engine Engine, allowed map[string]bo
 	if err != nil {
 		return err
 	}
+	var failures []error
 	for _, id := range ids {
 		spec, err := engine.Inspect(ctx, id)
 		if err != nil {
@@ -120,9 +120,9 @@ func cleanupContainers(ctx context.Context, engine Engine, allowed map[string]bo
 		if !Removable(OperatorLabels(spec), allowed) {
 			continue
 		}
-		_ = engine.Remove(ctx, id, true, true)
+		failures = append(failures, engine.Remove(ctx, id, true, true))
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func cleanupVolumes(ctx context.Context, engine Engine, allowed map[string]bool) error {
@@ -130,14 +130,15 @@ func cleanupVolumes(ctx context.Context, engine Engine, allowed map[string]bool)
 	if err != nil {
 		return err
 	}
+	var failures []error
 	for _, name := range names {
 		labels, err := engine.VolumeLabels(ctx, name)
 		if err != nil || !Removable(labels, allowed) {
 			continue
 		}
-		_ = engine.RemoveVolume(ctx, name)
+		failures = append(failures, engine.RemoveVolume(ctx, name))
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func cleanupNetworks(ctx context.Context, engine Engine, allowed map[string]bool) error {
@@ -145,12 +146,13 @@ func cleanupNetworks(ctx context.Context, engine Engine, allowed map[string]bool
 	if err != nil {
 		return err
 	}
+	var failures []error
 	for _, name := range names {
 		labels, err := engine.NetworkLabels(ctx, name)
 		if err != nil || !Removable(labels, allowed) {
 			continue
 		}
-		_ = engine.RemoveNetwork(ctx, name)
+		failures = append(failures, engine.RemoveNetwork(ctx, name))
 	}
-	return nil
+	return errors.Join(failures...)
 }

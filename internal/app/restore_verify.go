@@ -69,7 +69,7 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		}
 		verifier.hosts[host.spec.Name] = c.restoreVerifyVerifier(host.docker, helper)
 	}
-	runner := restoreverify.NewRunner(c.deps.System, snapshotters, verifier, ids, c.deps.Clock)
+	runner := restoreverify.NewRunner(c.deps.System, snapshotters, verifier, ids, c.deps.Clock, c.logger)
 	outcome := runner.Run(ctx, engines, document, options)
 	if outcome.Err == nil {
 		return nil

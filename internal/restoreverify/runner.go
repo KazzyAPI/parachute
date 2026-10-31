@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/KazzyAPI/parachute/internal/backup"
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -27,10 +28,11 @@ type Runner struct {
 	ids          *txn.IDGenerator
 	clock        Clock
 	recoverer    *Recoverer
+	logger       *slog.Logger
 }
 
-func NewRunner(files FileSystem, snapshotters map[string]Snapshotter, verifier Verifier, ids *txn.IDGenerator, clock Clock) *Runner {
-	return &Runner{files: files, snapshotters: snapshotters, verifier: verifier, ids: ids, clock: clock, recoverer: NewRecoverer(files, clock)}
+func NewRunner(files FileSystem, snapshotters map[string]Snapshotter, verifier Verifier, ids *txn.IDGenerator, clock Clock, logger *slog.Logger) *Runner {
+	return &Runner{files: files, snapshotters: snapshotters, verifier: verifier, ids: ids, clock: clock, recoverer: NewRecoverer(files, clock), logger: logger}
 }
 
 type Outcome struct {
@@ -89,7 +91,7 @@ func (r *Runner) Run(ctx context.Context, engines map[string]Engine, saved state
 			failures++
 		}
 		if engine != nil {
-			_ = CleanupRuns(ctx, engine, allowed)
+			r.cleanup(ctx, engine, allowed)
 		}
 	}
 
@@ -114,7 +116,7 @@ func (r *Runner) verifyStack(ctx context.Context, engine Engine, snapshotter Sna
 	}
 	endRestore := snapshotter.BeginRestoreVerify(runID)
 	defer endRestore()
-	defer func() { _ = CleanupRuns(ctx, engine, []string{runID}) }()
+	defer r.cleanup(ctx, engine, []string{runID})
 
 	manifest, reason := r.openSnapshot(ctx, snapshotter, target)
 	if reason != "" {
@@ -137,6 +139,12 @@ func (r *Runner) verifyStack(ctx context.Context, engine Engine, snapshotter Sna
 	}
 	record.Result, record.Reason = resultPass, ""
 	return record
+}
+
+func (r *Runner) cleanup(ctx context.Context, engine Engine, allowed []string) {
+	if err := CleanupRuns(context.WithoutCancel(ctx), engine, allowed); err != nil {
+		r.logger.Warn("restore verification cleanup incomplete", "error", err)
+	}
 }
 
 func (r *Runner) openSnapshot(ctx context.Context, snapshotter Snapshotter, target Target) (backup.Manifest, string) {
