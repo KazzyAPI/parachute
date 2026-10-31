@@ -164,3 +164,20 @@ func TestRecoveryHoldUsesManifestDigestNotImageID(t *testing.T) {
 		t.Fatalf("digests %+v", digests)
 	}
 }
+
+func TestRecoveryRetainsSnapshotsAfterRolledBackRecovery(t *testing.T) {
+	var retained []string
+	journal := &recordingJournal{open: []txn.OpenRecord{record(txn.StateVerify)}}
+	host := RecoveryHost{
+		Lister:   staticLister{{ID: "orig", Name: "web-parachute-abc123", Labels: map[string]string{}}},
+		Finisher: &recordingFinisher{},
+		Retain: func(_ context.Context, name, stack string) error {
+			retained = append(retained, name+"/"+stack)
+			return nil
+		},
+	}
+	NewRecovery(map[string]RecoveryHost{"local": host}, journal, slog.New(slog.NewTextHandler(io.Discard, nil))).Recover(context.Background())
+	if len(retained) != 1 || retained[0] != "local/web" {
+		t.Fatalf("retained %v", retained)
+	}
+}

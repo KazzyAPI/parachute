@@ -32,6 +32,7 @@ type RecoveryHost struct {
 	Lister   containerLister
 	Images   imageLookup
 	Finisher graph.Rollbacker
+	Retain   func(ctx context.Context, host, stack string) error
 }
 
 type Recovery struct {
@@ -86,6 +87,12 @@ func (r *Recovery) recover(ctx context.Context, host RecoveryHost, record txn.Op
 	}
 	if aborted && outcome.State == txn.StateRolledBack {
 		outcome.State = txn.StateAborted
+	} else if outcome.State == txn.StateRolledBack && host.Retain != nil {
+		for _, stack := range record.Stacks {
+			if err := host.Retain(ctx, record.Host, stack); err != nil {
+				r.logger.Warn("cannot apply snapshot retention", "txn", record.ID, "stack", stack, "error", err.Error())
+			}
+		}
 	}
 	if err := r.journal.Finish(ctx, record.ID, outcome); err != nil {
 		r.logger.Error("cannot record recovered transaction", "txn", record.ID, "error", err.Error())
