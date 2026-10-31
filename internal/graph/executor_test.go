@@ -464,3 +464,24 @@ func TestUPD_013_rolling_restart_stops_and_starts_each_replica_in_turn(t *testin
 		t.Fatalf("calls %v want %v", h.engine.calls, want)
 	}
 }
+
+type countingVerifier struct {
+	fakeVerifier
+	calls *int
+}
+
+func (c countingVerifier) Verify(ctx context.Context, plan txn.Plan, name string) (txn.Verdict, error) {
+	*c.calls++
+	return c.fakeVerifier.Verify(ctx, plan, name)
+}
+
+func TestUPD_013_rolling_restart_verifies_each_replacement_once(t *testing.T) {
+	h := newHarness(fakeSnapshots{}, fakeRecreator{}, fakeVerifier{txn.Verdict{Passed: true}})
+	var calls int
+	h.executor.verifier = countingVerifier{fakeVerifier: fakeVerifier{txn.Verdict{Passed: true}}, calls: &calls}
+	h.executor.options.Rolling = true
+	h.run(t)
+	if want := len(h.candidates); calls != want {
+		t.Fatalf("verify calls %d, want %d", calls, want)
+	}
+}

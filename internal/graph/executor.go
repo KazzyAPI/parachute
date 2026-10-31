@@ -210,7 +210,7 @@ func (e *Executor) runGroup(ctx context.Context, host string, index Index, group
 	}
 	e.logger.Info("verify", "phase", "verify", "txn", id)
 	for _, member := range group.Members {
-		if !member.Update && !member.Recreate {
+		if e.options.Rolling || !member.Update && !member.Recreate {
 			continue
 		}
 		if err := e.verifyMember(ctx, plan, member.Container.Name, ceiling); err != nil {
