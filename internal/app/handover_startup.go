@@ -142,6 +142,9 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 		if err := s.waitOnce(ctx, marker); err != nil {
 			return err
 		}
+		if s.takeover {
+			return nil
+		}
 		marker, hasMarker, err = handover.Read(s.files, s.stateDir)
 		if err != nil {
 			return configurationError(handover.InvalidMarkerError(err))
