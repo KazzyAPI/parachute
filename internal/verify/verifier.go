@@ -53,12 +53,14 @@ func (v *Verifier) VerifyBase(ctx context.Context, plan txn.Plan, containerID st
 
 func (v *Verifier) verify(ctx context.Context, plan txn.Plan, containerID string, baseOnly bool) (verdict txn.Verdict, err error) {
 	var deadline time.Duration
+	var spec engine.Spec
 	defer func() {
 		if err == nil && !verdict.Passed {
 			verdict.Deadline = deadline
+			verdict.Output = spec.RedactEnv(verdict.Output)
 		}
 	}()
-	spec, err := v.inspector.Inspect(ctx, containerID)
+	spec, err = v.inspector.Inspect(ctx, containerID)
 	if err != nil {
 		return txn.Verdict{}, err
 	}

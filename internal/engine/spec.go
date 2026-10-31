@@ -1,11 +1,14 @@
 package engine
 
 import (
+	"strings"
 	"time"
 
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
+
+	"github.com/KazzyAPI/parachute/internal/redact"
 )
 
 type Spec struct {
@@ -23,6 +26,18 @@ type Spec struct {
 }
 
 type RegistryAuth string
+
+func (s Spec) RedactEnv(text string) string {
+	var values []string
+	if s.Config != nil {
+		for _, pair := range s.Config.Env {
+			if _, value, ok := strings.Cut(pair, "="); ok {
+				values = append(values, value)
+			}
+		}
+	}
+	return redact.New(redact.Static(values...)).Redact(text)
+}
 
 type ExecResult struct {
 	ExitCode  int
