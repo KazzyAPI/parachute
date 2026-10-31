@@ -51,3 +51,20 @@ func TestTransactionHidesResultWhileOpen(t *testing.T) {
 		t.Errorf("open %+v done %+v", open, done)
 	}
 }
+
+func TestBackupsFillsNewestSnapshotPerStack(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	snapshots := []state.SnapshotRecord{
+		{ID: "snap-old", Host: "local", Stack: "web", Time: base},
+		{ID: "snap-new", Host: "local", Stack: "web", Time: base.Add(time.Hour)},
+		{ID: "snap-other", Host: "remote", Stack: "web", Time: base.Add(2 * time.Hour)},
+	}
+	stacks := []Stack{{Name: "web"}, {Name: "db"}}
+	NewBuilder(nil, nil, identity{}, false).backups(stacks, "local", snapshots)
+	if stacks[0].LastBackup == nil || stacks[0].LastBackup.Snapshot != "snap-new" || !stacks[0].LastBackup.Valid {
+		t.Fatalf("web %+v", stacks[0].LastBackup)
+	}
+	if stacks[1].LastBackup != nil {
+		t.Fatalf("db %+v", stacks[1].LastBackup)
+	}
+}

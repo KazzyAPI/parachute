@@ -42,7 +42,7 @@ func (c *Command) WriteJSON(document Document) error {
 
 func (c *Command) WriteTable(document Document) error {
 	var rows strings.Builder
-	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\tDRIFT\n", document.Armed)
+	fmt.Fprintf(&rows, "armed: %t\n\nHOST\tSTACK\tSERVICE\tCONTAINER\tIMAGE\tUPDATE\tHOLD\tDRIFT\tLAST TRANSACTION\tBACKUP\n", document.Armed)
 	for _, host := range document.Hosts {
 		for _, stack := range host.Stacks {
 			name := stack.Name
@@ -63,7 +63,7 @@ func (c *Command) WriteTable(document Document) error {
 				if service.Drift != nil {
 					drift = *service.Drift
 				}
-				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, name, service.Name, service.Container, service.Image, update, hold, drift)
+				fmt.Fprintf(&rows, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", host.Name, name, service.Name, service.Container, service.Image, update, hold, drift, lastTransaction(service.LastTransaction), lastBackup(stack.LastBackup))
 			}
 		}
 	}
@@ -75,4 +75,25 @@ func (c *Command) WriteTable(document Document) error {
 		return fmt.Errorf("write status: %w", err)
 	}
 	return nil
+}
+
+func lastTransaction(last *Transaction) string {
+	if last == nil {
+		return "-"
+	}
+	text := last.ID + " " + last.State
+	if last.Result != nil {
+		text += " " + *last.Result
+	}
+	if last.Reason != nil {
+		text += " (" + *last.Reason + ")"
+	}
+	return text
+}
+
+func lastBackup(last *Backup) string {
+	if last == nil {
+		return "-"
+	}
+	return last.Snapshot
 }
