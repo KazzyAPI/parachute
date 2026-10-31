@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net"
@@ -17,16 +18,51 @@ import (
 	"time"
 )
 
+type ParachuteBuild struct {
+	Version                string
+	Labels                 map[string]string
+	Healthcheck            []string
+	HealthcheckInterval    string
+	HealthcheckStartPeriod string
+}
+
 func (e *Env) BuildParachuteImage(ref, version string, labels map[string]string) {
+	e.BuildParachuteImageSpec(ref, ParachuteBuild{Version: version, Labels: labels})
+}
+
+func (e *Env) BuildParachuteImageSpec(ref string, spec ParachuteBuild) {
 	e.T.Helper()
 	context, err := os.MkdirTemp(e.Dir, "parachute-build-")
 	if err != nil {
 		e.T.Fatal(err)
 	}
+	version := spec.Version
+	if version == "" {
+		version = "1"
+	}
 	var file strings.Builder
 	fmt.Fprintf(&file, "FROM %s AS source\nFROM scratch\nCOPY --from=source / /\nLABEL parachute-e2e.version=%s-%s\n", e.ParachuteImage(), e.ID, version)
-	for _, key := range slices.Sorted(maps.Keys(labels)) {
-		fmt.Fprintf(&file, "LABEL %q=%q\n", key, labels[key])
+	for _, key := range slices.Sorted(maps.Keys(spec.Labels)) {
+		fmt.Fprintf(&file, "LABEL %q=%q\n", key, spec.Labels[key])
+	}
+	if len(spec.Healthcheck) > 0 {
+		interval := "5s"
+		if spec.HealthcheckInterval != "" {
+			interval = spec.HealthcheckInterval
+		}
+		startPeriod := ""
+		if spec.HealthcheckStartPeriod != "" {
+			startPeriod = " --start-period=" + spec.HealthcheckStartPeriod
+		}
+		command := spec.Healthcheck
+		if command[0] == "CMD" {
+			command = command[1:]
+		}
+		encoded, err := json.Marshal(command)
+		if err != nil {
+			e.T.Fatal(err)
+		}
+		fmt.Fprintf(&file, "HEALTHCHECK --interval=%s --timeout=5s --retries=3%s CMD %s\n", interval, startPeriod, string(encoded))
 	}
 	file.WriteString("ENTRYPOINT [\"parachute\"]\n")
 	if err := os.WriteFile(filepath.Join(context, "Dockerfile"), []byte(file.String()), 0o644); err != nil {

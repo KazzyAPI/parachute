@@ -65,6 +65,17 @@ func (e *Env) trackImage(ref string) {
 	e.images = append(e.images, ref)
 }
 
+func (e *Env) OpenStateDir() {
+	e.T.Helper()
+	if out, err := e.openStateDir(); err != nil {
+		e.T.Fatalf("open test directory: %v %s", err, out)
+	}
+}
+
+func (e *Env) openStateDir() (string, error) {
+	return e.DockerMayFail("run", "--rm", "--label", "parachute-e2e="+e.ID, "--entrypoint", "chmod", "-v", e.Dir+":"+e.Dir, suite.FixtureV2Image(), "-R", "a+rwX", e.Dir)
+}
+
 func (e *Env) cleanup() {
 	containers, err := e.DockerMayFail("ps", "-aq", "--filter", "label=parachute-e2e="+e.ID)
 	if err != nil {
@@ -75,7 +86,7 @@ func (e *Env) cleanup() {
 			e.T.Logf("cleanup: remove containers: %v %s", err, out)
 		}
 	}
-	if out, err := e.DockerMayFail("run", "--rm", "--label", "parachute-e2e="+e.ID, "--entrypoint", "chmod", "-v", e.Dir+":"+e.Dir, suite.FixtureV2Image(), "-R", "a+rwX", e.Dir); err != nil {
+	if out, err := e.openStateDir(); err != nil {
 		e.T.Logf("cleanup: open test directory: %v %s", err, out)
 	}
 	networks, err := e.DockerMayFail("network", "ls", "-q", "--filter", "name="+e.ID)

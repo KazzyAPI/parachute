@@ -1,6 +1,6 @@
 # 17 Self-update
 
-**Status:** Deferred
+**Status:** Accepted
 
 Parachute updating its own container with a side-by-side handover. `internal/handover` holds the marker format and `graph.SelfRunner` is the seam where the transaction plugs in.
 

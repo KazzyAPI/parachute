@@ -176,3 +176,18 @@ func withRecovered(candidates []*pipeline.Candidate, result domain.Result) []*pi
 	container := domain.Container{ID: result.ContainerID, Name: result.Container}
 	return append(candidates, &pipeline.Candidate{Container: container, Result: result})
 }
+
+func RecoverInterruptedSelfHandover(ctx context.Context, finisher *RollbackFinisher, journal recoveryJournal, record txn.OpenRecord) (txn.Outcome, []domain.Result, error) {
+	outcome, candidates, err := finisher.RollbackSelfHandover(ctx, record)
+	if err != nil {
+		return txn.Outcome{}, nil, err
+	}
+	if err := journal.Finish(ctx, record.ID, outcome); err != nil {
+		return txn.Outcome{}, nil, err
+	}
+	var results []domain.Result
+	for _, candidate := range candidates {
+		results = append(results, candidate.Result)
+	}
+	return outcome, results, nil
+}

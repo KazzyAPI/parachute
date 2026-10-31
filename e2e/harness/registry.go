@@ -165,6 +165,11 @@ func (r *Registry) Manifest(repo, reference string) []byte {
 	return body
 }
 
+func (r *Registry) PushImage(ref string) {
+	r.env.T.Helper()
+	r.env.Docker("--config", r.cliConfig, "push", "-q", ref)
+}
+
 func (e *Env) FreePort() int {
 	e.T.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
