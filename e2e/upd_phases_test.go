@@ -57,7 +57,8 @@ func TestUPD_002_transaction_id_is_on_every_log_line_and_the_replacement(t *test
 	assertState(t, result, a, "updated", "")
 	id := ""
 	for _, entry := range result.Logs() {
-		if entry.Get("container") != a || entry.Get("phase") == "detect" || entry.Get("phase") == "policy" {
+		phase := entry.Get("phase")
+		if entry.Get("container") != a || phase == "" || phase == "detect" || phase == "policy" {
 			continue
 		}
 		if id == "" {
