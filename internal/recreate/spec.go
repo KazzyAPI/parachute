@@ -263,19 +263,18 @@ func applyVolumeMounts(host *container.HostConfig, original engine.Spec, oldImag
 		return
 	}
 	kept := map[string]mount.Mount{}
+	for _, item := range original.Mounts {
+		if item.Type == mount.TypeVolume && anonymousVolumeName(item.Name) {
+			kept[item.Destination] = mount.Mount{Type: mount.TypeVolume, Source: item.Name, Target: item.Destination}
+		}
+	}
 	for _, item := range host.Mounts {
+		if _, ok := kept[item.Target]; ok {
+			continue
+		}
 		if item.Type == mount.TypeVolume && item.Source == "" {
 			kept[item.Target] = item
 		}
-	}
-	for _, item := range original.Mounts {
-		if item.Type != mount.TypeVolume || !anonymousVolumeName(item.Name) {
-			continue
-		}
-		if _, ok := kept[item.Destination]; ok {
-			continue
-		}
-		kept[item.Destination] = mount.Mount{Type: mount.TypeVolume, Source: item.Name, Target: item.Destination}
 	}
 	host.Mounts = withoutAnonymous(host.Mounts)
 	for _, item := range kept {
