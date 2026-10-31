@@ -133,13 +133,15 @@ func (s *Snapshotter) containerSpec(ctx context.Context, name, transaction strin
 	return engine.Spec{}, fmt.Errorf("container %s not found", name)
 }
 
+const extractScript = `find /target -mindepth 1 -maxdepth 1 -exec rm -rf {} + && gzip -dc "/snap/$1/$2" | tar -x -C /target`
+
 func (s *Snapshotter) extractArchive(ctx context.Context, root storeRoot, snapshot, transaction, file string, target mount.Mount) error {
 	if err := entryPath(snapshot, file); err != nil {
 		return err
 	}
 	s.run.txn = transaction
 	if _, err := s.run.run(ctx, []mount.Mount{root.mount(true), target}, smallOutput,
-		`find /target -mindepth 1 -maxdepth 1 -exec rm -rf {} + && gzip -dc "/snap/$1/$2" | tar -x -C /target`, snapshot, file); err != nil {
+		extractScript, snapshot, file); err != nil {
 		return fmt.Errorf("restore extract: %w", err)
 	}
 	return nil
