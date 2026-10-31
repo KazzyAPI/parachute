@@ -72,3 +72,25 @@ func TestFinishRecordsSupersededInstance(t *testing.T) {
 		t.Errorf("superseded_instances %v", got)
 	}
 }
+
+func TestAdvanceRejectsTransitionsOutsideTheStateMachine(t *testing.T) {
+	store := NewStore("/s", memoryFiles{}, nil)
+	if err := store.Open(); err != nil {
+		t.Fatal(err)
+	}
+	journal := NewJournal(store, func() time.Time { return time.Unix(0, 0) })
+	ctx := context.Background()
+	id := "txn-20260101T000012Z-aaaa12"
+	if err := journal.Begin(ctx, txn.OpenRecord{ID: id, Host: "local", Stacks: []string{"shop"}, State: txn.StateSnapshot}); err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.Advance(ctx, id, txn.StateVerify); err == nil {
+		t.Error("snapshot -> verify was accepted")
+	}
+	if err := journal.Advance(ctx, id, txn.StateUpdate); err != nil {
+		t.Errorf("snapshot -> update: %v", err)
+	}
+	if err := journal.Advance(ctx, id, txn.StateUpdate); err != nil {
+		t.Errorf("repeating a recorded state must be a no-op: %v", err)
+	}
+}

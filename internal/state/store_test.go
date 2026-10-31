@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -77,5 +78,15 @@ func TestUnknownFieldsAreRejected(t *testing.T) {
 	files := memoryFiles{"/s/state.json": []byte(`{"format":"parachute.state/v1","armed":true}`)}
 	if err := NewStore("/s", files, slog.New(slog.NewTextHandler(io.Discard, nil))).Open(); err == nil || !strings.Contains(err.Error(), "/s/state.json") {
 		t.Fatalf("Open returned %v", err)
+	}
+}
+
+func TestMissingStateDirectoryNamesTheVolumeToMount(t *testing.T) {
+	err := fmt.Errorf("write: %w", fs.ErrNotExist)
+	if hint := mountHint(err, "/var/lib/parachute"); !strings.Contains(hint, "-v parachute-state:/var/lib/parachute") {
+		t.Errorf("hint %q", hint)
+	}
+	if hint := mountHint(errors.New("disk full"), "/x"); hint != "" {
+		t.Errorf("hint %q", hint)
 	}
 }

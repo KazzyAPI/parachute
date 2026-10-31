@@ -43,6 +43,8 @@ IDs are `<DOMAIN>-NNN`. An ID is never changed and never reused; a removed requi
 | `RST` | Restore verification | [15-restore-verification.md](15-restore-verification.md) |
 | `CFG` | Configuration, output, exit codes, state | [16-configuration.md](16-configuration.md) |
 
+`UPD-018` lives in [17-self-update.md](17-self-update.md), `RST` in [15-restore-verification.md](15-restore-verification.md), and `DMN-011` to `DMN-014` in [18-podman.md](18-podman.md); the IDs did not change when those moved.
+
 ## Keywords
 
 MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are used as defined in RFC 2119. Names in `code` (flags, labels, states, reason codes, metric names) are exact and are part of the interface. Defaults stated in a requirement are normative. "Logged at `warn`" means a log line at that level whose message contains the named items.
@@ -57,62 +59,15 @@ MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are used as defined in RFC 2119. Nam
 
 ## Milestone coverage
 
-Requirements implemented by each milestone. `make trace` fails when a `MUST` or `SHOULD` listed here has no test. Acceptance criteria that need update execution (an armed Parachute, UPD, BKP, VER, POL, HOK, API) are tested in the milestone that adds it.
+Requirements that are built and tested. `make trace` fails when a `MUST` or `SHOULD` listed here has no test, and when a file with status `Accepted` has a `MUST` or `SHOULD` without one.
 
 | Milestone | Implemented requirements |
 |---|---|
 | M1 report-only core | CFG-001, CFG-002, CFG-003, CFG-004, CFG-005, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SEL-001, SEL-002, SEL-003, SEL-004, SEL-005, SEL-006, SEL-007, SEL-008, SEL-009, SEL-010, SEL-011, SEL-012, SCH-001, SCH-002, SCH-003, SCH-004, SCH-005, SCH-006, SCH-007, DET-001, DET-002, DET-003, DET-004, DET-005, DET-006, DET-007, REG-001, REG-002, REG-003, REG-004, DMN-001, DMN-002, DMN-003, DMN-004, DMN-005, DMN-006, NTF-001, NTF-002, NTF-003, NTF-004, NTF-005, NTF-006, NTF-008, NTF-010, NTF-013, STS-001, STS-002, STS-005, DEP-001, DEP-002 |
 | M2 | SCH-008, API-001, API-002, API-003, API-004, API-005, API-006, API-007, API-008, API-009, API-010, API-011, API-012, STS-003, STS-006, STS-007, DEP-011, POL-001, POL-002, POL-003, POL-006, POL-007, POL-008, POL-009, POL-011, SEL-013, DMN-003, DMN-005, DMN-007, DMN-008, DMN-009, DET-008, REG-005, REG-007, REG-008, NTF-007, NTF-009, NTF-011, NTF-014, CFG-012, REG-006 |
-| M3 | BKP-001, BKP-002, BKP-003, BKP-004, BKP-005, BKP-006, BKP-007, BKP-008, BKP-009, BKP-010, BKP-011, BKP-012, BKP-013, DMN-010, VER-001, VER-002, VER-003, VER-004, VER-005, VER-006, VER-007, VER-008, VER-009, VER-010, VER-011, VER-012, UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-009, UPD-010, UPD-011, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019, UPD-020, DEP-003, DEP-004, DEP-005, DEP-006, DEP-007, DEP-008, DEP-009, DEP-010, UPD-013 |
+| M3 | BKP-001, BKP-002, BKP-003, BKP-004, BKP-005, BKP-006, BKP-007, BKP-008, BKP-009, BKP-010, BKP-011, BKP-012, BKP-013, DMN-010, VER-001, VER-002, VER-003, VER-004, VER-005, VER-006, VER-007, VER-008, VER-009, VER-010, VER-011, VER-012, UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-009, UPD-010, UPD-011, UPD-014, UPD-015, UPD-016, UPD-017, UPD-019, UPD-020, DEP-003, DEP-004, DEP-005, DEP-006, DEP-007, DEP-008, DEP-009, DEP-010, UPD-013, UPD-001, UPD-002, UPD-006, UPD-012 |
 | M3 policy | POL-004, POL-005, POL-010, POL-011, API-007, NTF-012, STS-002, STS-004 |
-
-### M1 deviations
-
-M1 reported and never changed containers; update execution has since landed in M3. What remains of its deviations:
-
-- Settings that turn on a feature M1 does not have fail at startup with `<setting> is not implemented in this milestone`: `--enable-lifecycle-hooks`, `--notification-report=false`, `--notification-log-stdout`, `--http-api-update`, `--http-api-metrics`, `--http-api-status`, `--hosts`, `--restore-verify-schedule`, and the `restore-verify` command.
-- STS-002 is produced by `parachute status --json`; `GET /v1/status` arrives with the HTTP API.
-- `--allow-insecure-tcp` (`PARACHUTE_ALLOW_INSECURE_TCP`) is not implemented: M1 only warns about an insecure TCP host instead of refusing to start (DMN-003).
-- The spec-hardening effort changed the meaning of these M1-covered requirements, so their M1 tests need updating in the next milestone: DMN-003, STS-002 (M2 updated SEL-003, SEL-004, SEL-007, SEL-008, SEL-011, SEL-012 and DET-004).
-
-### M3 armed transactions
-
-M3 is merged on `main` ([PR 15](https://github.com/KazzyAPI/parachute/pull/15)). Armed update execution, snapshot, verify, rollback, stack graph, failure policy, and per-host reporting are implemented and listed in the M3 and M3 policy rows above. The packages below are how that work was organised during delivery:
-
-| Package | Requirements |
-|---|---|
-| R recreate | UPD-003, UPD-004, UPD-005, UPD-007, UPD-008, UPD-011, UPD-020 |
-| B snapshot | BKP-001–BKP-013 |
-| V verify | VER-001–VER-007, VER-012 |
-| G graph | DEP-003–DEP-010, UPD-013 |
-| K rollback + recovery | VER-008–VER-011, UPD-009, UPD-010, UPD-014–UPD-017, UPD-019 |
-| F failure policy | POL-010, POL-011 (release), API-007 (release), NTF-012, STS-004, STS-002 (`frozen`, `last_transaction`), POL-004, POL-005 |
-| H second engine | DMN-010 |
-| M1 rewrites | CFG-001, CFG-006, CFG-007, CFG-008, CFG-009, CFG-010, CFG-011, SCH-005, SEL-008, SEL-010, SEL-011, DET-001, DET-004, REG-001, NTF-003 |
-
-`internal/state` depends on `internal/txn` (ID and state validation), never the reverse.
-
-### Later milestones
-
-Requirements not in the coverage table above. Each ID moves into an `M4` or `M5` row once its `Test<ID>` e2e tests exist, because `make trace` fails for a listed requirement without a test.
-
-- **Hooks and self-update (future M4):** HOK-001–HOK-008, UPD-018 — `--enable-lifecycle-hooks` and self-update handover are not implemented.
-- **Restore verification and Podman (future M5):** RST-001–RST-007, DMN-011–DMN-014 — scheduled restore verification and Podman runtimes are not implemented.
-- **Unscheduled:** UPD-001, UPD-002, UPD-006, UPD-012 — behaviour exists in production paths but has no e2e test named `TestUPD-NNN_*` (phase and transaction ID logging are exercised via CFG-008 and rollback tests; stop timeout via CFG-001; `--no-restart` recreate via VER-012 and internal tests only).
-
-### M2 deviations
-
-- `parachute_restore_verification_last_success_timestamp_seconds` is emitted only once restore verification exists (M5), so its absence is not an M2 gap.
-
-M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
-
-- Criteria written for an armed Parachute whose observable is the same unarmed: tested in M2, asserting `would_update` where the criterion expects `updated`.
-- API-005: tested in M2 with a registry that delays its responses instead of a pre-check hook.
-- API-007, POL-011: the approval half in M2; the freeze-release half in M3.
-- DET-008: the digest criteria in M2; the pull-by-digest criterion is tested armed in M3.
-- POL-001: its hooks criterion in M4; the others in M2.
-- STS-002 (listed in M1): its document-shape, `hold`, and unarmed `armed` criteria are retested in M2; its `PARACHUTE_ARMED=true` criterion is tested in M3 (`last_transaction` and `frozen` follow with the failure-policy package).
-- Criteria meaningless unarmed are tested armed in M3: CFG-006's `PARACHUTE_ARMED=true` criterion, DMN-005's stop-request and replacement-start criteria, and BKP-010's armed startup criterion. UPD-019's paused-helper criterion follows with the rollback package.
+| M4 hooks and onboarding | HOK-001, HOK-002, HOK-003, HOK-004, HOK-005, HOK-006, HOK-007, HOK-008, CFG-013 |
 
 ## Index
 
@@ -132,5 +87,7 @@ M2 is unarmed, like M1. Per requirement, its criteria are tested as follows:
 14. [Status view](14-status-view.md)
 15. [Restore verification](15-restore-verification.md)
 16. [Configuration, output, and safety switches](16-configuration.md)
+17. [Self-update](17-self-update.md)
+18. [Podman](18-podman.md)
 
 Also: [glossary](glossary.md), [open questions](open-questions.md), [ADRs](../adr/README.md).
