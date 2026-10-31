@@ -588,6 +588,7 @@ func (e *Executor) markUpdated(candidates []*pipeline.Candidate, name, id, snaps
 	for _, candidate := range candidates {
 		if candidate.Container.Name == name {
 			candidate.Result.State = domain.StateUpdated
+			candidate.Result.Reason = ""
 			candidate.Result.Transaction = id
 			candidate.Result.Snapshot = snapshot
 			for _, destination := range skipped {

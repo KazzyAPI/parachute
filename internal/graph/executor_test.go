@@ -485,3 +485,11 @@ func TestUPD_013_rolling_restart_verifies_each_replacement_once(t *testing.T) {
 		t.Fatalf("verify calls %d, want %d", calls, want)
 	}
 }
+
+func TestMarkUpdatedClearsStaleReason(t *testing.T) {
+	candidate := &pipeline.Candidate{Container: domain.Container{Name: "web"}, Result: domain.Result{State: domain.StateHeld, Reason: "monitor_only"}}
+	(&Executor{}).markUpdated([]*pipeline.Candidate{candidate}, "web", "txn-1", "snap-1", nil)
+	if candidate.Result.State != domain.StateUpdated || candidate.Result.Reason != "" {
+		t.Fatalf("result %+v", candidate.Result)
+	}
+}
