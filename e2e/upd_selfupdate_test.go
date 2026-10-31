@@ -33,7 +33,7 @@ func selfUpdateRunArgs(env *harness.Env, extra ...string) []string {
 	base := []string{
 		"--run-once", "--armed", "--protect-databases=false", "--delay-days", "0",
 		"--verify-stable", "1s", "--verify-timeout", "5m", "--helper-image", env.ParachuteImage(),
-		"--porcelain", "v1", "--backup", "none",
+		"--porcelain", "v1", "--backup", "none", "--scope", env.Scope(),
 	}
 	return append(base, extra...)
 }

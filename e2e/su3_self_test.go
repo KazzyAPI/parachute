@@ -125,6 +125,7 @@ func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
 	if !mentions(notifications, txn) {
 		t.Fatalf("notifications %v", notifications)
 	}
+	env.Docker("stop", successor)
 	env.OpenStateDir()
 	document := env.StateDocument()
 	instances, _ := document["superseded_instances"].([]any)
