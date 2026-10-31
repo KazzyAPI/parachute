@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -32,14 +33,18 @@ type PolicyStage struct {
 	evaluator HoldEvaluator
 	pruner    RecordPruner
 	clock     Clock
+	logger    *slog.Logger
 }
 
-func NewPolicyStage(evaluator HoldEvaluator, pruner RecordPruner, clock Clock) *PolicyStage {
-	return &PolicyStage{evaluator: evaluator, pruner: pruner, clock: clock}
+func NewPolicyStage(evaluator HoldEvaluator, pruner RecordPruner, clock Clock, logger *slog.Logger) *PolicyStage {
+	return &PolicyStage{evaluator: evaluator, pruner: pruner, clock: clock, logger: logger}
 }
 
 func (s *PolicyStage) Run(ctx context.Context, cycle *Cycle) error {
 	now := s.clock.Now()
+	if foundUpdate(cycle) {
+		s.logger.Info("policy", "phase", "policy", "cycle", cycle.ID)
+	}
 	for _, host := range cycle.ReachableHosts() {
 		if err := s.pruner.Prune(host.Host.Name, host.Containers); err != nil {
 			return fmt.Errorf("prune policy records of host %s: %w", host.Host.Name, err)
@@ -61,4 +66,15 @@ func (s *PolicyStage) Run(ctx context.Context, cycle *Cycle) error {
 		}
 	}
 	return nil
+}
+
+func foundUpdate(cycle *Cycle) bool {
+	for _, host := range cycle.ReachableHosts() {
+		for _, candidate := range host.Candidates {
+			if candidate.Result.State == domain.StateWouldUpdate {
+				return true
+			}
+		}
+	}
+	return false
 }

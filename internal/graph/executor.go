@@ -367,7 +367,9 @@ func (e *Executor) removeOriginals(ctx context.Context, group Group) {
 		if !member.Update && !member.Recreate {
 			continue
 		}
-		_ = e.engine.Remove(ctx, member.Container.ID, e.options.RemoveVolumes, true)
+		if err := e.engine.Remove(ctx, member.Container.ID, e.options.RemoveVolumes, true); err != nil {
+			e.logger.Warn("cannot remove renamed original", "container", member.Container.Name, "id", member.Container.ID, "error", err.Error())
+		}
 		if member.Update && e.options.Cleanup {
 			_ = e.engine.RemoveImage(ctx, member.Container.ImageID)
 		}

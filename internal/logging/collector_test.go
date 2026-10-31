@@ -27,3 +27,18 @@ func TestCollectorTakesTheCycleEntriesAtOrAboveItsLevel(t *testing.T) {
 		t.Errorf("other cycle entries %+v", again)
 	}
 }
+
+func TestCollectorDropsOldestEntriesPastCap(t *testing.T) {
+	collector := NewCollector(domain.LevelInfo)
+	logger := slog.New(collector)
+	for range maxCollected + 5 {
+		logger.Info("poll", "cycle", "status")
+	}
+	logger.Info("run", "cycle", "cyc-1")
+	if got := len(collector.Take("cyc-1")); got != 1 {
+		t.Fatalf("taken %d", got)
+	}
+	if len(collector.shared.items) > maxCollected {
+		t.Fatalf("retained %d", len(collector.shared.items))
+	}
+}

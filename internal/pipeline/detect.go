@@ -42,6 +42,7 @@ func NewDetectStage(credentials CredentialLoader, labels LabelSwitch, noPull Swi
 }
 
 func (s *DetectStage) Run(ctx context.Context, cycle *Cycle) error {
+	s.logger.Info("detect", "phase", "detect", "cycle", cycle.ID)
 	credentials, err := s.credentials.Load()
 	if err != nil {
 		s.logger.Warn("registry credentials not loaded, using anonymous access", "cycle", cycle.ID, "error", err.Error())
