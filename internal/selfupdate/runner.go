@@ -135,6 +135,10 @@ func (r *Runner) Handover(ctx context.Context, host string, own *pipeline.Candid
 		return r.rollback(ctx, plan, own, originals, originalName, txn.StateHandover, timeoutFailure())
 	}
 	if err := r.verify(ctx, plan, originalName, ceiling); err != nil {
+		if ctx.Err() != nil {
+			// Shutdown mid-verification leaves the transaction open; the restarted instance resolves it as interrupted (UPD-018 step 6).
+			return graph.HandoverTicket{}, ctx.Err()
+		}
 		return r.rollback(ctx, plan, own, originals, originalName, txn.StateHandover, err)
 	}
 	if ceiling.Expired() {

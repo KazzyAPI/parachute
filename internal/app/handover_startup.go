@@ -58,6 +58,7 @@ type StartupHandover struct {
 	admit    handover.Admission
 	takeover bool
 	waited   *handover.Marker
+	recorder *state.Recorder
 	journal  *state.Journal
 	reporter handoverPublisher
 	rollback *RollbackFinisher
@@ -180,6 +181,7 @@ func (s *StartupHandover) waitOnce(ctx context.Context, marker handover.Marker) 
 }
 
 func (s *StartupHandover) AfterStore(ctx context.Context, store *state.Store) error {
+	s.recorder = state.NewRecorder(store)
 	if s.own.ID == "" {
 		return nil
 	}
@@ -254,6 +256,10 @@ func (s *StartupHandover) finishTakeover(ctx context.Context, marker handover.Ma
 	result := domain.NewResult(s.host, s.own)
 	result = result.Conclude(domain.StateRollbackFailed, "interrupted", "")
 	result.Transaction = marker.Transaction
+	result.CandidateDigest = marker.Digest
+	if err := s.recorder.Record(result); err != nil {
+		return err
+	}
 	report := domain.Report{CycleID: "handover", Hosts: []domain.HostReport{{Name: s.host, Results: []domain.Result{result}}}}
 	if err := s.reporter.Publish(ctx, report); err != nil {
 		return err
@@ -283,8 +289,14 @@ func (s *StartupHandover) finishOldRestart(ctx context.Context, marker handover.
 	if err := handover.Remove(s.files, s.stateDir); err != nil {
 		return err
 	}
+	for i := range results {
+		results[i].CandidateDigest = marker.Digest
+	}
 	if len(results) == 0 {
 		return nil
+	}
+	if err := s.recorder.Record(results...); err != nil {
+		return err
 	}
 	report := domain.Report{CycleID: "recovery", Hosts: []domain.HostReport{{Name: s.host, Results: results}}}
 	return s.reporter.Publish(ctx, report)

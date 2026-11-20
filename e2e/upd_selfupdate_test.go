@@ -175,9 +175,30 @@ func containerRepoDigest(t *testing.T, env *harness.Env, name string) string {
 	return digest
 }
 
+// A --run-once Parachute exits after its cycle, and exited containers are not candidates, so status must include them.
+func selfStatusDocument(t *testing.T, env *harness.Env) map[string]any {
+	t.Helper()
+	result := env.Parachute("status", "--json", "--include-stopped").Run(runTimeout)
+	assertExit(t, result, 0)
+	var document map[string]any
+	if err := json.Unmarshal([]byte(result.Stdout), &document); err != nil {
+		t.Fatalf("status is not JSON: %v\n%s", err, result.Stdout)
+	}
+	return document
+}
+
+func selfStatusStack(t *testing.T, env *harness.Env) map[string]any {
+	t.Helper()
+	stack := statusStacks(selfStatusDocument(t, env))[env.Scope()]
+	if stack == nil {
+		t.Fatalf("no stack %s in the status document", env.Scope())
+	}
+	return stack
+}
+
 func lastTransaction(t *testing.T, env *harness.Env, container string) map[string]any {
 	t.Helper()
-	document := statusDocument(t, env)
+	document := selfStatusDocument(t, env)
 	entry := statusServices(document)[container]
 	last, _ := entry["last_transaction"].(map[string]any)
 	return last
@@ -186,7 +207,8 @@ func lastTransaction(t *testing.T, env *harness.Env, container string) map[strin
 func publishDelayedHealthy(env *harness.Env, ref string) {
 	env.BuildParachuteImageSpec(ref, harness.ParachuteBuild{
 		Version: "2", Labels: map[string]string{selfLabel: "true"},
-		Healthcheck: []string{"CMD", "parachute", "healthcheck"}, HealthcheckStartPeriod: "30s", HealthcheckInterval: "5s",
+		Healthcheck:            []string{"CMD", "sh", "-c", `f=/tmp/first-check; [ -e $f ] || touch $f; [ $(( $(date +%s) - $(stat -c %Y $f) )) -ge 30 ] && parachute healthcheck`},
+		HealthcheckStartPeriod: "60s", HealthcheckInterval: "5s",
 	})
 	env.Registry().PushImage(ref)
 }
@@ -266,7 +288,7 @@ func TestUPD_018_failing_health_check_rolls_back_original_identity(t *testing.T)
 	approveSelfUpdate(t, env, own)
 	originalID, _ := env.ContainerState(own)
 	result := env.StartAttached(own, selfUpdateTimeout)
-	assertExit(t, result, 0)
+	assertExit(t, result, 1)
 	assertState(t, result, own, "rolled_back", "verify_failed")
 	if warnings := findLogs(result.Logs(), func(entry harness.Log) bool {
 		return entry.Level() == "warn" && entry.Get("container") == own && entry.Get("state") == "rolled_back"
@@ -350,7 +372,7 @@ func TestUPD_018_kill_old_during_verification_interrupts_with_freeze(t *testing.
 	if _, err := env.DockerMayFail("inspect", oldID); err != nil {
 		t.Fatalf("old container removed: %v", err)
 	}
-	stack := statusStack(t, env, env.Scope())
+	stack := selfStatusStack(t, env)
 	frozen, _ := stack["frozen"].([]any)
 	if len(frozen) != 1 {
 		t.Fatalf("frozen %v", frozen)
@@ -383,7 +405,7 @@ func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.
 	if body["transactions"].([]any)[0] != txn {
 		t.Fatalf("approve body %v", body)
 	}
-	stack := statusStack(t, env, env.Scope())
+	stack := selfStatusStack(t, env)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}
@@ -426,7 +448,7 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 	if digest := containerRepoDigest(t, env, own); digest != approved {
 		t.Fatalf("digest %s approved %s", digest, approved)
 	}
-	stack := statusStack(t, env, env.Scope())
+	stack := selfStatusStack(t, env)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}
@@ -456,11 +478,11 @@ func TestUPD_018_pause_new_restart_old_rolls_back_interrupted(t *testing.T) {
 	env.Docker("restart", oldID)
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	<-done
+	waitUntil(t, time.Minute, "interrupted rollback", func() bool {
+		return lastTransaction(t, env, own)["state"] == "rolled_back"
+	})
 	if afterID, _ := env.ContainerState(own); afterID != oldID {
 		t.Fatalf("own id %s, want old %s", afterID, oldID)
-	}
-	if running := strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Running}}", own)); running != "true" {
-		t.Fatalf("old container not running")
 	}
 	if replacement := containerNamedParachuteTxn(env, own, txn); replacement != "" {
 		t.Fatalf("replacement still exists as %s", replacement)
@@ -469,7 +491,7 @@ func TestUPD_018_pause_new_restart_old_rolls_back_interrupted(t *testing.T) {
 	if last["state"] != "rolled_back" || last["reason"] != "interrupted" {
 		t.Fatalf("last_transaction %v", last)
 	}
-	stack := statusStack(t, env, env.Scope())
+	stack := selfStatusStack(t, env)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}

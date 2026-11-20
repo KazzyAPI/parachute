@@ -20,7 +20,7 @@ func (c *Container) policyStage(store *state.Store) (pipeline.Stage, error) {
 		policy.NewApprovals(store, c.logger),
 		policy.NewRelaxations(databases, c.logger),
 		policy.NewMonitorRule(c.labels, c.cfg.Selection.MonitorOnly, c.cfg.Selection.LabelTakePrecedence),
-		policy.NewSelfRule(),
+		policy.NewSelfRule(store),
 		policy.NewApprovalRule(databases, settings.ProtectDatabases),
 		policy.NewFailureRule(store),
 		policy.NewDelayRule(store, settings.DelayDays),
