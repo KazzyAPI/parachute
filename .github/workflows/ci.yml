@@ -74,6 +74,13 @@ jobs:
           cache-dependency-path: |
             go.sum
             e2e/go.sum
+      - name: Use the classic Docker image store
+        run: |
+          # The runner's containerd image store loses images the e2e tests created ("image sha256:... not found").
+          sudo mkdir -p /etc/docker
+          { sudo cat /etc/docker/daemon.json 2>/dev/null || echo '{}'; } | jq '.features["containerd-snapshotter"]=false' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info --format '{{.Driver}}'
       - run: docker pull registry:2
       - run: make e2e
         env:
