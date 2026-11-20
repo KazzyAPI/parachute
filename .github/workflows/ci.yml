@@ -52,10 +52,14 @@ jobs:
             e2e_run: TestAPI
           - shard: cfg
             e2e_run: TestCFG
-          - shard: dep-det-dmn
-            e2e_run: Test(DEP|DET|DMN)
-          - shard: ntf-pol-reg
-            e2e_run: Test(NTF|POL|REG)
+          - shard: dep
+            e2e_run: TestDEP
+          - shard: det-dmn
+            e2e_run: Test(DET|DMN)
+          - shard: ntf
+            e2e_run: TestNTF
+          - shard: pol-reg
+            e2e_run: Test(POL|REG)
           - shard: sch-sel-sts
             e2e_run: Test(SCH|SEL|STS)
           - shard: bkp
