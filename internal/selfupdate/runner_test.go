@@ -173,10 +173,11 @@ func TestRunnerHandoverCommitsAndDefersMarkerRemoval(t *testing.T) {
 	eng := &fakeEngine{spec: engine.Spec{ID: testContainerID, Name: "parachute"}}
 	journal := &recordingJournal{}
 	files := newMemFS()
+	stopped := 0
 	runner := NewRunner(
 		eng, journal, fakeSnapshotter{}, &fakeRecreator{}, fakeVerifier{passed: true}, files, "/state",
 		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)),
-		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" },
+		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" }, func() { stopped++ },
 	)
 	ticket, err := runner.Handover(context.Background(), "local", ownCandidate())
 	if err != nil {
@@ -197,6 +198,9 @@ func TestRunnerHandoverCommitsAndDefersMarkerRemoval(t *testing.T) {
 	if _, ok, err := handover.Read(files, "/state"); ok || err != nil {
 		t.Fatalf("marker after finish ok=%v err=%v", ok, err)
 	}
+	if stopped != 1 {
+		t.Fatalf("old instance stopped %d times after the commit, want 1", stopped)
+	}
 }
 
 func TestRunnerHandoverRejectsPublishedPort(t *testing.T) {
@@ -206,7 +210,7 @@ func TestRunnerHandoverRejectsPublishedPort(t *testing.T) {
 	runner := NewRunner(
 		eng, journal, fakeSnapshotter{}, &fakeRecreator{}, fakeVerifier{passed: true}, newMemFS(), "/state",
 		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)),
-		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" },
+		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" }, func() {},
 	)
 	candidate := ownCandidate()
 	if _, err := runner.Handover(context.Background(), "local", candidate); err != nil {
@@ -227,7 +231,7 @@ func TestRunnerHandoverVerifyFailureRollsBack(t *testing.T) {
 	runner := NewRunner(
 		eng, journal, fakeSnapshotter{}, &fakeRecreator{}, fakeVerifier{passed: false}, files, "/state",
 		txn.NewIDGenerator(fakeClock{}.Now), fakeClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)),
-		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" },
+		graphOptions(), func(registry.Reference) engine.RegistryAuth { return "" }, func() {},
 	)
 	candidate := ownCandidate()
 	if _, err := runner.Handover(context.Background(), "local", candidate); err != nil {

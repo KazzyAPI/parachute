@@ -1,6 +1,9 @@
 package app
 
 import (
+	"os"
+	"syscall"
+
 	"github.com/KazzyAPI/parachute/internal/graph"
 	"github.com/KazzyAPI/parachute/internal/recreate"
 	"github.com/KazzyAPI/parachute/internal/selfupdate"
@@ -43,8 +46,16 @@ func (c *Container) selfRunner(store *state.Store, connected []connectedHost, he
 			c.logger,
 			options,
 			c.pullAuth,
+			interruptSelf,
 		)
 		break
 	}
 	return runner
+}
+
+// interruptSelf asks the process to shut down as if it had been sent SIGTERM, so the normal graceful path runs.
+func interruptSelf() {
+	if process, err := os.FindProcess(os.Getpid()); err == nil {
+		_ = process.Signal(syscall.SIGTERM)
+	}
 }

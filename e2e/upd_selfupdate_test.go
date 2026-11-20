@@ -31,7 +31,7 @@ func selfUpdateMounts(env *harness.Env) []string {
 
 func selfUpdateRunArgs(env *harness.Env, extra ...string) []string {
 	base := []string{
-		"--run-once", "--armed", "--protect-databases=false", "--delay-days", "0",
+		"--interval", "86400", "--armed", "--protect-databases=false", "--delay-days", "0",
 		"--verify-stable", "1s", "--verify-timeout", "5m", "--helper-image", env.ParachuteImage(),
 		"--porcelain", "v1", "--backup", "none", "--scope", env.Scope(),
 	}
@@ -48,16 +48,42 @@ func createSelfUpdateOwn(env *harness.Env, ref string, extra []string, labels ma
 	return env.CreateParachuteContainer("parachute", ref, append([]string{"--network", "host"}, extra...), run)
 }
 
+// runOwnCycle starts the daemon, waits for its first cycle to end, then stops it unless it exited by itself (a committed self-update).
+// The Result carries the logs of this start only.
+func runOwnCycle(env *harness.Env, name string) *harness.Result {
+	env.T.Helper()
+	since := time.Now().UTC().Format(time.RFC3339Nano)
+	started := time.Now()
+	name = strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", name)) // the name moves to the successor
+	env.Docker("start", name)
+	logs := func() string { return env.Docker("logs", "--since", since, name) }
+	running := func() bool {
+		return strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Running}}", name)) == "true"
+	}
+	for running() && time.Since(started) < selfUpdateTimeout && !strings.Contains(logs(), `"cycle finished"`) {
+		time.Sleep(500 * time.Millisecond)
+	}
+	for deadline := time.Now().Add(15 * time.Second); running() && time.Now().Before(deadline); {
+		time.Sleep(500 * time.Millisecond)
+	}
+	if running() {
+		env.Docker("stop", "--time", "5", name)
+	}
+	code, _ := strconv.Atoi(strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.ExitCode}}", name)))
+	text := logs()
+	return env.ResultFromLogs(text, code, time.Since(started))
+}
+
 func startSelfUpdateAttachedAsync(env *harness.Env, own string) chan *harness.Result {
 	env.T.Helper()
 	done := make(chan *harness.Result, 1)
-	go func() { done <- env.StartAttached(own, selfUpdateTimeout) }()
+	go func() { done <- runOwnCycle(env, own) }()
 	return done
 }
 
 func approveSelfUpdate(t *testing.T, env *harness.Env, own string) string {
 	t.Helper()
-	first := env.StartAttached(own, selfUpdateTimeout)
+	first := runOwnCycle(env, own)
 	assertExit(t, first, 0)
 	digest := assertState(t, first, own, "held", "approval_required")["candidate_digest"].(string)
 	env.OpenStateDir()
@@ -287,8 +313,7 @@ func TestUPD_018_failing_health_check_rolls_back_original_identity(t *testing.T)
 	publishAlwaysUnhealthy(env, ref)
 	approveSelfUpdate(t, env, own)
 	originalID, _ := env.ContainerState(own)
-	result := env.StartAttached(own, selfUpdateTimeout)
-	assertExit(t, result, 1)
+	result := runOwnCycle(env, own)
 	assertState(t, result, own, "rolled_back", "verify_failed")
 	if warnings := findLogs(result.Logs(), func(entry harness.Log) bool {
 		return entry.Level() == "warn" && entry.Get("container") == own && entry.Get("state") == "rolled_back"
@@ -302,7 +327,7 @@ func TestUPD_018_failing_health_check_rolls_back_original_identity(t *testing.T)
 		t.Fatalf("container name changed %q", name)
 	}
 	waitForNoHandoverMarker(t, env, time.Minute)
-	second := env.StartAttached(own, selfUpdateTimeout)
+	second := runOwnCycle(env, own)
 	assertExit(t, second, 0)
 	assertState(t, second, own, "held", "previous_attempt_failed")
 }

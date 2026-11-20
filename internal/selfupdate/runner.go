@@ -37,6 +37,7 @@ type Runner struct {
 	logger    *slog.Logger
 	options   graph.Options
 	auth      func(registry.Reference) engine.RegistryAuth
+	stop      func()
 }
 
 func NewRunner(
@@ -52,10 +53,11 @@ func NewRunner(
 	logger *slog.Logger,
 	options graph.Options,
 	auth func(registry.Reference) engine.RegistryAuth,
+	stop func(),
 ) *Runner {
 	return &Runner{
 		engine: engine, journal: journal, snapshot: snapshot, recreator: recreator, verifier: verifier,
-		files: files, stateDir: stateDir, ids: ids, clock: clock, logger: logger, options: options, auth: auth,
+		files: files, stateDir: stateDir, ids: ids, clock: clock, logger: logger, options: options, auth: auth, stop: stop,
 	}
 }
 
@@ -160,7 +162,12 @@ func (r *Runner) Finish(_ context.Context, ticket graph.HandoverTicket) error {
 	if !ticket.RemoveMarker {
 		return nil
 	}
-	return handover.Remove(r.files, r.stateDir)
+	if err := handover.Remove(r.files, r.stateDir); err != nil {
+		return err
+	}
+	// After the commit the old instance must not run cycles or change containers (UPD-018 step 3).
+	r.stop()
+	return nil
 }
 
 func (r *Runner) abort(ctx context.Context, id string, own *pipeline.Candidate, err error) (graph.HandoverTicket, error) {
