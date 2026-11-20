@@ -68,9 +68,28 @@ func approveSelfUpdate(t *testing.T, env *harness.Env, own string) string {
 	return digest
 }
 
+func waitUntil(t *testing.T, timeout time.Duration, what string, done func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(500 * time.Millisecond) {
+		if done() {
+			return
+		}
+	}
+	t.Fatalf("timed out after %s waiting for %s", timeout, what)
+}
+
 func runningParachuteContainers(env *harness.Env) []string {
+	return parachuteContainers(env, "ps")
+}
+
+// A --run-once successor exits after its first cycle, so tests that wait out a whole run list every container.
+func existingParachuteContainers(env *harness.Env) []string {
+	return parachuteContainers(env, "ps", "-a")
+}
+
+func parachuteContainers(env *harness.Env, list ...string) []string {
 	env.T.Helper()
-	names := strings.Fields(env.Docker("ps", "--filter", "label=parachute-e2e="+env.ID, "--filter", "label=parachute.scope="+env.Scope(), "--format", "{{.Names}}"))
+	names := strings.Fields(env.Docker(append(list, "--filter", "label=parachute-e2e="+env.ID, "--filter", "label=parachute.scope="+env.Scope(), "--format", "{{.Names}}")...))
 	var running []string
 	for _, name := range names {
 		if strings.TrimSpace(env.Docker("inspect", "--format", "{{index .Config.Labels \"parachute.helper\"}}", name)) == "true" {
@@ -147,7 +166,8 @@ func containerNamedParachuteTxn(env *harness.Env, baseName, txn string) string {
 
 func containerRepoDigest(t *testing.T, env *harness.Env, name string) string {
 	t.Helper()
-	line := env.Docker("inspect", "--format", "{{index .RepoDigests 0}}", name)
+	imageID := strings.TrimSpace(env.Docker("inspect", "--format", "{{.Image}}", name))
+	line := env.Docker("image", "inspect", "--format", "{{index .RepoDigests 0}}", imageID)
 	_, digest, ok := strings.Cut(strings.TrimSpace(line), "@")
 	if !ok || digest == "" {
 		t.Fatalf("repo digest for %s: %q", name, line)
@@ -186,11 +206,11 @@ func TestUPD_018_other_stack_commits_before_self_update_snapshot(t *testing.T) {
 	sibling := env.RunContainer("web", webApp.ref, harness.ContainerOptions{
 		Labels: map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": "web", "parachute.scope": env.Scope()},
 	})
-	webApp.publishNewer()
 	labels := map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": "parachute", "parachute.scope": env.Scope()}
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, labels)
 	publishDelayedHealthy(env, ref)
 	approved := approveSelfUpdate(t, env, own)
+	webApp.publishNewer()
 	originalID, _ := env.ContainerState(own)
 	done := startSelfUpdateAttachedAsync(env, own)
 	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
@@ -215,7 +235,10 @@ func TestUPD_018_other_stack_commits_before_self_update_snapshot(t *testing.T) {
 	}
 	assertExit(t, result, 0)
 	assertState(t, result, own, "updated", "")
-	if running := runningParachuteContainers(env); len(running) != 1 || running[0] != own {
+	waitUntil(t, time.Minute, "takeover cleanup", func() bool {
+		return containerNamedParachuteTxn(env, own, txn) == "" && len(existingParachuteContainers(env)) == 1
+	})
+	if running := existingParachuteContainers(env); len(running) != 1 || running[0] != own {
 		t.Fatalf("running Parachute containers %v, want [%s]", running, own)
 	}
 	if afterID, _ := env.ContainerState(own); afterID == originalID {

@@ -57,6 +57,7 @@ type StartupHandover struct {
 	own      domain.Container
 	admit    handover.Admission
 	takeover bool
+	waited   *handover.Marker
 	journal  *state.Journal
 	reporter handoverPublisher
 	rollback *RollbackFinisher
@@ -132,6 +133,7 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 	if admit.Role != handover.RoleNew {
 		return nil
 	}
+	s.waited = &marker
 	s.logger.Info("waiting for handover", "transaction", marker.Transaction)
 	if s.ready != nil {
 		if err := s.ready.Ready(); err != nil {
@@ -152,6 +154,7 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 		if !hasMarker {
 			return nil
 		}
+		s.waited = &marker
 		admit, err = handover.Classify(marker, true, s.own.ID, s.own.Labels["parachute.transaction"], digests)
 		if err != nil {
 			return configurationError(err)
@@ -189,7 +192,7 @@ func (s *StartupHandover) AfterStore(ctx context.Context, store *state.Store) er
 		return configurationError(handover.InvalidMarkerError(err))
 	}
 	if !hasMarker {
-		return nil
+		return s.cleanupAfterWait(ctx, document)
 	}
 	if !s.admit.HasMarker {
 		digests, err := s.ownDigests(ctx)
@@ -214,6 +217,18 @@ func (s *StartupHandover) AfterStore(ctx context.Context, store *state.Store) er
 	default:
 		return nil
 	}
+}
+
+// cleanupAfterWait covers the old instance removing the marker after its commit: the successor then removes the renamed old container.
+func (s *StartupHandover) cleanupAfterWait(ctx context.Context, document state.Document) error {
+	if s.waited == nil {
+		return nil
+	}
+	record, ok := transactionRecord(document, s.waited.Transaction)
+	if !ok || txn.State(record.State) != txn.StateCommitted {
+		return nil
+	}
+	return s.removeOldContainer(ctx, *s.waited, record)
 }
 
 func (s *StartupHandover) finishTakeover(ctx context.Context, marker handover.Marker, record state.TransactionRecord) error {
