@@ -506,7 +506,11 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
 	oldID := marker["container"].(string)
 	txn := marker["transaction"].(string)
-	hook.WaitForRequest(2 * time.Minute)
+	env.Eventually(selfUpdateTimeout, "old instance commit", func() bool {
+		logs, _ := env.DockerMayFail("logs", oldID)
+		return strings.Contains(logs, `"phase":"commit","txn":"`+txn+`"`)
+	})
+	time.Sleep(time.Second)
 	env.Docker("kill", oldID)
 	env.Eventually(selfUpdateTimeout, "committed in state", func() bool {
 		state, ok := transactionState(env, txn)
