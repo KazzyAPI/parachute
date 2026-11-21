@@ -33,6 +33,19 @@ type Gate struct {
 	counter Counter
 	lock    sync.Mutex
 	running string
+	exclude func() (func(), error)
+}
+
+func (g *Gate) SetExclusion(acquire func() (func(), error)) { g.exclude = acquire }
+
+func (g *Gate) Hold(name string) (func(), error) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	if g.running != "" {
+		return nil, &BusyError{Running: g.running}
+	}
+	g.running = name
+	return g.release, nil
 }
 
 func NewGate(ids IDGenerator, clock WallClock, counter Counter) *Gate {
@@ -45,6 +58,14 @@ func (g *Gate) Run(ctx context.Context, run func(ctx context.Context, id string)
 		return domain.Report{}, err
 	}
 	defer g.release()
+	if g.exclude != nil {
+		unlock, err := g.exclude()
+		if err != nil {
+			g.counter.CycleSkipped()
+			return domain.Report{}, &BusyError{Running: "restore-verify"}
+		}
+		defer unlock()
+	}
 	return run(ctx, id), nil
 }
 

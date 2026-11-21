@@ -126,3 +126,39 @@ func TestRST_005_cleanup_unlabeled_parachute_rv_names(t *testing.T) {
 		t.Fatal("keep network removed")
 	}
 }
+
+func TestRST_006_pass_is_announced(t *testing.T) {
+	env := harness.NewEnv(t)
+	store := filepath.Join(env.Dir, "backup")
+	if err := os.MkdirAll(store, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	hook := env.Webhook()
+	app := newUpdatable(env, "app")
+	env.RunContainer("a", app.ref, harness.ContainerOptions{})
+	app.publishNewer()
+	runArmed(env, "--backup-volume", store)
+	result := env.Parachute("restore-verify", "--stack", env.Name("a"), "--backup-volume", store, "--helper-image", env.ParachuteImage(), "--notification-url", hook.URL()).Run(runTimeout)
+	assertExit(t, result, 0)
+	received := hook.Matching("Restore verification")
+	if len(received) != 1 || !strings.Contains(received[0].Message, env.Name("a")+": pass") {
+		t.Fatalf("notifications %+v", hook.Received())
+	}
+}
+
+func TestRST_007_cycle_skipped_while_lock_held(t *testing.T) {
+	env := harness.NewEnv(t)
+	lock := filepath.Join(env.StateDir, "restore-verify.lock")
+	file, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	if err := lockFileExclusive(file); err != nil {
+		t.Fatal(err)
+	}
+	result := runOnce(env)
+	if result.Code == 0 || !strings.Contains(result.Stderr, "restore-verify") {
+		t.Fatalf("exit %d stderr %q", result.Code, result.Stderr)
+	}
+}

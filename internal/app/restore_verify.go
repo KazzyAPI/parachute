@@ -28,9 +28,31 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		return configurationError(errors.New("helper-image is required for restore-verify when not containerised"))
 	}
 	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
+	reporter, err := c.reporter(store)
+	if err != nil {
+		return err
+	}
+	outcome := c.verifyRestores(ctx, connected, helper)
+	announceRestoreVerify(ctx, reporter, outcome.Document)
+	reporter.Wait()
+	return outcomeError(outcome)
+}
+
+func outcomeError(o restoreverify.Outcome) error {
+	if o.Err == nil {
+		return nil
+	}
+	if o.ExitCode == domain.ExitFailures || o.ExitCode == domain.ExitUnreachable {
+		return &ExitError{Code: o.ExitCode, Err: o.Err}
+	}
+	return configurationError(o.Err)
+}
+
+func (c *Container) verifyRestores(ctx context.Context, connected []connectedHost, helper string) restoreverify.Outcome {
+	store := state.NewStore(c.cfg.StateDir, c.deps.System, c.logger)
 	document, ok, err := store.Read()
 	if err != nil {
-		return configurationError(err)
+		return restoreverify.Outcome{ExitCode: domain.ExitConfiguration, Err: err}
 	}
 	if !ok {
 		document = state.Document{}
@@ -50,7 +72,7 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		snapshotters[host.spec.Name] = restoreverify.BackupSnapshotter{Inner: inner}
 	}
 	if len(engines) == 0 {
-		return unreachableError(errors.New("no docker host"))
+		return restoreverify.Outcome{ExitCode: domain.ExitUnreachable, Err: errors.New("no docker host")}
 	}
 	hostFilter := c.cfg.RestoreVerify.Host
 	if hostFilter == "" && len(c.hostSpecs()) == 1 {
@@ -70,14 +92,7 @@ func (c *Container) RestoreVerify(ctx context.Context) error {
 		verifier.hosts[host.spec.Name] = c.restoreVerifyVerifier(host.docker, helper)
 	}
 	runner := restoreverify.NewRunner(c.deps.System, snapshotters, verifier, ids, c.deps.Clock, c.logger)
-	outcome := runner.Run(ctx, engines, document, options)
-	if outcome.Err == nil {
-		return nil
-	}
-	if outcome.ExitCode == domain.ExitFailures {
-		return &ExitError{Code: domain.ExitFailures, Err: outcome.Err}
-	}
-	return configurationError(outcome.Err)
+	return runner.Run(ctx, engines, document, options)
 }
 
 func snapshotCatalog(document state.Document) backup.SnapshotCatalog {

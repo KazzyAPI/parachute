@@ -40,8 +40,9 @@ type Verify struct {
 }
 
 type RestoreVerify struct {
-	Stack string
-	Host  string
+	Stack    string
+	Host     string
+	Schedule string
 }
 
 type Backup struct {

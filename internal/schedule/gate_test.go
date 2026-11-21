@@ -71,3 +71,36 @@ func (c *blockingClock) Sleep(ctx context.Context, _ time.Duration) error {
 	<-ctx.Done()
 	return ctx.Err()
 }
+
+type countingSkips struct{ skipped int }
+
+func (*countingSkips) CycleStarted() {}
+
+func (c *countingSkips) CycleSkipped() { c.skipped++ }
+
+func TestRST_007_cycle_skipped_while_restore_verification_holds_the_gate(t *testing.T) {
+	counter := &countingSkips{}
+	gate := NewGate(fixedIDs{}, &jumpingClock{}, counter)
+	release, err := gate.Hold("restore-verify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var busy *BusyError
+	if _, err := gate.Run(context.Background(), idleRunner{}.Run); !errors.As(err, &busy) || busy.Running != "restore-verify" || counter.skipped != 1 {
+		t.Fatalf("err %v skipped %d", err, counter.skipped)
+	}
+	release()
+	if _, err := gate.Run(context.Background(), idleRunner{}.Run); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRST_007_cycle_skipped_when_the_restore_verification_lock_is_held(t *testing.T) {
+	counter := &countingSkips{}
+	gate := NewGate(fixedIDs{}, &jumpingClock{}, counter)
+	gate.SetExclusion(func() (func(), error) { return nil, errors.New("held") })
+	var busy *BusyError
+	if _, err := gate.Run(context.Background(), idleRunner{}.Run); !errors.As(err, &busy) || counter.skipped != 1 {
+		t.Fatalf("err %v skipped %d", err, counter.skipped)
+	}
+}

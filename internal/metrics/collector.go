@@ -1,11 +1,14 @@
 package metrics
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 )
@@ -22,6 +25,7 @@ type Collector struct {
 	rollbackFailures  map[string]int
 	scansTotal        int
 	scansSkipped      int
+	restored          map[[2]string]time.Time
 	labelValueEscaper *strings.Replacer
 }
 
@@ -31,7 +35,7 @@ func NewCollector(hosts []string) *Collector {
 		gauges[host] = hostGauges{up: -1}
 	}
 	return &Collector{
-		hosts: hosts, gauges: gauges, rollbacks: map[string]int{}, rollbackFailures: map[string]int{},
+		hosts: hosts, gauges: gauges, rollbacks: map[string]int{}, rollbackFailures: map[string]int{}, restored: map[[2]string]time.Time{},
 		labelValueEscaper: strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`),
 	}
 }
@@ -40,6 +44,12 @@ func (c *Collector) CycleStarted() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.scansTotal++
+}
+
+func (c *Collector) RestoreVerified(host, stack string, at time.Time) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.restored[[2]string{host, stack}] = at
 }
 
 func (c *Collector) CycleSkipped() {
@@ -95,6 +105,14 @@ func (c *Collector) Write(out io.Writer) error {
 	c.perHost(&text, "parachute_rollback_failures_total", "counter", "Transactions ended rollback_failed.", func(_ hostGauges, host string) int { return c.rollbackFailures[host] })
 	c.perHost(&text, "parachute_host_up", "gauge", "1 when the host was reachable in the last cycle, else 0.", func(g hostGauges, _ string) int { return g.up })
 	header(&text, "parachute_restore_verification_last_success_timestamp_seconds", "gauge", "Unix time of the last passed restore verification.")
+	keys := make([][2]string, 0, len(c.restored))
+	for key := range c.restored {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b [2]string) int { return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1])) })
+	for _, key := range keys {
+		fmt.Fprintf(&text, "parachute_restore_verification_last_success_timestamp_seconds{host=\"%s\",stack=\"%s\"} %d\n", c.labelValueEscaper.Replace(key[0]), c.labelValueEscaper.Replace(key[1]), c.restored[key].Unix())
+	}
 	if _, err := io.WriteString(out, text.String()); err != nil {
 		return fmt.Errorf("write metrics: %w", err)
 	}
