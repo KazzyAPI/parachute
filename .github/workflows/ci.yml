@@ -64,6 +64,9 @@ jobs:
             e2e_run: TestVER
           - shard: upd
             e2e_run: TestUPD
+            e2e_skip: TestUPD_018
+          - shard: upd-self
+            e2e_run: TestUPD_018
           - shard: other
             e2e_skip: Test(API|CFG|DEP|DET|DMN|NTF|POL|REG|SCH|SEL|STS|BKP|VER|UPD)
     steps:
