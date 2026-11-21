@@ -25,6 +25,25 @@ func pushRegistryParachute(env *harness.Env, build harness.ParachuteBuild) strin
 	return ref
 }
 
+func newSelfUpdateEnv(t *testing.T) *harness.Env {
+	env := harness.NewEnv(t)
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		ids, _ := env.DockerMayFail("ps", "-aq", "--filter", "label=parachute-e2e="+env.ID)
+		for _, id := range strings.Fields(ids) {
+			summary, _ := env.DockerMayFail("inspect", "--format", "{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}", id)
+			logs, _ := env.DockerMayFail("logs", "--tail", "60", id)
+			t.Logf("DIAG container %s\n%s", summary, logs)
+		}
+		env.OpenStateDir()
+		state, _ := os.ReadFile(filepath.Join(env.StateDir, "state.json"))
+		t.Logf("DIAG state.json %s", state)
+	})
+	return env
+}
+
 func selfUpdateMounts(env *harness.Env) []string {
 	return []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"}
 }
@@ -244,7 +263,7 @@ func publishAlwaysUnhealthy(env *harness.Env, ref string) {
 }
 
 func TestUPD_018_other_stack_commits_before_self_update_snapshot(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	project := env.ID + "-ops"
 	webApp := newUpdatable(env, "web")
@@ -304,7 +323,7 @@ func TestUPD_018_other_stack_commits_before_self_update_snapshot(t *testing.T) {
 }
 
 func TestUPD_018_failing_health_check_rolls_back_original_identity(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
 	publishAlwaysUnhealthy(env, ref)
@@ -330,7 +349,7 @@ func TestUPD_018_failing_health_check_rolls_back_original_identity(t *testing.T)
 }
 
 func TestUPD_018_handover_phase_state_marker_and_waiting_log(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
 	publishDelayedHealthy(env, ref)
@@ -365,7 +384,7 @@ func TestUPD_018_handover_phase_state_marker_and_waiting_log(t *testing.T) {
 }
 
 func TestUPD_018_kill_old_during_verification_interrupts_with_freeze(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	webhook := env.Webhook()
 	port := env.FreePort()
@@ -407,7 +426,7 @@ func TestUPD_018_kill_old_during_verification_interrupts_with_freeze(t *testing.
 }
 
 func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
 	publishDelayedHealthy(env, ref)
@@ -437,7 +456,7 @@ func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.
 }
 
 func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	hook := env.HangingWebhook()
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env),
@@ -482,7 +501,7 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 }
 
 func TestUPD_018_pause_new_restart_old_rolls_back_interrupted(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
 	publishDelayedHealthy(env, ref)
@@ -520,7 +539,7 @@ func TestUPD_018_pause_new_restart_old_rolls_back_interrupted(t *testing.T) {
 }
 
 func TestUPD_018_interrupted_self_update_does_not_freeze_compose_sibling(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	project := env.ID + "-ops"
 	webApp := newUpdatable(env, "web")
@@ -554,7 +573,7 @@ func TestUPD_018_interrupted_self_update_does_not_freeze_compose_sibling(t *test
 }
 
 func TestUPD_018_restart_old_after_successful_handover_exits_superseded(t *testing.T) {
-	env := harness.NewEnv(t)
+	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1", Labels: map[string]string{selfLabel: "true"}})
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
 	publishDelayedHealthy(env, ref)
