@@ -32,6 +32,8 @@ type StackRecord struct {
 	Snapshot string `json:"snapshot"`
 	Result   string `json:"result,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+
+	LastPass time.Time `json:"last_pass,omitempty"`
 }
 
 func ReadRecord(files FileSystem, dir string) (Document, bool, error) {

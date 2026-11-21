@@ -91,6 +91,9 @@ func announceRestoreVerify(ctx context.Context, report Announcer, document resto
 		if stack.Result != "pass" {
 			level = domain.LevelWarn
 		}
+		if !stack.LastPass.IsZero() && !document.Ended.IsZero() {
+			line += fmt.Sprintf(", last passing restore %s ago", document.Ended.Sub(stack.LastPass).Round(time.Second))
+		}
 		lines = append(lines, line)
 	}
 	report.Announce(ctx, level, "Restore verification "+document.ID+"\n"+strings.Join(lines, "\n"))

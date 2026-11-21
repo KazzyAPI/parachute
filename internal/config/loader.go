@@ -41,11 +41,6 @@ func (l *Loader) Load(args, environ []string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if cfg.Command != CommandHealthcheck {
-		if err := b.unimplemented(); err != nil {
-			return Config{}, err
-		}
-	}
 	return cfg, nil
 }
 

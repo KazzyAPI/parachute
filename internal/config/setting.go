@@ -28,7 +28,6 @@ type Setting struct {
 	FromFile          bool
 	EnvPresence       bool
 	Repeatable        bool
-	Unimplemented     string
 }
 
 func (s Setting) Flag() string {

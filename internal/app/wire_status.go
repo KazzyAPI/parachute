@@ -3,11 +3,15 @@ package app
 import (
 	"github.com/KazzyAPI/parachute/internal/drift"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
+	"github.com/KazzyAPI/parachute/internal/restoreverify"
 	"github.com/KazzyAPI/parachute/internal/status"
 )
 
 func (c *Container) statusSource(hosts []pipeline.Host) status.Source {
-	return status.NewBuilder(hosts, pipeline.New(c.discoverStage(), c.selectStage()), c.redactor, c.cfg.Armed)
+	return status.NewBuilder(hosts, pipeline.New(c.discoverStage(), c.selectStage()), c.redactor, c.cfg.Armed).WithRestores(func() restoreverify.Document {
+		record, _, _ := restoreverify.ReadRecord(c.deps.System, c.cfg.StateDir)
+		return record
+	})
 }
 
 func (c *Container) driftStage() pipeline.Stage {
