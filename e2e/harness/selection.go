@@ -32,6 +32,7 @@ func (e *Env) BuildParachuteImage(ref, version string, labels map[string]string)
 
 func (e *Env) BuildParachuteImageSpec(ref string, spec ParachuteBuild) {
 	e.T.Helper()
+	_, _ = e.DockerMayFail("tag", ref, fmt.Sprintf("%s-keep:%d", e.ID, time.Now().UnixNano()))
 	context, err := os.MkdirTemp(e.Dir, "parachute-build-")
 	if err != nil {
 		e.T.Fatal(err)
