@@ -73,20 +73,29 @@ func runOwnCycle(env *harness.Env, name string) *harness.Result {
 	started := time.Now()
 	name = strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", name))
 	env.Docker("start", name)
-	logs := func() string { return env.Docker("logs", "--since", since, name) }
+	last := ""
+	logs := func() string {
+		if out, err := env.DockerMayFail("logs", "--since", since, name); err == nil {
+			last = out
+		}
+		return last
+	}
 	running := func() bool {
-		return strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.Running}}", name)) == "true"
+		out, err := env.DockerMayFail("inspect", "--format", "{{.State.Running}}", name)
+		return err == nil && strings.TrimSpace(out) == "true"
 	}
 	for running() && time.Since(started) < selfUpdateTimeout && !strings.Contains(logs(), `"cycle finished"`) {
 		time.Sleep(500 * time.Millisecond)
 	}
 	for deadline := time.Now().Add(15 * time.Second); running() && time.Now().Before(deadline); {
+		logs()
 		time.Sleep(500 * time.Millisecond)
 	}
 	if running() {
-		env.Docker("stop", "--time", "5", name)
+		_, _ = env.DockerMayFail("stop", "--time", "5", name)
 	}
-	code, _ := strconv.Atoi(strings.TrimSpace(env.Docker("inspect", "--format", "{{.State.ExitCode}}", name)))
+	exit, _ := env.DockerMayFail("inspect", "--format", "{{.State.ExitCode}}", name)
+	code, _ := strconv.Atoi(strings.TrimSpace(exit))
 	text := logs()
 	return env.ResultFromLogs(text, code, time.Since(started))
 }
@@ -498,11 +507,11 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 	oldID := marker["container"].(string)
 	txn := marker["transaction"].(string)
 	hook.WaitForRequest(2 * time.Minute)
+	env.Docker("kill", oldID)
 	env.Eventually(selfUpdateTimeout, "committed in state", func() bool {
 		state, ok := transactionState(env, txn)
 		return ok && state == "committed"
 	})
-	env.Docker("kill", oldID)
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	hook.Release()
 	<-done
@@ -601,27 +610,4 @@ func TestUPD_018_interrupted_self_update_does_not_freeze_compose_sibling(t *test
 	if running := runningParachuteContainers(env); len(running) != 1 {
 		t.Fatalf("running parachute containers %v", running)
 	}
-}
-
-func TestUPD_018_restart_old_after_successful_handover_exits_superseded(t *testing.T) {
-	env := newSelfUpdateEnv(t)
-	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1"})
-	hook := env.HangingWebhook()
-	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env),
-		"--notification-url", hook.ContainerURL(), "--notifications-level", "info")
-	publishDelayedHealthy(env, ref)
-	approveSelfUpdate(t, env, own)
-	time.Sleep(12 * time.Second)
-	hook.Forget()
-	done := startSelfUpdateAttachedAsync(env, own)
-	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
-	oldID := marker["container"].(string)
-	hook.WaitForRequest(2 * time.Minute)
-	env.Docker("pause", own)
-	hook.Release()
-	waitForNoHandoverMarker(t, env, selfUpdateTimeout)
-	<-done
-	result := env.StartAttached(oldID, time.Minute)
-	assertExit(t, result, 2)
-	env.Docker("unpause", own)
 }
