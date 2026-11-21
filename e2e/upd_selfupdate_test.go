@@ -159,6 +159,20 @@ func handoverMarker(t *testing.T, env *harness.Env) map[string]any {
 	return marker
 }
 
+func stateListLength(env *harness.Env, key string) int {
+	env.OpenStateDir()
+	contents, err := os.ReadFile(filepath.Join(env.StateDir, "state.json"))
+	if err != nil {
+		return 0
+	}
+	var document map[string]any
+	if json.Unmarshal(contents, &document) != nil {
+		return 0
+	}
+	list, _ := document[key].([]any)
+	return len(list)
+}
+
 func transactionState(env *harness.Env, id string) (string, bool) {
 	env.OpenStateDir()
 	contents, err := os.ReadFile(filepath.Join(env.StateDir, "state.json"))
@@ -449,6 +463,8 @@ func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.
 	env.Docker("kill", oldID)
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	<-done
+	env.Eventually(selfUpdateTimeout, "freeze recorded", func() bool { return stateListLength(env, "freezes") > 0 })
+	time.Sleep(2 * time.Second)
 	env.OpenStateDir()
 	process, api := startAPI(env, "--http-api-update")
 	defer stopDaemon(process)
@@ -472,7 +488,7 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1"})
 	hook := env.HangingWebhook()
 	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env),
-		"--notification-url", hook.ContainerURL(), "--notifications-level", "error")
+		"--notification-url", hook.ContainerURL(), "--notifications-level", "info")
 	publishDelayedHealthy(env, ref)
 	approved := approveSelfUpdate(t, env, own)
 	done := startSelfUpdateAttachedAsync(env, own)
