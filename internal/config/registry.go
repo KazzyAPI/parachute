@@ -54,10 +54,6 @@ func (r *Registry) EnvNames() []string {
 
 func convenient(value string) *string { return &value }
 
-func notInThisMilestone(flag string) string {
-	return flag + " is not implemented in this milestone"
-}
-
 func DefaultSettings() []Setting {
 	return []Setting{
 		{Name: "name", Kind: KindList, Repeatable: true},
@@ -121,7 +117,7 @@ func DefaultSettings() []Setting {
 		{Name: "hosts", Kind: KindList},
 		{Name: "stack", Kind: KindString},
 		{Name: "managed-host", Kind: KindString},
-		{Name: "restore-verify-schedule", Kind: KindString, Unimplemented: notInThisMilestone("--restore-verify-schedule")},
+		{Name: "restore-verify-schedule", Kind: KindString},
 		{Name: "armed", Kind: KindBool, Default: "false", ConvenientDefault: convenient("true")},
 		{Name: "profile", Kind: KindEnum, Default: ProfileSafe, Choices: []string{ProfileSafe, ProfileConvenient}},
 		{Name: "porcelain", Kind: KindEnum, Choices: []string{"v1"}},

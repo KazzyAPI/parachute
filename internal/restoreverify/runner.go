@@ -38,6 +38,7 @@ func NewRunner(files FileSystem, snapshotters map[string]Snapshotter, verifier V
 type Outcome struct {
 	ExitCode int
 	Err      error
+	Document Document
 }
 
 func (r *Runner) Run(ctx context.Context, engines map[string]Engine, saved state.Document, options Options) Outcome {
@@ -101,9 +102,9 @@ func (r *Runner) Run(ctx context.Context, engines map[string]Engine, saved state
 		return Outcome{ExitCode: 2, Err: err}
 	}
 	if failures > 0 {
-		return Outcome{ExitCode: 1, Err: fmt.Errorf("restore verification failed for %d stack(s)", failures)}
+		return Outcome{ExitCode: 1, Err: fmt.Errorf("restore verification failed for %d stack(s)", failures), Document: document}
 	}
-	return Outcome{ExitCode: 0}
+	return Outcome{ExitCode: 0, Document: document}
 }
 
 func (r *Runner) verifyStack(ctx context.Context, engine Engine, snapshotter Snapshotter, target Target, runID string) StackRecord {

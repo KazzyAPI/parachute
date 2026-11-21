@@ -14,6 +14,7 @@ import (
 	"github.com/KazzyAPI/parachute/internal/notify"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 	"github.com/KazzyAPI/parachute/internal/redact"
+	"github.com/KazzyAPI/parachute/internal/restoreverify"
 	"github.com/KazzyAPI/parachute/internal/schedule"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/status"
@@ -117,10 +118,21 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
 	var loop CycleLoop = schedule.NewScheduler(trigger, c.deps.Clock, gate, runner, c.logger, c.cfg.Schedule.Location)
 	scheduleText := trigger.Describe()
+	gate.SetExclusion(c.restoreLock)
 	if c.cfg.RunOnce {
 		loop, scheduleText = NewSingleCycle(gate, runner), "run once"
 	} else if c.apiTriggered() {
 		loop, scheduleText = requestsOnly{}, "on HTTP API requests"
+	}
+	if c.cfg.RestoreVerify.Schedule != "" && c.cfg.Armed && !c.cfg.RunOnce {
+		restoreTrigger, err := c.restoreTrigger()
+		if err != nil {
+			return nil, nil, errors.Join(closeHosts(), err)
+		}
+		loop = scheduledRestoreVerify{
+			inner: loop, trigger: restoreTrigger, clock: c.deps.Clock, gate: gate, report: reporter, metrics: collector, logger: c.logger,
+			run: func(ctx context.Context) restoreverify.Outcome { return c.verifyRestores(ctx, connected, helper) },
+		}
 	}
 	server, err := c.server(ServerParts{Gate: gate, Runner: runner, Store: store, Status: c.statusSource(hosts), Hosts: hosts, Metrics: collector})
 	if err != nil {
