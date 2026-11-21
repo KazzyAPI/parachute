@@ -1,13 +1,16 @@
 package e2e
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,19 +70,34 @@ func createSelfUpdateOwn(env *harness.Env, ref string, extra []string, labels ma
 	return env.CreateParachuteContainer("parachute", ref, append([]string{"--network", "host"}, extra...), run)
 }
 
+type lockedBuffer struct {
+	lock   sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(data []byte) (int, error) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.buffer.Write(data)
+}
+
+func (b *lockedBuffer) String() string {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.buffer.String()
+}
+
 func runOwnCycle(env *harness.Env, name string) *harness.Result {
 	env.T.Helper()
 	since := time.Now().UTC().Format(time.RFC3339Nano)
 	started := time.Now()
 	name = strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", name))
 	env.Docker("start", name)
-	last := ""
-	logs := func() string {
-		if out, err := env.DockerMayFail("logs", "--since", since, name); err == nil {
-			last = out
-		}
-		return last
-	}
+	var captured lockedBuffer
+	follow := exec.Command("docker", "logs", "--follow", "--since", since, name)
+	follow.Stdout, follow.Stderr = &captured, &captured
+	_ = follow.Start()
+	logs := captured.String
 	running := func() bool {
 		out, err := env.DockerMayFail("inspect", "--format", "{{.State.Running}}", name)
 		return err == nil && strings.TrimSpace(out) == "true"
@@ -88,7 +106,6 @@ func runOwnCycle(env *harness.Env, name string) *harness.Result {
 		time.Sleep(500 * time.Millisecond)
 	}
 	for deadline := time.Now().Add(15 * time.Second); running() && time.Now().Before(deadline); {
-		logs()
 		time.Sleep(500 * time.Millisecond)
 	}
 	if running() {
@@ -96,6 +113,14 @@ func runOwnCycle(env *harness.Env, name string) *harness.Result {
 	}
 	exit, _ := env.DockerMayFail("inspect", "--format", "{{.State.ExitCode}}", name)
 	code, _ := strconv.Atoi(strings.TrimSpace(exit))
+	finished := make(chan struct{})
+	go func() { _ = follow.Wait(); close(finished) }()
+	select {
+	case <-finished:
+	case <-time.After(10 * time.Second):
+		_ = follow.Process.Kill()
+		<-finished
+	}
 	text := logs()
 	return env.ResultFromLogs(text, code, time.Since(started))
 }
