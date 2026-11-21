@@ -253,6 +253,9 @@ func (s *StartupHandover) finishTakeover(ctx context.Context, marker handover.Ma
 		return err
 	}
 	result := domain.NewResult(s.host, s.own)
+	if record.OwnContainer != "" {
+		result.Container = record.OwnContainer
+	}
 	result = result.Conclude(domain.StateRollbackFailed, "interrupted", "")
 	result.Transaction = marker.Transaction
 	result.CandidateDigest = marker.Digest

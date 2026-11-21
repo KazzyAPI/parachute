@@ -438,6 +438,7 @@ func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.
 	env.Docker("kill", oldID)
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	<-done
+	env.OpenStateDir()
 	process, api := startAPI(env, "--http-api-update")
 	defer stopDaemon(process)
 	response := approve(api, url.Values{"container": {own}})
@@ -557,6 +558,7 @@ func TestUPD_018_interrupted_self_update_does_not_freeze_compose_sibling(t *test
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	<-done
 	webApp.publishNewer()
+	env.OpenStateDir()
 	result := runArmed(env, "--backup", "none")
 	entry := result.Entry(sibling)
 	if entry == nil || entry["state"] != "updated" {
@@ -581,8 +583,11 @@ func TestUPD_018_restart_old_after_successful_handover_exits_superseded(t *testi
 	done := startSelfUpdateAttachedAsync(env, own)
 	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
 	oldID := marker["container"].(string)
-	rec := env.StartEventRecorder("")
-	rec.Wait(selfUpdateTimeout, "health_status: healthy "+own)
+	txn := marker["transaction"].(string)
+	env.Eventually(selfUpdateTimeout, "transaction committed", func() bool {
+		state, _ := transactionState(env, txn)
+		return state == "committed"
+	})
 	env.Docker("pause", own)
 	waitForNoHandoverMarker(t, env, selfUpdateTimeout)
 	<-done
