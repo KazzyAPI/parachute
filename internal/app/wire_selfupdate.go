@@ -53,7 +53,6 @@ func (c *Container) selfRunner(store *state.Store, connected []connectedHost, he
 	return runner
 }
 
-// interruptSelf asks the process to shut down as if it had been sent SIGTERM, so the normal graceful path runs.
 func interruptSelf() {
 	if process, err := os.FindProcess(os.Getpid()); err == nil {
 		_ = process.Signal(syscall.SIGTERM)

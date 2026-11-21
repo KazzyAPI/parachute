@@ -48,13 +48,11 @@ func createSelfUpdateOwn(env *harness.Env, ref string, extra []string, labels ma
 	return env.CreateParachuteContainer("parachute", ref, append([]string{"--network", "host"}, extra...), run)
 }
 
-// runOwnCycle starts the daemon, waits for its first cycle to end, then stops it unless it exited by itself (a committed self-update).
-// The Result carries the logs of this start only.
 func runOwnCycle(env *harness.Env, name string) *harness.Result {
 	env.T.Helper()
 	since := time.Now().UTC().Format(time.RFC3339Nano)
 	started := time.Now()
-	name = strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", name)) // the name moves to the successor
+	name = strings.TrimSpace(env.Docker("inspect", "--format", "{{.Id}}", name))
 	env.Docker("start", name)
 	logs := func() string { return env.Docker("logs", "--since", since, name) }
 	running := func() bool {
@@ -108,7 +106,6 @@ func runningParachuteContainers(env *harness.Env) []string {
 	return parachuteContainers(env, "ps")
 }
 
-// A --run-once successor exits after its first cycle, so tests that wait out a whole run list every container.
 func existingParachuteContainers(env *harness.Env) []string {
 	return parachuteContainers(env, "ps", "-a")
 }
@@ -201,9 +198,9 @@ func containerRepoDigest(t *testing.T, env *harness.Env, name string) string {
 	return digest
 }
 
-// A --run-once Parachute exits after its cycle, and exited containers are not candidates, so status must include them.
 func selfStatusDocument(t *testing.T, env *harness.Env) map[string]any {
 	t.Helper()
+	env.OpenStateDir()
 	result := env.Parachute("status", "--json", "--include-stopped").Run(runTimeout)
 	assertExit(t, result, 0)
 	var document map[string]any
@@ -569,9 +566,8 @@ func TestUPD_018_restart_old_after_successful_handover_exits_superseded(t *testi
 	rec.Wait(selfUpdateTimeout, "health_status: healthy "+own)
 	env.Docker("pause", own)
 	waitForNoHandoverMarker(t, env, selfUpdateTimeout)
-	env.Docker("unpause", own)
 	<-done
-	env.Docker("stop", oldID)
 	result := env.StartAttached(oldID, time.Minute)
 	assertExit(t, result, 2)
+	env.Docker("unpause", own)
 }

@@ -138,7 +138,6 @@ func (r *Runner) Handover(ctx context.Context, host string, own *pipeline.Candid
 	}
 	if err := r.verify(ctx, plan, originalName, ceiling); err != nil {
 		if ctx.Err() != nil {
-			// Shutdown mid-verification leaves the transaction open; the restarted instance resolves it as interrupted (UPD-018 step 6).
 			return graph.HandoverTicket{}, ctx.Err()
 		}
 		return r.rollback(ctx, plan, own, originals, originalName, txn.StateHandover, err)
@@ -165,7 +164,6 @@ func (r *Runner) Finish(_ context.Context, ticket graph.HandoverTicket) error {
 	if err := handover.Remove(r.files, r.stateDir); err != nil {
 		return err
 	}
-	// After the commit the old instance must not run cycles or change containers (UPD-018 step 3).
 	r.stop()
 	return nil
 }

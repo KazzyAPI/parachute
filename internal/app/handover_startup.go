@@ -221,7 +221,6 @@ func (s *StartupHandover) AfterStore(ctx context.Context, store *state.Store) er
 	}
 }
 
-// cleanupAfterWait covers the old instance removing the marker after its commit: the successor then removes the renamed old container.
 func (s *StartupHandover) cleanupAfterWait(ctx context.Context, document state.Document) error {
 	if s.waited == nil {
 		return nil

@@ -156,7 +156,6 @@ func (r *Result) Summary() map[string]any {
 	return objects[len(objects)-1]
 }
 
-// ResultFromLogs wraps container logs captured outside a process run, for tests that start a daemon detached.
 func (e *Env) ResultFromLogs(text string, code int, duration time.Duration) *Result {
 	return &Result{env: e, Stdout: text, Stderr: text, Code: code, Duration: duration}
 }

@@ -26,7 +26,6 @@ func (r *Recorder) Publish(_ context.Context, report domain.Report) error {
 	})
 }
 
-// Record applies results from a recovery to the failed-digest and approval records without replacing the last cycle.
 func (r *Recorder) Record(results ...domain.Result) error {
 	return r.store.Update(func(document *Document) error {
 		for _, result := range results {
