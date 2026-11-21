@@ -180,6 +180,16 @@ func (w *HangingWebhook) WaitForRequest(timeout time.Duration) {
 	}
 }
 
+func (w *HangingWebhook) Forget() {
+	for {
+		select {
+		case <-w.entered:
+		default:
+			return
+		}
+	}
+}
+
 func (w *HangingWebhook) Release() {
 	select {
 	case w.release <- struct{}{}:

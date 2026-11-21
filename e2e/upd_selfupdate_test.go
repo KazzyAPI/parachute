@@ -491,15 +491,17 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 		"--notification-url", hook.ContainerURL(), "--notifications-level", "info")
 	publishDelayedHealthy(env, ref)
 	approved := approveSelfUpdate(t, env, own)
+	time.Sleep(12 * time.Second)
+	hook.Forget()
 	done := startSelfUpdateAttachedAsync(env, own)
 	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
 	oldID := marker["container"].(string)
 	txn := marker["transaction"].(string)
+	hook.WaitForRequest(2 * time.Minute)
 	env.Eventually(selfUpdateTimeout, "committed in state", func() bool {
 		state, ok := transactionState(env, txn)
 		return ok && state == "committed"
 	})
-	hook.WaitForRequest(2 * time.Minute)
 	env.Docker("kill", oldID)
 	waitForNoHandoverMarker(t, env, 60*time.Second)
 	hook.Release()
@@ -604,18 +606,19 @@ func TestUPD_018_interrupted_self_update_does_not_freeze_compose_sibling(t *test
 func TestUPD_018_restart_old_after_successful_handover_exits_superseded(t *testing.T) {
 	env := newSelfUpdateEnv(t)
 	ref := pushRegistryParachute(env, harness.ParachuteBuild{Version: "1"})
-	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env))
+	hook := env.HangingWebhook()
+	own := createSelfUpdateOwn(env, ref, []string{"--restart=no"}, scoped(env),
+		"--notification-url", hook.ContainerURL(), "--notifications-level", "info")
 	publishDelayedHealthy(env, ref)
 	approveSelfUpdate(t, env, own)
+	time.Sleep(12 * time.Second)
+	hook.Forget()
 	done := startSelfUpdateAttachedAsync(env, own)
 	marker := waitForHandoverMarker(t, env, selfUpdateTimeout)
 	oldID := marker["container"].(string)
-	txn := marker["transaction"].(string)
-	env.Eventually(selfUpdateTimeout, "transaction committed", func() bool {
-		state, _ := transactionState(env, txn)
-		return state == "committed"
-	})
+	hook.WaitForRequest(2 * time.Minute)
 	env.Docker("pause", own)
+	hook.Release()
 	waitForNoHandoverMarker(t, env, selfUpdateTimeout)
 	<-done
 	result := env.StartAttached(oldID, time.Minute)
