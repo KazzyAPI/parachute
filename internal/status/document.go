@@ -25,13 +25,19 @@ type Host struct {
 }
 
 type Stack struct {
-	Name                      string    `json:"name"`
-	Compose                   bool      `json:"compose"`
-	LastBackup                *Backup   `json:"last_backup"`
-	LastRestoreVerification   *struct{} `json:"last_restore_verification"`
-	LastGoodRestoreAgeSeconds *int      `json:"last_good_restore_age_seconds"`
-	Frozen                    []Freeze  `json:"frozen"`
-	Services                  []Service `json:"services"`
+	Name                      string               `json:"name"`
+	Compose                   bool                 `json:"compose"`
+	LastBackup                *Backup              `json:"last_backup"`
+	LastRestoreVerification   *RestoreVerification `json:"last_restore_verification"`
+	LastGoodRestoreAgeSeconds *int                 `json:"last_good_restore_age_seconds"`
+	Frozen                    []Freeze             `json:"frozen"`
+	Services                  []Service            `json:"services"`
+}
+
+type RestoreVerification struct {
+	Time     time.Time `json:"time"`
+	Result   string    `json:"result"`
+	Snapshot string    `json:"snapshot"`
 }
 
 type Backup struct {

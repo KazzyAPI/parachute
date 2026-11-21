@@ -1,8 +1,6 @@
 package config
 
 import (
-	"errors"
-	"fmt"
 	"time"
 )
 
@@ -54,20 +52,4 @@ func (b *binder) relaxes(label string) bool {
 		return b.boolean(label)
 	}
 	return false
-}
-
-func (b *binder) unimplemented() error {
-	for _, setting := range b.registry.Settings() {
-		if setting.Unimplemented == "" {
-			continue
-		}
-		current := b.raw(setting.Label())
-		if setting.Kind == KindBool {
-			current = fmt.Sprint(b.boolean(setting.Label()))
-		}
-		if current != setting.Default {
-			return errors.New(setting.Unimplemented)
-		}
-	}
-	return nil
 }

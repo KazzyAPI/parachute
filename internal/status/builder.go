@@ -10,6 +10,7 @@ import (
 
 	"github.com/KazzyAPI/parachute/internal/domain"
 	"github.com/KazzyAPI/parachute/internal/pipeline"
+	"github.com/KazzyAPI/parachute/internal/restoreverify"
 	"github.com/KazzyAPI/parachute/internal/state"
 	"github.com/KazzyAPI/parachute/internal/txn"
 )
@@ -21,11 +22,17 @@ type Builder struct {
 	inventory pipeline.Stage
 	redactor  Redactor
 	armed     bool
+	restores  func() restoreverify.Document
 	lock      sync.Mutex
 }
 
 func NewBuilder(hosts []pipeline.Host, inventory pipeline.Stage, redactor Redactor, armed bool) *Builder {
 	return &Builder{hosts: hosts, inventory: inventory, redactor: redactor, armed: armed}
+}
+
+func (b *Builder) WithRestores(read func() restoreverify.Document) *Builder {
+	b.restores = read
+	return b
 }
 
 func (b *Builder) Build(ctx context.Context, saved state.Document, generated time.Time) (Document, error) {
@@ -66,6 +73,7 @@ func (b *Builder) Build(ctx context.Context, saved state.Document, generated tim
 		}
 		host.Stacks = b.freeze(host.Stacks, run, saved.ActiveFreezes())
 		b.backups(host.Stacks, run.Host.Name, saved.Snapshots)
+		b.restored(host.Stacks, run.Host.Name, generated)
 		document.Hosts = append(document.Hosts, host)
 	}
 	return document, nil
@@ -179,4 +187,27 @@ func (b *Builder) frozen(stacks []Stack, key state.FreezeKey, containers []domai
 		stacks[index].Frozen = append(stacks[index].Frozen, entry)
 	}
 	return stacks
+}
+
+func (b *Builder) restored(stacks []Stack, host string, generated time.Time) {
+	if b.restores == nil {
+		return
+	}
+	record := b.restores()
+	if record.Open {
+		return
+	}
+	for _, entry := range record.Stacks {
+		name := b.redactor.Redact(entry.Stack)
+		for index := range stacks {
+			if entry.Host != host || stacks[index].Name != name || entry.Result == "" {
+				continue
+			}
+			stacks[index].LastRestoreVerification = &RestoreVerification{Time: record.Ended, Result: entry.Result, Snapshot: entry.Snapshot}
+			if !entry.LastPass.IsZero() {
+				age := int(generated.Sub(entry.LastPass).Seconds())
+				stacks[index].LastGoodRestoreAgeSeconds = &age
+			}
+		}
+	}
 }

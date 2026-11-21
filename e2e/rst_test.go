@@ -144,6 +144,11 @@ func TestRST_006_pass_is_announced(t *testing.T) {
 	if len(received) != 1 || !strings.Contains(received[0].Message, env.Name("a")+": pass") {
 		t.Fatalf("notifications %+v", hook.Received())
 	}
+	status := env.Parachute("status", "--json").Run(runTimeout)
+	assertExit(t, status, 0)
+	if !strings.Contains(status.Stdout, `"result": "pass"`) || strings.Contains(status.Stdout, `"last_good_restore_age_seconds": null`) {
+		t.Fatalf("status %s", status.Stdout)
+	}
 }
 
 func TestRST_007_cycle_skipped_while_lock_held(t *testing.T) {

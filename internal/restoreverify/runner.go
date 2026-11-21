@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/KazzyAPI/parachute/internal/backup"
 	"github.com/KazzyAPI/parachute/internal/domain"
@@ -58,6 +59,8 @@ func (r *Runner) Run(ctx context.Context, engines map[string]Engine, saved state
 		return Outcome{ExitCode: 2, Err: errors.New("no snapshots to verify")}
 	}
 
+	previous, _, _ := ReadRecord(r.files, options.StateDir)
+
 	runID, err := r.ids.New("rv")
 	if err != nil {
 		return Outcome{ExitCode: 2, Err: err}
@@ -87,10 +90,13 @@ func (r *Runner) Run(ctx context.Context, engines map[string]Engine, saved state
 			continue
 		}
 		stackResult := r.verifyStack(ctx, engine, r.snapshotters[target.Host], target, runID)
-		document.Stacks[index] = stackResult
-		if stackResult.Result != resultPass {
+		stackResult.LastPass = lastPass(previous, target)
+		if stackResult.Result == resultPass {
+			stackResult.LastPass = r.clock.Now().UTC()
+		} else {
 			failures++
 		}
+		document.Stacks[index] = stackResult
 		if engine != nil {
 			r.cleanup(ctx, engine, allowed)
 		}
@@ -205,4 +211,13 @@ func startOrder(manifest backup.Manifest) []string {
 	index := graph.NewIndex(containers)
 	edges := graph.AllEdges(index)
 	return graph.StartSequence(names, graph.FilterEdges(edges, names))
+}
+
+func lastPass(previous Document, target Target) time.Time {
+	for _, stack := range previous.Stacks {
+		if stack.Host == target.Host && stack.Stack == target.Stack {
+			return stack.LastPass
+		}
+	}
+	return time.Time{}
 }
