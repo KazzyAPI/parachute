@@ -134,7 +134,8 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 	if admit.Role != handover.RoleNew {
 		return nil
 	}
-	s.waited = &marker
+	waited := marker
+	s.waited = &waited
 	s.logger.Info("waiting for handover", "transaction", marker.Transaction)
 	if s.ready != nil {
 		if err := s.ready.Ready(); err != nil {
@@ -155,7 +156,7 @@ func (s *StartupHandover) BeforeStore(ctx context.Context) error {
 		if !hasMarker {
 			return nil
 		}
-		s.waited = &marker
+		waited = marker
 		admit, err = handover.Classify(marker, true, s.own.ID, s.own.Labels["parachute.transaction"], digests)
 		if err != nil {
 			return configurationError(err)

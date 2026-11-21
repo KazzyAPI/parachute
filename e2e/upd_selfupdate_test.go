@@ -237,11 +237,11 @@ func selfStatusDocument(t *testing.T, env *harness.Env) map[string]any {
 	return document
 }
 
-func selfStatusStack(t *testing.T, env *harness.Env) map[string]any {
+func selfStatusStack(t *testing.T, env *harness.Env, name string) map[string]any {
 	t.Helper()
-	stack := statusStacks(selfStatusDocument(t, env))[env.Scope()]
+	stack := statusStacks(selfStatusDocument(t, env))[name]
 	if stack == nil {
-		t.Fatalf("no stack %s in the status document: %v", env.Scope(), selfStatusDocument(t, env))
+		t.Fatalf("no stack %s in the status document", name)
 	}
 	return stack
 }
@@ -424,7 +424,7 @@ func TestUPD_018_kill_old_during_verification_interrupts_with_freeze(t *testing.
 	if _, err := env.DockerMayFail("inspect", oldID); err != nil {
 		t.Fatalf("old container removed: %v", err)
 	}
-	stack := selfStatusStack(t, env)
+	stack := selfStatusStack(t, env, own)
 	frozen, _ := stack["frozen"].([]any)
 	if len(frozen) != 1 {
 		t.Fatalf("frozen %v", frozen)
@@ -458,7 +458,7 @@ func TestUPD_018_approve_releases_freeze_after_successor_runs_digest(t *testing.
 	if body["transactions"].([]any)[0] != txn {
 		t.Fatalf("approve body %v", body)
 	}
-	stack := selfStatusStack(t, env)
+	stack := selfStatusStack(t, env, own)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}
@@ -501,7 +501,7 @@ func TestUPD_018_committed_report_survives_hanging_webhook_and_old_kill(t *testi
 	if digest := containerRepoDigest(t, env, own); digest != approved {
 		t.Fatalf("digest %s approved %s", digest, approved)
 	}
-	stack := selfStatusStack(t, env)
+	stack := selfStatusStack(t, env, own)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}
@@ -544,7 +544,7 @@ func TestUPD_018_pause_new_restart_old_rolls_back_interrupted(t *testing.T) {
 	if last["state"] != "rolled_back" || last["reason"] != "interrupted" {
 		t.Fatalf("last_transaction %v", last)
 	}
-	stack := selfStatusStack(t, env)
+	stack := selfStatusStack(t, env, own)
 	if frozen, _ := stack["frozen"].([]any); len(frozen) != 0 {
 		t.Fatalf("frozen %v", frozen)
 	}
