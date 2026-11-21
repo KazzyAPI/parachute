@@ -69,7 +69,7 @@ Requirements that are built and tested. `make trace` fails when a `MUST` or `SHO
 | M3 policy | POL-004, POL-005, POL-010, POL-011, API-007, NTF-012, STS-002, STS-004 |
 | M4 hooks and onboarding | HOK-001, HOK-002, HOK-003, HOK-004, HOK-005, HOK-006, HOK-007, HOK-008, CFG-013, DMN-013 |
 | M5 restore verification | RST-001, RST-002, RST-003, RST-004, RST-005 |
-## Index
+| M6 self-update | UPD-018 |## Index
 
 1. [Container selection](01-selection.md)
 2. [Scheduling](02-scheduling.md)

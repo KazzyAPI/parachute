@@ -2,10 +2,12 @@ package policy
 
 import "github.com/KazzyAPI/parachute/internal/domain"
 
-type SelfRule struct{}
+type SelfRule struct{ store Store }
 
-func NewSelfRule() *SelfRule { return &SelfRule{} }
+func NewSelfRule(store Store) *SelfRule { return &SelfRule{store: store} }
 
 func (r *SelfRule) Hold(s Subject) (domain.Hold, bool, error) {
-	return domain.Hold{Reason: reasonApprovalRequired, Detail: "self-update needs approval"}, s.Container.Own && !s.Approved, nil
+	hold := domain.Hold{Reason: reasonApprovalRequired, Detail: "self-update needs approval"}
+	held := s.Container.Own && !s.Approved && !r.store.Current().Failed(s.Host, s.Container.Name, s.Result.CandidateDigest)
+	return hold, held, nil
 }

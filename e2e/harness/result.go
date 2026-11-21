@@ -155,3 +155,7 @@ func (r *Result) Summary() map[string]any {
 	}
 	return objects[len(objects)-1]
 }
+
+func (e *Env) ResultFromLogs(text string, code int, duration time.Duration) *Result {
+	return &Result{env: e, Stdout: text, Stderr: text, Code: code, Duration: duration}
+}

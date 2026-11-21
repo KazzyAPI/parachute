@@ -3,6 +3,7 @@ package e2e
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,9 +95,83 @@ func TestPOL_010_rollback_failed_self_update_does_not_freeze_project(t *testing.
 }
 
 func TestCFG_010_superseded_instance_recorded_in_state(t *testing.T) {
-	t.Skip("needs self-update transaction finish path (SU2)")
+	env := harness.NewEnv(t)
+	ref := officialRef(env)
+	own := startOwnWithStateMount(env, ref)
+	oldID, _ := env.ContainerState(own)
+	txn := "txn-20260101T000100Z-bbbb01"
+	digest := imageRepoDigest(t, env, ref)
+	writeHandover(t, env, map[string]any{
+		"format": "parachute.handover/v1", "transaction": txn, "container": oldID, "digest": digest,
+	})
+	editState(t, env, func(document map[string]any) {
+		document["transactions"] = []any{map[string]any{
+			"id": txn, "host": "local", "stacks": []any{env.Scope()}, "state": "handover",
+			"self_update": true, "own_container": own, "time": time.Now().UTC().Format(time.RFC3339),
+			"originals": []any{map[string]any{"id": oldID, "running": true, "updated": true}},
+		}}
+	})
+	webhook := env.Webhook()
+	successor := env.StartParachuteContainer("successor", harness.ContainerRun{
+		Image:  ref,
+		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
+		Args: []string{
+			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
+			"--interval", "31536000", "--scope", env.Scope(),
+		},
+		Labels: map[string]string{"parachute.transaction": txn},
+	})
+	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
+	if !mentions(notifications, txn) {
+		t.Fatalf("notifications %v", notifications)
+	}
+	env.Docker("stop", successor)
+	env.OpenStateDir()
+	document := env.StateDocument()
+	instances, _ := document["superseded_instances"].([]any)
+	if len(instances) != 1 || instances[0] != oldID {
+		t.Fatalf("superseded_instances %v", document["superseded_instances"])
+	}
 }
 
 func TestNTF_012_interrupted_handover_sends_error_notification(t *testing.T) {
-	t.Skip("needs self-update handover takeover (SU1/SU2)")
+	env := harness.NewEnv(t)
+	ref := officialRef(env)
+	own := startOwnWithStateMount(env, ref)
+	oldID, _ := env.ContainerState(own)
+	txn := "txn-20260101T000200Z-bbbb02"
+	digest := imageRepoDigest(t, env, ref)
+	writeHandover(t, env, map[string]any{
+		"format": "parachute.handover/v1", "transaction": txn, "container": oldID, "digest": digest,
+	})
+	editState(t, env, func(document map[string]any) {
+		document["transactions"] = []any{map[string]any{
+			"id": txn, "host": "local", "stacks": []any{env.Scope()}, "state": "handover",
+			"self_update": true, "own_container": own, "time": time.Now().UTC().Format(time.RFC3339),
+			"originals": []any{map[string]any{"id": oldID, "running": true, "updated": true}},
+		}}
+	})
+	webhook := env.Webhook()
+	successor := env.StartParachuteContainer("handover-successor", harness.ContainerRun{
+		Image:  ref,
+		Mounts: []string{env.StateDir + ":/var/lib/parachute", env.ConfigDir + ":/root/.docker"},
+		Args: []string{
+			"--state-dir", "/var/lib/parachute", "--notification-url", webhook.ContainerURL(), "--notifications-level", "error",
+			"--interval", "31536000", "--scope", env.Scope(),
+		},
+		Labels: map[string]string{"parachute.transaction": txn},
+	})
+	notifications := webhook.WaitForContainer(30*time.Second, 1, successor)
+	if !mentions(notifications, txn) {
+		t.Fatalf("notifications %v", notifications)
+	}
+}
+
+func mentions(notifications []harness.Notification, transaction string) bool {
+	for _, notification := range notifications {
+		if strings.Contains(notification.Message, transaction) {
+			return true
+		}
+	}
+	return false
 }

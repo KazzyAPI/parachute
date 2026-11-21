@@ -3,6 +3,7 @@ package harness
 import "time"
 
 type ContainerRun struct {
+	Image  string
 	Args   []string
 	Env    map[string]string
 	Mounts []string
@@ -39,7 +40,11 @@ func (e *Env) containerArgs(name string, run ContainerRun) []string {
 	for key, value := range run.Labels {
 		args = append(args, "--label", key+"="+value)
 	}
-	args = append(args, e.ParachuteImage())
+	image := run.Image
+	if image == "" {
+		image = e.ParachuteImage()
+	}
+	args = append(args, image)
 	if len(run.Args) > 0 && !isCommand(run.Args[0]) {
 		args = append(args, "--log-format", "json")
 	}

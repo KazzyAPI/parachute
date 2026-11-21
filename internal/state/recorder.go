@@ -26,6 +26,15 @@ func (r *Recorder) Publish(_ context.Context, report domain.Report) error {
 	})
 }
 
+func (r *Recorder) Record(results ...domain.Result) error {
+	return r.store.Update(func(document *Document) error {
+		for _, result := range results {
+			recordResult(document, result)
+		}
+		return nil
+	})
+}
+
 func recordResult(document *Document, result domain.Result) {
 	if result.Transaction != "" {
 		document.ServiceTransactions = slices.DeleteFunc(document.ServiceTransactions, func(record ServiceTransaction) bool {

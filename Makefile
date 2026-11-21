@@ -18,7 +18,7 @@ E2E_ARGS += -skip '$(E2E_SKIP)'
 endif
 
 e2e:
-	cd e2e && $(GO) test -count=1 -timeout 30m $(E2E_ARGS) ./...
+	cd e2e && $(GO) test -count=1 -timeout 20m $(E2E_ARGS) ./...
 
 lint:
 	test -z "$$(gofmt -l .)"

@@ -6,7 +6,9 @@ import (
 	"github.com/KazzyAPI/parachute/internal/pipeline"
 )
 
-type HandoverTicket struct{}
+type HandoverTicket struct {
+	RemoveMarker bool
+}
 
 type SelfRunner interface {
 	Handover(ctx context.Context, host string, own *pipeline.Candidate) (HandoverTicket, error)
