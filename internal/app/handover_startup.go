@@ -227,6 +227,7 @@ func (s *StartupHandover) cleanupAfterWait(ctx context.Context, document state.D
 	}
 	record, ok := transactionRecord(document, s.waited.Transaction)
 	if !ok || txn.State(record.State) != txn.StateCommitted {
+		s.logger.Info("handover cleanup skipped", "transaction", s.waited.Transaction, "recorded", ok, "state", record.State)
 		return nil
 	}
 	return s.removeOldContainer(ctx, *s.waited, record)
@@ -318,6 +319,7 @@ func (s *StartupHandover) removeOldContainer(ctx context.Context, marker handove
 	}
 	want := handover.RenamedName(record.OwnContainer, marker.Transaction)
 	if old.ID != marker.Container || old.Name != want {
+		s.logger.Info("handover cleanup skipped", "transaction", marker.Transaction, "container", old.Name, "want", want)
 		return nil
 	}
 	return s.engine.Remove(ctx, old.ID, false, true)
