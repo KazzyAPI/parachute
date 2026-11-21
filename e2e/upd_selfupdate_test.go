@@ -161,7 +161,15 @@ func handoverMarker(t *testing.T, env *harness.Env) map[string]any {
 
 func transactionState(env *harness.Env, id string) (string, bool) {
 	env.OpenStateDir()
-	records, _ := env.StateDocument()["transactions"].([]any)
+	contents, err := os.ReadFile(filepath.Join(env.StateDir, "state.json"))
+	if err != nil {
+		return "", false
+	}
+	var document map[string]any
+	if json.Unmarshal(contents, &document) != nil {
+		return "", false
+	}
+	records, _ := document["transactions"].([]any)
 	for _, record := range records {
 		entry := record.(map[string]any)
 		if entry["id"] == id {
@@ -233,7 +241,7 @@ func selfStatusStack(t *testing.T, env *harness.Env) map[string]any {
 	t.Helper()
 	stack := statusStacks(selfStatusDocument(t, env))[env.Scope()]
 	if stack == nil {
-		t.Fatalf("no stack %s in the status document", env.Scope())
+		t.Fatalf("no stack %s in the status document: %v", env.Scope(), selfStatusDocument(t, env))
 	}
 	return stack
 }
@@ -243,6 +251,9 @@ func lastTransaction(t *testing.T, env *harness.Env, container string) map[strin
 	document := selfStatusDocument(t, env)
 	entry := statusServices(document)[container]
 	last, _ := entry["last_transaction"].(map[string]any)
+	if last == nil {
+		t.Logf("DIAG status without last_transaction for %s: %v", container, document)
+	}
 	return last
 }
 
