@@ -162,7 +162,7 @@ func TestUPD_020_rejects_pulled_image_without_approved_digest(t *testing.T) {
 	})
 	a := env.RunContainer("a", env.Rehome(v1, proxy.Host), harness.ContainerOptions{})
 	id, image := env.ContainerState(a)
-	registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "2"})
+	registry.ForgetLocal(registry.PushSpec("fixture/app", "1", harness.ImageSpec{Version: "2"}))
 	result := armedOnce(env)
 	assertState(t, result, a, "failed", "pull_failed")
 	assertUnchanged(env, a, id, image)

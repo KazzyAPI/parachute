@@ -310,7 +310,7 @@ func TestUPD_019_snapshot_pull_delay_hits_transaction_timeout(t *testing.T) {
 	})
 	a := env.RunContainer("a", env.Rehome(app.ref, proxy.Host), harness.ContainerOptions{})
 	id, image := env.ContainerState(a)
-	app.publishNewer()
+	app.publishNewerRemoteOnly()
 	start := time.Now()
 	result := armedOnce(env, "--transaction-timeout", "20s")
 	if digestPulls == 0 {
