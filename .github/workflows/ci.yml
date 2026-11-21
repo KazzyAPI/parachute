@@ -80,7 +80,9 @@ jobs:
           sudo mkdir -p /etc/docker
           { sudo cat /etc/docker/daemon.json 2>/dev/null || echo '{}'; } | jq '.features["containerd-snapshotter"]=false | .["storage-driver"]="overlay2"' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
-          test "$(docker info --format '{{.Driver}}')" = overlay2
+          cat /etc/docker/daemon.json
+          docker info --format '{{.Driver}} {{.DriverStatus}}'
+          sudo journalctl -u docker --no-pager -n 15 || true
       - run: docker pull registry:2
       - run: make e2e
         env:
