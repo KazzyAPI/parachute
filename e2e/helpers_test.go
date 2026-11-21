@@ -111,6 +111,11 @@ func pushShell(registry *harness.Registry, repo, version string) string {
 	return registry.PushSpec(repo, "1", harness.ImageSpec{Verify: true, Version: version})
 }
 
+func (u updatable) publishNewerRemoteOnly() {
+	u.publishNewer()
+	u.registry.ForgetLocal(u.ref)
+}
+
 func (u updatable) publishNewer() {
 	if u.shell {
 		pushShell(u.registry, refRepo(u.ref), "2")

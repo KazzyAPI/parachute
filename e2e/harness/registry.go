@@ -165,6 +165,13 @@ func (r *Registry) Manifest(repo, reference string) []byte {
 	return body
 }
 
+func (r *Registry) ForgetLocal(ref string) {
+	r.env.T.Helper()
+	if out, err := r.env.DockerMayFail("rmi", ref); err != nil {
+		r.env.T.Logf("forget %s: %v %s", ref, err, out)
+	}
+}
+
 func (r *Registry) PushImage(ref string) {
 	r.env.T.Helper()
 	r.env.Docker("--config", r.cliConfig, "push", "-q", ref)
