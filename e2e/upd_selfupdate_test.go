@@ -275,8 +275,15 @@ func containerRepoDigest(t *testing.T, env *harness.Env, name string) string {
 
 func selfStatusDocument(t *testing.T, env *harness.Env) map[string]any {
 	t.Helper()
-	env.OpenStateDir()
-	result := env.Parachute("status", "--json", "--include-stopped").Run(runTimeout)
+	var result *harness.Result
+	for attempt := 0; attempt < 5; attempt++ {
+		env.OpenStateDir()
+		result = env.Parachute("status", "--json", "--include-stopped").Run(runTimeout)
+		if result.Code == 0 {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 	assertExit(t, result, 0)
 	var document map[string]any
 	if err := json.Unmarshal([]byte(result.Stdout), &document); err != nil {
