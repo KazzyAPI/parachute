@@ -54,7 +54,7 @@ func TestHOK_006_stack_deferral_holds_both_and_no_die_event(t *testing.T) {
 	assertState(t, result, app, "held", "hook_deferred")
 	assertState(t, result, db, "held", "hook_deferred")
 	for _, line := range rec.Events() {
-		if strings.Contains(line, " die ") && (strings.Contains(line, "app") || strings.Contains(line, "db")) {
+		if strings.Contains(line, " die ") && (strings.Contains(line, app) || strings.Contains(line, db)) {
 			t.Fatalf("unexpected die event: %s", line)
 		}
 	}
