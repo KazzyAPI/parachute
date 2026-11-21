@@ -111,6 +111,7 @@ func (c *Container) Daemon(ctx context.Context) (*Daemon, func() error, error) {
 	collector := metrics.NewCollector(hostNames(hosts))
 	selfRunner := c.selfRunner(store, connected, helper)
 	graphStage, finishStage := c.graphStages(store, connected, helper, selfRunner)
+	finishStage = flushBeforeFinish{reporter: reporter, finish: finishStage}
 	preCheck, postCheck := c.hookStages(connected)
 	runner := NewRunner(c.cyclePipeline(store, reporter, collector, policyStage, graphStage, recovery, preCheck, postCheck, finishStage), hosts, c.cfg.Armed, c.deps.Clock, c.logger)
 	gate := schedule.NewGate(schedule.NewCycleIDs(c.deps.Random), c.deps.Clock, collector)
